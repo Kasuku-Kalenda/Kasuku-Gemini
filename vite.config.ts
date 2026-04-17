@@ -4,12 +4,17 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
-    preview: {
-    allowedHosts: [
-      'kasuku-gemini-2.onrender.com'
-    ]
-  }
+
     return {
+      // Configuration pour le mode preview (Render utilise npm run preview)
+      preview: {
+        allowedHosts: [
+          'kasuku-gemini-2.onrender.com'
+        ],
+        port: 4173, // Port par défaut de Vite preview
+        host: '0.0.0.0'
+      },
+      // Configuration pour le mode dev local
       server: {
         port: 3000,
         host: '0.0.0.0',
