@@ -8,6 +8,7 @@ export default defineConfig(({ mode }) => {
     allowedHosts: [
       'kasuku-gemini-2.onrender.com'
     ]
+  }
     return {
       server: {
         port: 3000,
