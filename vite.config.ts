@@ -4,6 +4,10 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
+    preview: {
+    allowedHosts: [
+      'kasuku-gemini-2.onrender.com'
+    ]
     return {
       server: {
         port: 3000,
