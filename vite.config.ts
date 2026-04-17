@@ -9,7 +9,7 @@ export default defineConfig(({ mode }) => {
       // Configuration pour le mode preview (Render utilise npm run preview)
       preview: {
         allowedHosts: [
-          'kasuku-gemini-3.onrender.com'
+          'kasuku-gemini-1.onrender.com'
         ],
         port: 4173, // Port par défaut de Vite preview
         host: '0.0.0.0'
