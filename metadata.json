@@ -1,0 +1,5 @@
+{
+  "name": "Kasuku Cultural Calendar Moodle",
+  "description": "Kasuku is a responsive web application that serves as a cultural encyclopedia in calendar form. Users can click on a date to discover significant events, filter them by theme, country, or period, and search by keyword.",
+  "requestFramePermissions": []
+}
