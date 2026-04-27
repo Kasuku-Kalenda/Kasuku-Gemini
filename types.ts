@@ -148,9 +148,18 @@ export type TimelineType = 'personnage' | 'evenement';
 export type TimelineStatus = 'draft' | 'published';
 export type TimeType = 'date' | 'period';
 
+export interface MomentResource {
+  id?: string;
+  type: 'audio' | 'video' | 'image' | 'pdf' | 'link';
+  title: string;
+  url: string;
+  caption?: string | null;
+}
+
 export interface TimelineMoment {
   id: string;
   timelineId: string;
+  eventId?: string | null;       // lien vers un événement du calendrier
   title: string;
   narrative: string;
   timeType: TimeType;
@@ -158,6 +167,7 @@ export interface TimelineMoment {
   periodText?: string;
   position: number;
   media: Media[];
+  resources?: MomentResource[];  // ressources complémentaires du moment
 }
 
 export interface TimelineNarrative {

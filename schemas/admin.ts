@@ -149,16 +149,27 @@ export const moduleFormSchema = z.object({
   path: ["moodleInstanceId"],
 });
 
+// ─── Timeline moment resource schema ─────────────────────────────────────────
+export const momentResourceSchema = z.object({
+  id: z.string().optional(),
+  type: z.enum(['audio', 'video', 'image', 'pdf', 'link']),
+  title: z.string().min(1, 'Titre requis'),
+  url: z.string().min(1, 'URL ou fichier requis'),
+  caption: z.string().optional().nullable(),
+});
+
 // NOUVEAUX SCHÉMAS TIMELINE
 export const timelineMomentSchema = z.object({
   id: z.string().optional(),
+  eventId: z.string().optional().nullable(),           // ← lien vers un événement existant
   title: z.string().min(3),
-  narrative: z.string().min(20),
+  narrative: z.string().min(10),                       // relaxed: 10 chars min
   timeType: z.enum(['date', 'period']),
   dateExact: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
   periodText: z.string().optional().nullable(),
   position: z.coerce.number().int().min(0),
-  media: z.array(mediaSchema).default([])
+  media: z.array(mediaSchema).default([]),             // illustration principale
+  resources: z.array(momentResourceSchema).default([]), // ressources complémentaires
 });
 
 export const timelineFormSchema = z.object({
