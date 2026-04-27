@@ -54,7 +54,7 @@ export const themeFormSchema = z.object({
 // ─── Quiz schemas ────────────────────────────────────────────────────────────
 export const quizQuestionSchema = z.object({
   id: z.string().optional(),
-  question: z.string().min(5, 'La question doit avoir au moins 5 caractères'),
+  question: z.string().min(1, 'La question ne peut pas être vide'),
   type: z.enum(['multiple_choice', 'true_false']),
   options: z.array(z.string()).optional(),
   correctIndex: z.coerce.number().int().optional().nullable(),

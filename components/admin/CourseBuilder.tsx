@@ -12,7 +12,7 @@
  *  - file upload buttons for lesson media + course resources
  */
 import React, {
-  useState, useEffect, useRef, useCallback, memo,
+  useState, useEffect, useRef, useCallback, useMemo, memo,
 } from 'react';
 import {
   useForm, useFieldArray, useWatch, Controller,
@@ -499,6 +499,12 @@ export function CourseBuilder({ mode, initialData, onSave }: CourseBuilderProps)
   const [slugAuto, setSlugAuto] = useState(mode === 'create');
   const [allEvents, setAllEvents] = useState<any[]>([]);
   const [timelines, setTimelines] = useState<any[]>([]);
+
+  // ── Event / Timeline filter state ─────────────────────────────────────────
+  const [eventSearch, setEventSearch] = useState('');
+  const [eventCountryFilter, setEventCountryFilter] = useState('');
+  const [eventThemeFilter, setEventThemeFilter] = useState('');
+  const [timelineSearch, setTimelineSearch] = useState('');
   const [thumbPreview, setThumbPreview] = useState<string>(initialData?.thumbnail || '');
   const thumbRef = useRef<HTMLInputElement>(null);
 
@@ -547,6 +553,34 @@ export function CourseBuilder({ mode, initialData, onSave }: CourseBuilderProps)
   const watchedThumb = useWatch({ control, name: 'thumbnail' });
   const watchedEventIds = useWatch({ control, name: 'eventIds' }) as string[];
 
+  // ── Derived filter options (no subscription — recomputed only when data changes) ──
+  const eventCountries = useMemo(() =>
+    [...new Set(allEvents.map((e: any) => e.countryCode).filter(Boolean))].sort() as string[],
+    [allEvents],
+  );
+  const eventThemeNames = useMemo(() =>
+    [...new Set(allEvents.flatMap((e: any) => (e.themes ?? []).map((t: any) => t.name)).filter(Boolean))].sort() as string[],
+    [allEvents],
+  );
+  const filteredEvents = useMemo(() => {
+    const q = eventSearch.toLowerCase();
+    return allEvents.filter((ev: any) => {
+      if (q && !ev.title.toLowerCase().includes(q) &&
+          !String(ev.year ?? '').includes(q) &&
+          !(ev.dateISO ?? '').includes(q) &&
+          !(ev.period ?? '').toLowerCase().includes(q)) return false;
+      if (eventCountryFilter && ev.countryCode !== eventCountryFilter) return false;
+      if (eventThemeFilter && !(ev.themes ?? []).some((t: any) => t.name === eventThemeFilter)) return false;
+      return true;
+    });
+  }, [allEvents, eventSearch, eventCountryFilter, eventThemeFilter]);
+  const filteredTimelines = useMemo(() =>
+    timelines.filter((t: any) =>
+      !timelineSearch || t.title.toLowerCase().includes(timelineSearch.toLowerCase()),
+    ),
+    [timelines, timelineSearch],
+  );
+
   // ── Side effects ──────────────────────────────────────────────────────────
   useEffect(() => {
     Promise.all([
@@ -570,10 +604,13 @@ export function CourseBuilder({ mode, initialData, onSave }: CourseBuilderProps)
     setThumbPreview(watchedThumb || '');
   }, [watchedThumb]);
 
-  // ── Badge counts (computed, no subscription) ──────────────────────────────
-  const totalLessons = sectionsFields.length; // sections count used for badge (re-renders only when sections array changes)
-  const totalResources = resourcesFields.length;
-  const hasAssessment = !!watchedFinalQuiz || watchedHasCert;
+  // ── Badge counts — errors take priority over content counts ───────────────
+  const contentErrors = errors.sections ? Object.keys(errors.sections).length : 0;
+  const resourceErrors = errors.resources ? Object.keys(errors.resources).length : 0;
+  const assessmentErrors = (errors.finalQuiz || errors.certificateName) ? 1 : 0;
+  const totalLessons = contentErrors || sectionsFields.length;
+  const totalResources = resourceErrors || resourcesFields.length;
+  const hasAssessment = assessmentErrors || (!!watchedFinalQuiz || watchedHasCert ? 1 : 0);
 
   // ── Submit ────────────────────────────────────────────────────────────────
   const onSubmit = useCallback(async (data: ModuleFormData) => {
@@ -589,6 +626,14 @@ export function CourseBuilder({ mode, initialData, onSave }: CourseBuilderProps)
       setIsSaving(false);
     }
   }, [mode, initialData, onSave]);
+
+  // Navigate to first tab that has errors
+  const onInvalid = useCallback((errs: any) => {
+    if (errs.sections) { setTab('content'); return; }
+    if (errs.resources) { setTab('resources'); return; }
+    if (errs.finalQuiz || errs.hasCertificate || errs.certificateName) { setTab('assessment'); return; }
+    setTab('info');
+  }, []);
 
   const handleDelete = async () => {
     if (!initialData?.id || !confirm('Supprimer ce module ?')) return;
@@ -635,14 +680,18 @@ export function CourseBuilder({ mode, initialData, onSave }: CourseBuilderProps)
       {errorKeys.length > 0 && (
         <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700 space-y-1">
           <p className="font-bold">⚠️ Veuillez corriger les erreurs suivantes :</p>
-          {errors.title && <p>• Titre : {errors.title.message}</p>}
-          {errors.slug && <p>• Slug : {errors.slug.message}</p>}
-          {errors.summary && <p>• Description : {errors.summary.message}</p>}
-          {errors.objectives && <p>• Objectifs : {(errors.objectives as any)?.message ?? 'Au moins un objectif requis (min 3 caractères)'}</p>}
+          {errors.title && <p>• <strong>Informations</strong> — Titre : {errors.title.message}</p>}
+          {errors.slug && <p>• <strong>Informations</strong> — Slug : {errors.slug.message}</p>}
+          {errors.summary && <p>• <strong>Informations</strong> — Description : {errors.summary.message}</p>}
+          {errors.objectives && <p>• <strong>Informations</strong> — Objectifs : {(errors.objectives as any)?.message ?? 'Au moins un objectif requis (min 3 caractères)'}</p>}
+          {errors.sections && <p>• <strong>Contenu</strong> — Des champs de leçon ou de quiz sont invalides (titre vide, question vide…). L'onglet Contenu a été sélectionné.</p>}
+          {errors.resources && <p>• <strong>Ressources</strong> — Une ressource est incomplète (titre manquant…).</p>}
+          {(errors.finalQuiz || (errors as any).certificateName) && <p>• <strong>Évaluation</strong> — Le quiz final ou le certificat est invalide.</p>}
+          <p className="text-xs text-red-500 mt-1 italic">Cliquez sur le bouton d'enregistrement pour naviguer automatiquement vers l'onglet en erreur.</p>
         </div>
       )}
 
-      <form onSubmit={form.handleSubmit(onSubmit)} noValidate>
+      <form onSubmit={form.handleSubmit(onSubmit, onInvalid)} noValidate>
 
         {/* ══════ TAB: INFORMATIONS ══════════════════════════════════════════ */}
         {tab === 'info' && (
@@ -739,29 +788,84 @@ export function CourseBuilder({ mode, initialData, onSave }: CourseBuilderProps)
                 {allEvents.length === 0 ? (
                   <p className="text-sm text-muted-foreground italic">Aucun événement disponible.</p>
                 ) : (
-                  <div className="max-h-48 overflow-y-auto border border-input rounded-xl p-3 space-y-1">
-                    {allEvents.map((ev: any) => {
-                      const checked = (watchedEventIds ?? []).includes(ev.id);
-                      return (
-                        <label key={ev.id}
-                          className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-colors text-sm ${
-                            checked ? 'bg-primary/10 text-primary font-bold' : 'hover:bg-muted/50 text-secondary'
-                          }`}>
-                          <input type="checkbox" checked={checked} onChange={() => toggleEvent(ev.id)}
-                            className="accent-primary shrink-0" />
-                          <span className="line-clamp-1">{ev.title}</span>
-                          {(ev.dateISO || ev.year) && (
-                            <span className="ml-auto text-xs text-muted-foreground shrink-0">{ev.dateISO ?? ev.year}</span>
-                          )}
-                        </label>
-                      );
-                    })}
-                  </div>
-                )}
-                {(watchedEventIds ?? []).length > 0 && (
-                  <p className="text-xs text-primary font-bold">
-                    {(watchedEventIds ?? []).length} événement{(watchedEventIds ?? []).length > 1 ? 's' : ''} sélectionné{(watchedEventIds ?? []).length > 1 ? 's' : ''}
-                  </p>
+                  <>
+                    {/* Filters */}
+                    <div className="flex flex-wrap gap-2">
+                      <div className="relative flex-1 min-w-[140px]">
+                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">🔍</span>
+                        <input
+                          value={eventSearch}
+                          onChange={e => setEventSearch(e.target.value)}
+                          placeholder="Titre, date, période…"
+                          className="w-full pl-7 pr-3 h-8 rounded-lg border border-input bg-background text-xs focus:outline-none focus:ring-2 focus:ring-primary/30"
+                        />
+                      </div>
+                      {eventCountries.length > 0 && (
+                        <select
+                          value={eventCountryFilter}
+                          onChange={e => setEventCountryFilter(e.target.value)}
+                          className="h-8 rounded-lg border border-input bg-background px-2 text-xs"
+                        >
+                          <option value="">🌍 Tous pays</option>
+                          {eventCountries.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                      )}
+                      {eventThemeNames.length > 0 && (
+                        <select
+                          value={eventThemeFilter}
+                          onChange={e => setEventThemeFilter(e.target.value)}
+                          className="h-8 rounded-lg border border-input bg-background px-2 text-xs"
+                        >
+                          <option value="">🏷️ Tous thèmes</option>
+                          {eventThemeNames.map(t => <option key={t} value={t}>{t}</option>)}
+                        </select>
+                      )}
+                      {(eventSearch || eventCountryFilter || eventThemeFilter) && (
+                        <button type="button"
+                          onClick={() => { setEventSearch(''); setEventCountryFilter(''); setEventThemeFilter(''); }}
+                          className="h-8 px-2 text-xs text-muted-foreground hover:text-red-500 transition-colors">
+                          ✕ Réinitialiser
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Event list */}
+                    <div className="max-h-56 overflow-y-auto border border-input rounded-xl p-2 space-y-0.5">
+                      {filteredEvents.length === 0 ? (
+                        <p className="text-center text-xs text-muted-foreground py-4 italic">Aucun événement ne correspond aux filtres.</p>
+                      ) : filteredEvents.map((ev: any) => {
+                        const checked = (watchedEventIds ?? []).includes(ev.id);
+                        return (
+                          <label key={ev.id}
+                            className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-colors text-sm ${
+                              checked ? 'bg-primary/10 text-primary font-bold' : 'hover:bg-muted/50 text-secondary'
+                            }`}>
+                            <input type="checkbox" checked={checked} onChange={() => toggleEvent(ev.id)}
+                              className="accent-primary shrink-0" />
+                            <span className="flex-1 line-clamp-1">{ev.title}</span>
+                            <span className="flex items-center gap-1.5 shrink-0">
+                              {ev.countryCode && (
+                                <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded font-mono">{ev.countryCode}</span>
+                              )}
+                              {(ev.dateISO || ev.year) && (
+                                <span className="text-xs text-muted-foreground">{ev.dateISO ?? ev.year}</span>
+                              )}
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-muted-foreground">
+                        {filteredEvents.length} sur {allEvents.length} événement{allEvents.length > 1 ? 's' : ''}
+                      </p>
+                      {(watchedEventIds ?? []).length > 0 && (
+                        <p className="text-xs text-primary font-bold">
+                          ✓ {(watchedEventIds ?? []).length} sélectionné{(watchedEventIds ?? []).length > 1 ? 's' : ''}
+                        </p>
+                      )}
+                    </div>
+                  </>
                 )}
               </div>
             </div>
@@ -804,14 +908,30 @@ export function CourseBuilder({ mode, initialData, onSave }: CourseBuilderProps)
 
                 <div className="space-y-2">
                   <Label>Parcours (Timeline) lié</Label>
+                  {timelines.length > 4 && (
+                    <div className="relative">
+                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">🔍</span>
+                      <input
+                        value={timelineSearch}
+                        onChange={e => setTimelineSearch(e.target.value)}
+                        placeholder="Filtrer les récits…"
+                        className="w-full pl-7 pr-3 h-8 rounded-lg border border-input bg-background text-xs focus:outline-none focus:ring-2 focus:ring-primary/30 mb-1"
+                      />
+                    </div>
+                  )}
                   <Controller control={control} name="timelineSlug"
                     render={({ field }) => (
                       <select {...field} value={field.value ?? ''}
                         className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
                         <option value="">— Aucun —</option>
-                        {timelines.map((t: any) => <option key={t.id} value={t.slug}>{t.title}</option>)}
+                        {filteredTimelines.map((t: any) => (
+                          <option key={t.id} value={t.slug}>{t.title}</option>
+                        ))}
                       </select>
                     )} />
+                  {timelineSearch && filteredTimelines.length === 0 && (
+                    <p className="text-xs text-muted-foreground italic">Aucun récit correspondant.</p>
+                  )}
                 </div>
 
                 <div className="space-y-2">
