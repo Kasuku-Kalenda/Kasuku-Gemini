@@ -17,7 +17,7 @@ import { ArrowLeftIcon } from '../icons/ArrowLeftIcon';
 import { DatabaseIcon } from '../icons/DatabaseIcon';
 import { TimelineIcon } from '../icons/TimelineIcon';
 
-type AdminView = 'adminDashboard' | 'adminEvents' | 'adminModules' | 'adminThemes' | 'adminFeatured' | 'adminTimelines' | 'adminMoodleInstances' | 'adminMoodleCourses' | 'adminMoodlePackages' | 'adminMoodleMaps' | 'adminSync' | 'adminImport';
+type AdminView = 'adminDashboard' | 'adminEvents' | 'adminModules' | 'adminThemes' | 'adminFeatured' | 'adminTimelines' | 'adminSync' | 'adminImport' | string;
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -61,10 +61,7 @@ const navItems = [
   { view: 'adminThemes', label: 'Thèmes', icon: <ThemeIcon className="h-5 w-5" /> },
   { view: 'adminImport', label: 'Import en masse', icon: <span className="h-5 w-5 flex items-center justify-center text-base">⬆️</span> },
   { view: 'adminSync', label: 'Synchronisation', icon: <SyncIcon className="h-5 w-5" /> },
-  { view: 'adminMoodleInstances', label: 'Moodle Instances', icon: <DatabaseIcon className="h-5 w-5" /> },
-  { view: 'adminMoodleCourses', label: 'Moodle Courses', icon: <DatabaseIcon className="h-5 w-5" /> },
-  { view: 'adminMoodlePackages', label: 'Moodle Packages', icon: <DatabaseIcon className="h-5 w-5" /> },
-  { view: 'adminMoodleMaps', label: 'Moodle Maps', icon: <DatabaseIcon className="h-5 w-5" /> },
+  // Moodle admin nav items removed — management done directly in module form
 ] as const;
 
 

@@ -43,8 +43,12 @@ export const eventFormSchema = z.object({
 });
 
 export const themeFormSchema = z.object({
-  name: z.string().min(2, { message: "Name must be at least 2 characters" }),
-  slug: z.string().min(2, { message: "Slug must be at least 2 characters" })
+  name: z.string().min(2, { message: "Le nom doit avoir au moins 2 caractères" }),
+  slug: z.string().min(2, { message: "Le slug doit avoir au moins 2 caractères" }),
+  color: z.string()
+    .regex(/^#[0-9A-Fa-f]{6}$/, { message: "Couleur hex invalide (ex: #E57C3C)" })
+    .default('#6B7280'),
+  emoji: z.string().max(4, { message: "Un seul emoji" }).optional().default(''),
 });
 
 // ─── Quiz schemas ────────────────────────────────────────────────────────────

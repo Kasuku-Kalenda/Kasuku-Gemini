@@ -17,6 +17,8 @@ export interface Theme {
   id: string;
   name: string;
   slug: string;
+  color?: string;   // hex ex: "#E57C3C"
+  emoji?: string;   // ex: "🎵"
 }
 
 export interface Creator {
