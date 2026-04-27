@@ -17,8 +17,8 @@ export const Footer: React.FC = () => {
               <ParrotIcon className="h-7 w-7 text-primary shrink-0" />
               <span className="text-xl font-bold text-white tracking-tight">Kasuku</span>
             </div>
-            <p className="text-xs text-white/50 leading-relaxed max-w-[200px]">
-              Le calendrier culturel africain en Belgique.
+            <p className="text-xs text-white/50 leading-relaxed max-w-[220px]">
+              La mémoire vivante de l'Afrique au bout des doigts.
             </p>
           </div>
 
@@ -33,7 +33,7 @@ export const Footer: React.FC = () => {
           <div className="flex flex-col gap-2 sm:items-end">
             <p className="text-[10px] uppercase tracking-widest text-white/30 font-semibold mb-1">Créé par</p>
             <a
-              href="https://afrikia.be"
+              href="https://afrikia.org"
               target="_blank"
               rel="noopener noreferrer"
               className="opacity-80 hover:opacity-100 transition-opacity"
@@ -42,7 +42,8 @@ export const Footer: React.FC = () => {
               <img
                 src="/afrikia-logo-white.svg"
                 alt="Afrikia"
-                className="h-7 w-auto object-contain"
+                className="h-7 w-auto"
+                style={{ minWidth: '90px' }}
               />
             </a>
           </div>
