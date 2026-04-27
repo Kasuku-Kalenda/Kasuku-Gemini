@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { ParrotIcon } from '../icons/ParrotIcon';
 import { LogOutIcon } from '../icons/LogOutIcon';
@@ -17,7 +17,7 @@ import { ArrowLeftIcon } from '../icons/ArrowLeftIcon';
 import { DatabaseIcon } from '../icons/DatabaseIcon';
 import { TimelineIcon } from '../icons/TimelineIcon';
 
-type AdminView = 'adminDashboard' | 'adminEvents' | 'adminModules' | 'adminThemes' | 'adminFeatured' | 'adminTimelines' | 'adminMoodleInstances' | 'adminMoodleCourses' | 'adminMoodlePackages' | 'adminMoodleMaps';
+type AdminView = 'adminDashboard' | 'adminEvents' | 'adminModules' | 'adminThemes' | 'adminFeatured' | 'adminTimelines' | 'adminMoodleInstances' | 'adminMoodleCourses' | 'adminMoodlePackages' | 'adminMoodleMaps' | 'adminSync' | 'adminImport';
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -44,13 +44,23 @@ const NavLink: React.FC<NavLinkProps> = ({ label, icon, isActive, onClick }) => 
   </button>
 );
 
+// Icône de synchronisation inline
+const SyncIcon: React.FC<{ className?: string }> = ({ className = 'h-5 w-5' }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+  </svg>
+);
+
 const navItems = [
   { view: 'adminDashboard', label: 'Dashboard', icon: <DashboardIcon className="h-5 w-5" /> },
   { view: 'adminFeatured', label: 'À la une', icon: <MegaphoneIcon className="h-5 w-5" /> },
   { view: 'adminTimelines', label: 'Timelines (Parcours)', icon: <TimelineIcon className="h-5 w-5" /> },
   { view: 'adminEvents', label: 'Événements Calendrier', icon: <ContentIcon className="h-5 w-5" /> },
   { view: 'adminModules', label: 'Modules', icon: <ModulesIcon className="h-5 w-5" /> },
-  { view: 'adminThemes', label: 'Themes', icon: <ThemeIcon className="h-5 w-5" /> },
+  { view: 'adminThemes', label: 'Thèmes', icon: <ThemeIcon className="h-5 w-5" /> },
+  { view: 'adminImport', label: 'Import en masse', icon: <span className="h-5 w-5 flex items-center justify-center text-base">⬆️</span> },
+  { view: 'adminSync', label: 'Synchronisation', icon: <SyncIcon className="h-5 w-5" /> },
   { view: 'adminMoodleInstances', label: 'Moodle Instances', icon: <DatabaseIcon className="h-5 w-5" /> },
   { view: 'adminMoodleCourses', label: 'Moodle Courses', icon: <DatabaseIcon className="h-5 w-5" /> },
   { view: 'adminMoodlePackages', label: 'Moodle Packages', icon: <DatabaseIcon className="h-5 w-5" /> },
@@ -63,6 +73,15 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children, currentView,
     const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
     const userMenuRef = useRef<HTMLDivElement>(null);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+    useEffect(() => {
+        const onOnline = () => setIsOnline(true);
+        const onOffline = () => setIsOnline(false);
+        window.addEventListener('online', onOnline);
+        window.addEventListener('offline', onOffline);
+        return () => { window.removeEventListener('online', onOnline); window.removeEventListener('offline', onOffline); };
+    }, []);
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -127,6 +146,18 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children, currentView,
                         <h1 className="text-lg font-semibold">{navItems.find(i => i.view === currentView)?.label || 'Dashboard'}</h1>
                     </div>
                     <div className="flex items-center gap-4">
+                        {/* Indicateur offline/online */}
+                        <div
+                            title={isOnline ? 'Connecté' : 'Hors ligne — données locales uniquement'}
+                            className={`hidden sm:flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border ${
+                                isOnline
+                                    ? 'bg-green-50 text-green-700 border-green-200'
+                                    : 'bg-amber-50 text-amber-700 border-amber-200'
+                            }`}
+                        >
+                            <span className={`h-2 w-2 rounded-full ${isOnline ? 'bg-green-500' : 'bg-amber-500'}`} />
+                            {isOnline ? 'En ligne' : 'Hors ligne'}
+                        </div>
                         <Button variant="outline" size="sm" className="hidden md:flex items-center gap-2" onClick={() => navigateTo('calendar')}>
                             <ArrowLeftIcon className="h-4 w-4" />
                             Retour au site

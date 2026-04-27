@@ -1,84 +1,108 @@
-
-import { EVENTS, THEMES, ALL_TRAINING_MODULES, FEATURED_ITEMS, MOODLE_INSTANCES, MOODLE_COURSES, MOODLE_PACKAGES, MOODLE_MAPS, TIMELINES } from '../constants';
-import type { Event, TrainingModule, Theme, FeaturedItem, MoodleInstance, MoodleCourse, MoodleOfflinePackage, MoodleCourseMap, TimelineNarrative, TimelineMoment } from '../types';
+import { db } from './db';
+import type { Event, TrainingModule, Theme, FeaturedItem, MoodleInstance, MoodleCourse, MoodleOfflinePackage, MoodleCourseMap, TimelineNarrative } from '../types';
 import type { EventFormData, ModuleFormData, ThemeFormData, FeaturedFormData, TimelineFormData } from '../schemas/admin';
 import type { MoodleInstanceFormData, MoodleCourseFormData, MoodlePackageFormData, MoodleMapFormData } from '../schemas/moodle';
 
-const simulateDelay = (ms = 50) => new Promise(res => setTimeout(res, ms));
+// --- Timelines ---
 
-// --- Timelines API ---
+// Extrait une année d'un texte de période (ex: "Été 1944", "1943")
+const extractYearFromText = (text?: string | null): number | null => {
+    if (!text) return null;
+    const m = text.match(/\b(\d{3,4})\b/);
+    if (!m) return null;
+    const y = parseInt(m[1], 10);
+    return y >= 100 && y <= 2200 ? y : null;
+};
+
+// Convertit un moment en timestamp de tri (prend en compte dateExact ET periodText)
+const momentSortTs = (m: { dateExact?: string | null; periodText?: string | null; position?: number | null }): number => {
+    if (m.dateExact) {
+        const ts = new Date(m.dateExact + 'T12:00:00Z').getTime();
+        if (!isNaN(ts)) return ts;
+    }
+    const y = extractYearFromText(m.periodText);
+    if (y) return new Date(`${y}-07-01T12:00:00Z`).getTime();
+    return Infinity;
+};
+
+// Trie les moments chronologiquement : dateExact > année extraite de periodText > position manuelle
+const sortMoments = (moments: TimelineNarrative['moments']): TimelineNarrative['moments'] =>
+    [...moments].sort((a, b) => {
+        const ta = momentSortTs(a);
+        const tb = momentSortTs(b);
+        if (ta !== tb) return ta - tb;
+        return (a.position ?? 0) - (b.position ?? 0); // Tie-break : ordre manuel
+    }).map((m, i) => ({ ...m, position: i }));
+
 const listTimelines = async () => {
-    await simulateDelay();
-    return { items: [...TIMELINES].sort((a, b) => (b.id > a.id ? 1 : -1)) };
+    const items = await db.timelines.orderBy('id').reverse().toArray();
+    return { items };
 };
 
 const getTimeline = async (id: string): Promise<TimelineNarrative | null> => {
-    await simulateDelay();
-    return TIMELINES.find(t => t.id === id) || null;
+    return (await db.timelines.get(id)) ?? null;
 };
 
-const createTimeline = async (data: TimelineFormData) => {
-    await simulateDelay();
+const createTimeline = async (data: TimelineFormData): Promise<TimelineNarrative> => {
+    const id = `tl${Date.now()}`;
+    const now = new Date().toISOString();
+    const rawMoments = data.moments.map((m, i) => ({
+        ...m,
+        id: m.id || `mom${crypto.randomUUID()}`,
+        timelineId: id,
+        position: m.position ?? i,
+    })) as TimelineNarrative['moments'];
     const newTimeline: TimelineNarrative = {
-        id: `tl${Date.now()}`,
+        id,
         ...data,
-        eventCount: data.moments.length,
-        moments: data.moments.map((m, i) => ({
-            ...m,
-            id: m.id || `mom${Math.random()}`,
-            timelineId: `tl${Date.now()}`,
-            position: m.position ?? i
-        })) as any
+        eventCount: rawMoments.length,
+        createdAt: now,
+        updatedAt: now,
+        moments: sortMoments(rawMoments),
     };
-    TIMELINES.unshift(newTimeline);
+    await db.timelines.add(newTimeline);
     return newTimeline;
 };
 
-const updateTimeline = async (id: string, data: TimelineFormData) => {
-    await simulateDelay();
-    const idx = TIMELINES.findIndex(t => t.id === id);
-    if (idx === -1) throw new Error("Timeline not found");
+const updateTimeline = async (id: string, data: TimelineFormData): Promise<TimelineNarrative> => {
+    const existing = await db.timelines.get(id);
+    if (!existing) throw new Error('Timeline non trouvée');
+    const rawMoments = data.moments.map((m, i) => ({
+        ...m,
+        id: m.id || `mom${crypto.randomUUID()}`,
+        timelineId: id,
+        position: m.position ?? i,
+    })) as TimelineNarrative['moments'];
     const updated: TimelineNarrative = {
-        ...TIMELINES[idx],
+        ...existing,
         ...data,
-        eventCount: data.moments.length,
-        moments: data.moments.map((m, i) => ({
-            ...m,
-            id: m.id || `mom${Math.random()}`,
-            timelineId: id,
-            position: m.position ?? i
-        })) as any
+        id,
+        eventCount: rawMoments.length,
+        updatedAt: new Date().toISOString(),
+        moments: sortMoments(rawMoments),
     };
-    TIMELINES[idx] = updated;
+    await db.timelines.put(updated);
     return updated;
 };
 
-const deleteTimeline = async (id: string) => {
-    await simulateDelay();
-    const idx = TIMELINES.findIndex(t => t.id === id);
-    if (idx > -1) {
-        TIMELINES.splice(idx, 1);
-        return true;
-    }
-    return false;
+const deleteTimeline = async (id: string): Promise<boolean> => {
+    await db.timelines.delete(id);
+    return true;
 };
 
-// --- Events API ---
+// --- Events ---
 const listEvents = async () => {
-    await simulateDelay();
-    const sorted = [...EVENTS].sort((a, b) => (b.id > a.id ? 1 : -1));
-    return { items: sorted };
+    const items = await db.events.orderBy('id').reverse().toArray();
+    return { items };
 };
 
 const getEvent = async (id: string): Promise<Event | null> => {
-    await simulateDelay();
-    const event = EVENTS.find(e => e.id === id);
-    if (!event) return null;
-    return { ...event, themeIds: event.themes.map(t => t.id) } as any;
+    return (await db.events.get(id)) ?? null;
 };
 
-const createEvent = async (data: EventFormData) => {
-    await simulateDelay();
+const createEvent = async (data: EventFormData): Promise<Event> => {
+    const themes = await db.themes.where('id').anyOf(data.themeIds).toArray();
+    const timeline = data.timelineId ? await db.timelines.get(data.timelineId) : undefined;
     const newEvent: Event = {
         id: `evt${Date.now()}`,
         ...data,
@@ -86,317 +110,302 @@ const createEvent = async (data: EventFormData) => {
         dateISO: data.dateISO ?? undefined,
         year: data.year ?? undefined,
         period: data.period ?? undefined,
-        themes: THEMES.filter(t => data.themeIds.includes(t.id)),
-        media: data.media.map(m => ({...m, id: `med${Math.random()}`})),
-        sources: data.sources.map(s => ({...s, id: `src${Math.random()}`})),
+        themes,
+        media: data.media.map(m => ({ ...m, id: `med${crypto.randomUUID()}` })),
+        sources: data.sources.map(s => ({ ...s, id: `src${crypto.randomUUID()}` })),
         timelineId: data.timelineId ?? undefined,
         timelineMomentId: data.timelineMomentId ?? undefined,
-        timelineSlug: TIMELINES.find(t => t.id === data.timelineId)?.slug
+        timelineSlug: timeline?.slug,
     };
-    EVENTS.unshift(newEvent);
+    await db.events.add(newEvent);
     return newEvent;
 };
 
-const updateEvent = async (id: string, data: EventFormData) => {
-    await simulateDelay();
-    const eventIndex = EVENTS.findIndex(e => e.id === id);
-    if (eventIndex === -1) throw new Error("Event not found");
-
+const updateEvent = async (id: string, data: EventFormData): Promise<Event> => {
+    const existing = await db.events.get(id);
+    if (!existing) throw new Error('Événement non trouvé');
+    const themes = await db.themes.where('id').anyOf(data.themeIds).toArray();
+    const timeline = data.timelineId ? await db.timelines.get(data.timelineId) : undefined;
     const updatedEvent: Event = {
-        ...EVENTS[eventIndex],
+        ...existing,
         ...data,
+        id,
         countryCode: data.countryCode ?? undefined,
         dateISO: data.dateISO ?? undefined,
         year: data.year ?? undefined,
         period: data.period ?? undefined,
-        themes: THEMES.filter(t => data.themeIds.includes(t.id)),
-        media: data.media.map(m => ({...m, id: m.id || `med${Math.random()}`})),
-        sources: data.sources.map(s => ({...s, id: s.id || `src${Math.random()}`})),
+        themes,
+        media: data.media.map(m => ({ ...m, id: m.id || `med${crypto.randomUUID()}` })),
+        sources: data.sources.map(s => ({ ...s, id: s.id || `src${crypto.randomUUID()}` })),
         timelineId: data.timelineId ?? undefined,
         timelineMomentId: data.timelineMomentId ?? undefined,
-        timelineSlug: TIMELINES.find(t => t.id === data.timelineId)?.slug
+        timelineSlug: timeline?.slug,
     };
-
-    EVENTS[eventIndex] = updatedEvent;
+    await db.events.put(updatedEvent);
     return updatedEvent;
 };
 
-const deleteEvent = async (id: string) => {
-    await simulateDelay();
-    const index = EVENTS.findIndex(e => e.id === id);
-    if (index > -1) {
-        EVENTS.splice(index, 1);
-        return true;
-    }
-    return false;
+const deleteEvent = async (id: string): Promise<boolean> => {
+    await db.events.delete(id);
+    return true;
 };
 
-// --- Themes API ---
+// --- Themes ---
 const listThemes = async () => {
-    await simulateDelay();
-    return { items: [...THEMES].sort((a, b) => a.name.localeCompare(b.name)) };
+    const items = await db.themes.orderBy('slug').toArray();
+    return { items };
 };
 
 const getTheme = async (id: string): Promise<Theme | null> => {
-    await simulateDelay();
-    return THEMES.find(t => t.id === id) || null;
+    return (await db.themes.get(id)) ?? null;
 };
 
-const createTheme = async (data: ThemeFormData) => {
-    await simulateDelay();
+const createTheme = async (data: ThemeFormData): Promise<Theme> => {
     const newTheme: Theme = { id: `theme${Date.now()}`, ...data };
-    THEMES.push(newTheme);
+    await db.themes.add(newTheme);
     return newTheme;
 };
 
-const updateTheme = async (id: string, data: ThemeFormData) => {
-    await simulateDelay();
-    const themeIndex = THEMES.findIndex(t => t.id === id);
-    if (themeIndex === -1) throw new Error("Theme not found");
-    const updatedTheme = { ...THEMES[themeIndex], ...data };
-    THEMES[themeIndex] = updatedTheme;
+const updateTheme = async (id: string, data: ThemeFormData): Promise<Theme> => {
+    const existing = await db.themes.get(id);
+    if (!existing) throw new Error('Thème non trouvé');
+    const updatedTheme = { ...existing, ...data };
+    await db.themes.put(updatedTheme);
     return updatedTheme;
 };
 
-const deleteTheme = async (id: string) => {
-    await simulateDelay();
-    const index = THEMES.findIndex(t => t.id === id);
-    if (index > -1) {
-        THEMES.splice(index, 1);
-        return true;
-    }
-    return false;
+const deleteTheme = async (id: string): Promise<boolean> => {
+    await db.themes.delete(id);
+    return true;
 };
 
-
-// --- Modules API ---
+// --- Modules ---
 const listModules = async () => {
-    await simulateDelay();
-    return { items: [...ALL_TRAINING_MODULES].sort((a, b) => (b.updatedAt > a.updatedAt ? 1 : -1)) };
+    const items = await db.modules.orderBy('updatedAt').reverse().toArray();
+    return { items };
 };
 
 const getModule = async (id: string): Promise<TrainingModule | null> => {
-    await simulateDelay();
-    return ALL_TRAINING_MODULES.find(m => m.id === id) || null;
+    return (await db.modules.get(id)) ?? null;
 };
 
-const createModule = async (data: ModuleFormData) => {
-    await simulateDelay();
+const createModule = async (data: ModuleFormData): Promise<TrainingModule> => {
     const newModule: TrainingModule = {
         id: `mod${Date.now()}`,
         ...data,
-        creators: [], 
+        creators: [],
         sponsors: [],
         updatedAt: new Date().toISOString(),
         sections: (data.sections ?? []).map(s => ({
             ...s,
-            id: s.id || `sec${Math.random()}`,
-            lessons: s.lessons.map(l => ({...l, id: l.id || `les${Math.random()}`}))
-        }))
+            id: s.id || `sec${crypto.randomUUID()}`,
+            lessons: s.lessons.map(l => ({
+                ...l,
+                id: l.id || `les${crypto.randomUUID()}`,
+                quiz: l.quiz ? { ...l.quiz, id: l.quiz.id || `qz${crypto.randomUUID()}` } : null,
+            })),
+            quiz: s.quiz ? { ...s.quiz, id: s.quiz.id || `qz${crypto.randomUUID()}` } : null,
+        })),
     };
-    ALL_TRAINING_MODULES.unshift(newModule);
+    await db.modules.add(newModule);
     return newModule;
 };
 
-const updateModule = async (id: string, data: ModuleFormData) => {
-    await simulateDelay();
-    const moduleIndex = ALL_TRAINING_MODULES.findIndex(m => m.id === id);
-    if (moduleIndex === -1) throw new Error("Module not found");
-
+const updateModule = async (id: string, data: ModuleFormData): Promise<TrainingModule> => {
+    const existing = await db.modules.get(id);
+    if (!existing) throw new Error('Module non trouvé');
     const updatedModule: TrainingModule = {
-        ...ALL_TRAINING_MODULES[moduleIndex],
+        ...existing,
         ...data,
+        id,
         updatedAt: new Date().toISOString(),
-        sections: data.moduleType === 'internal' ? (data.sections ?? []).map(s => ({
-            ...s,
-            id: s.id || `sec${Math.random()}`,
-            lessons: s.lessons.map(l => ({...l, id: l.id || `les${Math.random()}`}))
-        })) : [],
+        sections: data.moduleType === 'internal'
+            ? (data.sections ?? []).map(s => ({
+                ...s,
+                id: s.id || `sec${crypto.randomUUID()}`,
+                lessons: s.lessons.map(l => ({
+                    ...l,
+                    id: l.id || `les${crypto.randomUUID()}`,
+                    quiz: l.quiz ? { ...l.quiz, id: l.quiz.id || `qz${crypto.randomUUID()}` } : null,
+                })),
+                quiz: s.quiz ? { ...s.quiz, id: s.quiz.id || `qz${crypto.randomUUID()}` } : null,
+            }))
+            : [],
     };
-    ALL_TRAINING_MODULES[moduleIndex] = updatedModule;
+    await db.modules.put(updatedModule);
     return updatedModule;
 };
 
-const deleteModule = async (id: string) => {
-    await simulateDelay();
-    const index = ALL_TRAINING_MODULES.findIndex(m => m.id === id);
-    if (index > -1) {
-        ALL_TRAINING_MODULES.splice(index, 1);
-        return true;
-    }
-    return false;
+const deleteModule = async (id: string): Promise<boolean> => {
+    await db.modules.delete(id);
+    return true;
 };
 
-// --- Featured API ---
+// --- Featured ---
 const listFeatured = async () => {
-    await simulateDelay();
-    return { items: [...FEATURED_ITEMS].sort((a, b) => a.order - b.order) };
+    const items = await db.featured.orderBy('order').toArray();
+    return { items };
 };
 
 const getFeatured = async (id: string): Promise<FeaturedItem | null> => {
-    await simulateDelay();
-    return FEATURED_ITEMS.find(f => f.id === id) || null;
+    return (await db.featured.get(id)) ?? null;
 };
 
-const createFeatured = async (data: FeaturedFormData) => {
-    await simulateDelay();
+const createFeatured = async (data: FeaturedFormData): Promise<FeaturedItem> => {
     const newItem: FeaturedItem = { id: `feat${Date.now()}`, ...data };
-    FEATURED_ITEMS.push(newItem);
+    await db.featured.add(newItem);
     return newItem;
 };
 
-const updateFeatured = async (id: string, data: FeaturedFormData) => {
-    await simulateDelay();
-    const index = FEATURED_ITEMS.findIndex(f => f.id === id);
-    if (index === -1) throw new Error("Featured item not found");
-    const updatedItem: FeaturedItem = { ...FEATURED_ITEMS[index], ...data };
-    FEATURED_ITEMS[index] = updatedItem;
+const updateFeatured = async (id: string, data: FeaturedFormData): Promise<FeaturedItem> => {
+    const existing = await db.featured.get(id);
+    if (!existing) throw new Error('Featured item non trouvé');
+    const updatedItem = { ...existing, ...data };
+    await db.featured.put(updatedItem);
     return updatedItem;
 };
 
-const deleteFeatured = async (id: string) => {
-    await simulateDelay();
-    const index = FEATURED_ITEMS.findIndex(f => f.id === id);
-    if (index > -1) {
-        FEATURED_ITEMS.splice(index, 1);
-        return true;
-    }
-    return false;
+const deleteFeatured = async (id: string): Promise<boolean> => {
+    await db.featured.delete(id);
+    return true;
 };
 
-// --- Moodle APIs ---
+// --- Moodle Instances ---
 const listMoodleInstances = async () => {
-    await simulateDelay();
-    return { items: [...MOODLE_INSTANCES].sort((a, b) => (b.createdAt > a.createdAt ? 1 : -1)) };
-};
-const getMoodleInstance = async (id: string) => {
-    await simulateDelay();
-    return MOODLE_INSTANCES.find(i => i.id === id) || null;
-};
-const createMoodleInstance = async (data: MoodleInstanceFormData) => {
-    await simulateDelay();
-    const newItem: MoodleInstance = { ...data, id: `minst_${Date.now()}`, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
-    MOODLE_INSTANCES.unshift(newItem);
-    return newItem;
-};
-const updateMoodleInstance = async (id: string, data: MoodleInstanceFormData) => {
-    await simulateDelay();
-    const index = MOODLE_INSTANCES.findIndex(i => i.id === id);
-    if (index === -1) throw new Error("Instance not found");
-    const updatedItem = { ...MOODLE_INSTANCES[index], ...data, updatedAt: new Date().toISOString() };
-    MOODLE_INSTANCES[index] = updatedItem;
-    return updatedItem;
-};
-const deleteMoodleInstance = async (id: string) => {
-    await simulateDelay();
-    const index = MOODLE_INSTANCES.findIndex(i => i.id === id);
-    if (index > -1) { MOODLE_INSTANCES.splice(index, 1); return true; }
-    return false;
+    const items = await db.moodleInstances.orderBy('createdAt').reverse().toArray();
+    return { items };
 };
 
+const getMoodleInstance = async (id: string): Promise<MoodleInstance | null> => {
+    return (await db.moodleInstances.get(id)) ?? null;
+};
+
+const createMoodleInstance = async (data: MoodleInstanceFormData): Promise<MoodleInstance> => {
+    const now = new Date().toISOString();
+    const newItem: MoodleInstance = { ...data, id: `minst_${Date.now()}`, createdAt: now, updatedAt: now };
+    await db.moodleInstances.add(newItem);
+    return newItem;
+};
+
+const updateMoodleInstance = async (id: string, data: MoodleInstanceFormData): Promise<MoodleInstance> => {
+    const existing = await db.moodleInstances.get(id);
+    if (!existing) throw new Error('Instance Moodle non trouvée');
+    const updatedItem = { ...existing, ...data, updatedAt: new Date().toISOString() };
+    await db.moodleInstances.put(updatedItem);
+    return updatedItem;
+};
+
+const deleteMoodleInstance = async (id: string): Promise<boolean> => {
+    await db.moodleInstances.delete(id);
+    return true;
+};
+
+// --- Moodle Courses ---
 const listMoodleCourses = async () => {
-    await simulateDelay();
-    return { items: [...MOODLE_COURSES].sort((a, b) => (b.createdAt > a.createdAt ? 1 : -1)) };
-};
-const getMoodleCourse = async (id: string) => {
-    await simulateDelay();
-    return MOODLE_COURSES.find(i => i.id === id) || null;
-};
-const createMoodleCourse = async (data: MoodleCourseFormData) => {
-    await simulateDelay();
-    const newItem: MoodleCourse = { ...data, id: `mcourse_${Date.now()}`, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
-    MOODLE_COURSES.unshift(newItem);
-    return newItem;
-};
-const updateMoodleCourse = async (id: string, data: MoodleCourseFormData) => {
-    await simulateDelay();
-    const index = MOODLE_COURSES.findIndex(i => i.id === id);
-    if (index === -1) throw new Error("Course not found");
-    const updatedItem = { ...MOODLE_COURSES[index], ...data, updatedAt: new Date().toISOString() };
-    MOODLE_COURSES[index] = updatedItem;
-    return updatedItem;
-};
-const deleteMoodleCourse = async (id: string) => {
-    await simulateDelay();
-    const index = MOODLE_COURSES.findIndex(i => i.id === id);
-    if (index > -1) { MOODLE_COURSES.splice(index, 1); return true; }
-    return false;
+    const items = await db.moodleCourses.orderBy('createdAt').reverse().toArray();
+    return { items };
 };
 
-const listMoodlePackages = async () => {
-    await simulateDelay();
-    return { items: [...MOODLE_PACKAGES].sort((a, b) => (b.createdAt > a.createdAt ? 1 : -1)) };
+const getMoodleCourse = async (id: string): Promise<MoodleCourse | null> => {
+    return (await db.moodleCourses.get(id)) ?? null;
 };
-const getMoodlePackage = async (id: string) => {
-    await simulateDelay();
-    return MOODLE_PACKAGES.find(i => i.id === id) || null;
-};
-const createMoodlePackage = async (data: MoodlePackageFormData) => {
-    await simulateDelay();
-    const newItem: MoodleOfflinePackage = { ...data, id: `mpkg_${Date.now()}`, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
-    MOODLE_PACKAGES.unshift(newItem);
+
+const createMoodleCourse = async (data: MoodleCourseFormData): Promise<MoodleCourse> => {
+    const now = new Date().toISOString();
+    const newItem: MoodleCourse = { ...data, id: `mcourse_${Date.now()}`, createdAt: now, updatedAt: now };
+    await db.moodleCourses.add(newItem);
     return newItem;
 };
-const updateMoodlePackage = async (id: string, data: MoodlePackageFormData) => {
-    await simulateDelay();
-    const index = MOODLE_PACKAGES.findIndex(i => i.id === id);
-    if (index === -1) throw new Error("Package not found");
-    const updatedItem = { ...MOODLE_PACKAGES[index], ...data, updatedAt: new Date().toISOString() };
-    MOODLE_PACKAGES[index] = updatedItem;
+
+const updateMoodleCourse = async (id: string, data: MoodleCourseFormData): Promise<MoodleCourse> => {
+    const existing = await db.moodleCourses.get(id);
+    if (!existing) throw new Error('Cours Moodle non trouvé');
+    const updatedItem = { ...existing, ...data, updatedAt: new Date().toISOString() };
+    await db.moodleCourses.put(updatedItem);
     return updatedItem;
 };
-const deleteMoodlePackage = async (id: string) => {
-    await simulateDelay();
-    const index = MOODLE_PACKAGES.findIndex(i => i.id === id);
-    if (index > -1) { MOODLE_PACKAGES.splice(index, 1); return true; }
-    return false;
+
+const deleteMoodleCourse = async (id: string): Promise<boolean> => {
+    await db.moodleCourses.delete(id);
+    return true;
 };
-const uploadMoodlePackage = async (courseId: string, file: File) => {
-    await simulateDelay();
+
+// --- Moodle Packages ---
+const listMoodlePackages = async () => {
+    const items = await db.moodlePackages.orderBy('createdAt').reverse().toArray();
+    return { items };
+};
+
+const getMoodlePackage = async (id: string): Promise<MoodleOfflinePackage | null> => {
+    return (await db.moodlePackages.get(id)) ?? null;
+};
+
+const createMoodlePackage = async (data: MoodlePackageFormData): Promise<MoodleOfflinePackage> => {
+    const now = new Date().toISOString();
+    const newItem: MoodleOfflinePackage = { ...data, id: `mpkg_${Date.now()}`, createdAt: now, updatedAt: now };
+    await db.moodlePackages.add(newItem);
+    return newItem;
+};
+
+const updateMoodlePackage = async (id: string, data: MoodlePackageFormData): Promise<MoodleOfflinePackage> => {
+    const existing = await db.moodlePackages.get(id);
+    if (!existing) throw new Error('Package Moodle non trouvé');
+    const updatedItem = { ...existing, ...data, updatedAt: new Date().toISOString() };
+    await db.moodlePackages.put(updatedItem);
+    return updatedItem;
+};
+
+const deleteMoodlePackage = async (id: string): Promise<boolean> => {
+    await db.moodlePackages.delete(id);
+    return true;
+};
+
+const uploadMoodlePackage = async (courseId: string, file: File): Promise<MoodleOfflinePackage> => {
+    const now = new Date().toISOString();
     const newPackage: MoodleOfflinePackage = {
-      id: `moodle_pkg_${Date.now()}`,
-      courseId,
-      type: file.name.endsWith('.h5p') ? 'H5P' : 'SCORM',
-      title: file.name,
-      storagePath: `/uploads/moodle/${file.name.replace(/\.(zip|h5p)$/i, '')}/`,
-      manifestPath: `/uploads/moodle/${file.name.replace(/\.(zip|h5p)$/i, '')}/${file.name.endsWith('.h5p') ? 'h5p.json' : 'imsmanifest.xml'}`,
-      isAvailable: true,
-      sizeBytes: file.size,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+        id: `moodle_pkg_${Date.now()}`,
+        courseId,
+        type: file.name.endsWith('.h5p') ? 'H5P' : 'SCORM',
+        title: file.name,
+        storagePath: `/uploads/moodle/${file.name.replace(/\.(zip|h5p)$/i, '')}/`,
+        manifestPath: `/uploads/moodle/${file.name.replace(/\.(zip|h5p)$/i, '')}/${file.name.endsWith('.h5p') ? 'h5p.json' : 'imsmanifest.xml'}`,
+        isAvailable: true,
+        sizeBytes: file.size,
+        createdAt: now,
+        updatedAt: now,
     };
-    MOODLE_PACKAGES.unshift(newPackage);
+    await db.moodlePackages.add(newPackage);
     return newPackage;
 };
 
-
+// --- Moodle Maps ---
 const listMoodleMaps = async () => {
-    await simulateDelay();
-    return { items: [...MOODLE_MAPS].sort((a, b) => (b.createdAt > a.createdAt ? 1 : -1)) };
+    const items = await db.moodleMaps.orderBy('createdAt').reverse().toArray();
+    return { items };
 };
-const getMoodleMap = async (id: string) => {
-    await simulateDelay();
-    return MOODLE_MAPS.find(i => i.id === id) || null;
+
+const getMoodleMap = async (id: string): Promise<MoodleCourseMap | null> => {
+    return (await db.moodleMaps.get(id)) ?? null;
 };
-const createMoodleMap = async (data: MoodleMapFormData) => {
-    await simulateDelay();
-    const newItem: MoodleCourseMap = { ...data, id: `mmap_${Date.now()}`, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
-    MOODLE_MAPS.unshift(newItem);
+
+const createMoodleMap = async (data: MoodleMapFormData): Promise<MoodleCourseMap> => {
+    const now = new Date().toISOString();
+    const newItem: MoodleCourseMap = { ...data, id: `mmap_${Date.now()}`, createdAt: now, updatedAt: now };
+    await db.moodleMaps.add(newItem);
     return newItem;
 };
-const updateMoodleMap = async (id: string, data: MoodleMapFormData) => {
-    await simulateDelay();
-    const index = MOODLE_MAPS.findIndex(i => i.id === id);
-    if (index === -1) throw new Error("Map not found");
-    const updatedItem = { ...MOODLE_MAPS[index], ...data, updatedAt: new Date().toISOString() };
-    MOODLE_MAPS[index] = updatedItem;
+
+const updateMoodleMap = async (id: string, data: MoodleMapFormData): Promise<MoodleCourseMap> => {
+    const existing = await db.moodleMaps.get(id);
+    if (!existing) throw new Error('Mapping Moodle non trouvé');
+    const updatedItem = { ...existing, ...data, updatedAt: new Date().toISOString() };
+    await db.moodleMaps.put(updatedItem);
     return updatedItem;
 };
-const deleteMoodleMap = async (id: string) => {
-    await simulateDelay();
-    const index = MOODLE_MAPS.findIndex(i => i.id === id);
-    if (index > -1) { MOODLE_MAPS.splice(index, 1); return true; }
-    return false;
+
+const deleteMoodleMap = async (id: string): Promise<boolean> => {
+    await db.moodleMaps.delete(id);
+    return true;
 };
 
 export const adminApi = {

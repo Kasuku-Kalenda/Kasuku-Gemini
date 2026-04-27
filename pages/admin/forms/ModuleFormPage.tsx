@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ModuleForm } from '../../../components/admin/ModuleForm';
+import { CourseBuilder } from '../../../components/admin/CourseBuilder';
 import { adminApi } from '../../../services/adminApi';
 import type { TrainingModule } from '../../../types';
 import { AdminLayout } from '../../../components/admin/AdminLayout';
@@ -26,20 +27,23 @@ export const ModuleFormPage: React.FC<ModuleFormPageProps> = ({ mode, id, onSave
     }, [id, mode]);
 
     if (isLoading) {
-        return <AdminLayout currentView="adminModules" navigateTo={() => {}}><p>Loading form...</p></AdminLayout>;
+        return <AdminLayout currentView="adminModules" navigateTo={() => {}}><p>Chargement...</p></AdminLayout>;
     }
-    
+
     if (mode === 'edit' && !initialData) {
-        return <AdminLayout currentView="adminModules" navigateTo={() => {}}><p>Module not found.</p></AdminLayout>
+        return <AdminLayout currentView="adminModules" navigateTo={() => {}}><p>Module introuvable.</p></AdminLayout>;
     }
+
+    // Use CourseBuilder for internal modules, ModuleForm for Moodle-linked modules
+    const isMoodle = initialData?.moduleType === 'moodle';
 
     return (
         <AdminLayout currentView="adminModules" navigateTo={onSave as any}>
-            <ModuleForm 
-                mode={mode}
-                initialData={initialData}
-                onSave={onSave}
-            />
+            {isMoodle ? (
+                <ModuleForm mode={mode} initialData={initialData} onSave={onSave} />
+            ) : (
+                <CourseBuilder mode={mode} initialData={initialData} onSave={onSave} />
+            )}
         </AdminLayout>
     );
 };

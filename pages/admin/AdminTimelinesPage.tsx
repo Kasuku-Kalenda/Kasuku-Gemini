@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { AdminLayout } from '../../components/admin/AdminLayout';
 import { adminApi } from '../../services/adminApi';
-import type { TimelineNarrative } from '../../types';
+import type { TimelineNarrative, Event } from '../../types';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { AdminDataTable } from '../../components/admin/AdminDataTable';
+import { db } from '../../services/db';
 
 type AdminView = 'adminDashboard' | 'adminTimelines' | 'adminNewTimeline' | 'adminEditTimeline';
 
@@ -14,12 +15,24 @@ interface AdminTimelinesPageProps {
 
 export const AdminTimelinesPage: React.FC<AdminTimelinesPageProps> = ({ navigateTo }) => {
     const [timelines, setTimelines] = useState<TimelineNarrative[]>([]);
+    const [linkedEventCounts, setLinkedEventCounts] = useState<Record<string, number>>({});
     const [isLoading, setIsLoading] = useState(true);
 
     const loadTimelines = async () => {
         setIsLoading(true);
-        const result = await adminApi.listTimelines();
+        const [result, allEvents] = await Promise.all([
+            adminApi.listTimelines(),
+            db.events.toArray(),
+        ]);
         setTimelines(result.items);
+        // Compte les événements liés à chaque timeline
+        const counts: Record<string, number> = {};
+        for (const tl of result.items) {
+            counts[tl.id] = allEvents.filter(
+                (e: Event) => e.timelineId === tl.id || e.timelineSlug === tl.slug
+            ).length;
+        }
+        setLinkedEventCounts(counts);
         setIsLoading(false);
     }
 
@@ -85,8 +98,22 @@ export const AdminTimelinesPage: React.FC<AdminTimelinesPageProps> = ({ navigate
                         },
                         {
                             header: "Moments",
-                            accessor: (t) => <span className="text-sm font-bold text-primary">{t.eventCount}</span>,
+                            accessor: (t) => (
+                                <span className="text-sm font-bold text-primary">{t.eventCount ?? 0}</span>
+                            ),
                             className: "text-center w-20"
+                        },
+                        {
+                            header: "Évén. liés",
+                            accessor: (t) => {
+                                const count = linkedEventCounts[t.id] ?? 0;
+                                return (
+                                    <span className={`text-sm font-bold ${count > 0 ? 'text-green-600' : 'text-muted-foreground'}`}>
+                                        {count > 0 ? `+${count}` : '—'}
+                                    </span>
+                                );
+                            },
+                            className: "text-center w-24"
                         }
                     ]}
                 />

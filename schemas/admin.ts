@@ -4,30 +4,42 @@ import { z } from 'zod';
 export const mediaSchema = z.object({
   id: z.string().optional(),
   type: z.enum(["image","video"]),
-  url: z.string().url({ message: "Invalid URL" }),
+  // Accepte : http(s)://, data: (base64 upload), /, blob:
+  url: z.string().min(1, "Une URL ou un fichier est requis").refine(
+    v => v.startsWith('data:') || v.startsWith('http://') || v.startsWith('https://') || v.startsWith('/') || v.startsWith('blob:'),
+    { message: "URL invalide — utilisez https:// ou chargez un fichier" }
+  ),
   caption: z.string().optional(),
   credit: z.string().optional(),
 });
 
 export const sourceSchema = z.object({
   id: z.string().optional(),
-  label: z.string().min(2, { message: "Label must be at least 2 characters" }),
-  url: z.string().url({ message: "Invalid URL" }),
+  label: z.string().min(1, { message: "Le label est requis" }),
+  url: z.string().min(1, "L'URL est requise").refine(
+    v => v.startsWith('http://') || v.startsWith('https://') || v.startsWith('/'),
+    { message: "URL invalide — utilisez https://" }
+  ),
 });
 
 export const eventFormSchema = z.object({
-  title: z.string().min(3, { message: "Title must be at least 3 characters" }),
-  slug: z.string().min(3, { message: "Slug must be at least 3 characters" }),
-  summary: z.string().min(40, { message: "Summary must be at least 40 characters" }),
-  dateISO: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, { message: "Date must be YYYY-MM-DD" }).optional().nullable(),
-  year: z.coerce.number().int().optional().nullable(),
-  period: z.string().optional().nullable(),
-  countryCode: z.string().length(2, { message: "Country code must be 2 characters" }).optional().nullable(),
+  title: z.string().min(3, { message: "Le titre doit avoir au moins 3 caractères" }),
+  slug: z.string().min(3, { message: "Le slug doit avoir au moins 3 caractères" }),
+  summary: z.string().min(40, { message: "Le résumé doit avoir au moins 40 caractères" }),
+  // Les champs optionnels acceptent "" (chaîne vide HTML) grâce à !v dans le refine
+  dateISO: z.string()
+    .refine(v => !v || /^\d{4}-\d{2}-\d{2}$/.test(v), { message: "Format requis : AAAA-MM-JJ (ex: 1960-04-04)" })
+    .nullable().optional(),
+  year: z.coerce.number().int().nullable().optional(),
+  period: z.string().nullable().optional(),
+  countryCode: z.string()
+    .refine(v => !v || v.length === 2, { message: "Code pays : 2 lettres (ex: SN)" })
+    .nullable().optional(),
   themeIds: z.array(z.string()).default([]),
   media: z.array(mediaSchema).default([]),
   sources: z.array(sourceSchema).default([]),
-  timelineId: z.string().optional().nullable(),
-  timelineMomentId: z.string().optional().nullable()
+  timelineId: z.string().nullable().optional(),
+  timelineMomentId: z.string().nullable().optional(),
 });
 
 export const themeFormSchema = z.object({
@@ -35,47 +47,102 @@ export const themeFormSchema = z.object({
   slug: z.string().min(2, { message: "Slug must be at least 2 characters" })
 });
 
+// ─── Quiz schemas ────────────────────────────────────────────────────────────
+export const quizQuestionSchema = z.object({
+  id: z.string().optional(),
+  question: z.string().min(5, 'La question doit avoir au moins 5 caractères'),
+  type: z.enum(['multiple_choice', 'true_false']),
+  options: z.array(z.string()).optional(),
+  correctIndex: z.coerce.number().int().optional().nullable(),
+  correctBool: z.boolean().optional().nullable(),
+  explanation: z.string().optional().nullable(),
+});
+
+export const quizSchema = z.object({
+  id: z.string().optional(),
+  title: z.string().optional().nullable(),
+  passingScore: z.coerce.number().int().min(0).max(100).default(70),
+  questions: z.array(quizQuestionSchema).default([]),
+});
+
+// ─── Course resource schema ───────────────────────────────────────────────────
+export const courseResourceSchema = z.object({
+  id: z.string().optional(),
+  type: z.enum(['audio', 'video', 'image', 'pdf', 'link', 'event', 'timeline']),
+  title: z.string().min(2, 'Titre requis'),
+  url: z.string().optional().nullable(),
+  eventId: z.string().optional().nullable(),
+  timelineSlug: z.string().optional().nullable(),
+  description: z.string().optional().nullable(),
+});
+
+// ─── Lesson & Section schemas ─────────────────────────────────────────────────
 export const lessonSchema = z.object({
   id: z.string().optional(),
-  title: z.string().min(3),
-  type: z.enum(["video","audio","pdf","quiz"]),
+  title: z.string().min(2, 'Titre requis'),
+  type: z.enum(['video', 'audio', 'pdf', 'text', 'quiz']),
   durationMin: z.coerce.number().int().optional().nullable(),
-  url: z.string().url().optional().nullable(),
+  url: z.string().optional().nullable(),
+  content: z.string().optional().nullable(),
   transcript: z.string().optional().nullable(),
-  order: z.coerce.number().int().min(0)
+  order: z.coerce.number().int().min(0),
+  quiz: quizSchema.optional().nullable(),
 });
 
 export const sectionSchema = z.object({
   id: z.string().optional(),
-  title: z.string().min(3),
+  title: z.string().min(2, 'Titre requis'),
+  description: z.string().optional().nullable(),
   order: z.coerce.number().int().min(0),
-  lessons: z.array(lessonSchema).default([])
+  lessons: z.array(lessonSchema).default([]),
+  quiz: quizSchema.optional().nullable(),
 });
 
 export const moduleFormSchema = z.object({
-  title: z.string().min(3, { message: "Title must be at least 3 characters" }),
-  slug: z.string().min(3, { message: "Slug must be at least 3 characters" }),
-  summary: z.string().min(40, { message: "Summary must be at least 40 characters" }),
-  objectives: z.array(z.string().min(3, { message: "Objective must be at least 3 characters" })).min(1, { message: "At least one objective is required" }),
+  title: z.string().min(3, { message: "Le titre doit avoir au moins 3 caractères" }),
+  slug: z.string().min(3, { message: "Le slug doit avoir au moins 3 caractères" }),
+  summary: z.string().min(40, { message: "Le résumé doit avoir au moins 40 caractères" }),
+  objectives: z.array(z.string().min(3, { message: "Objectif trop court" })).min(1, { message: "Au moins un objectif requis" }),
   level: z.enum(["Débutant","Intermédiaire","Avancé", "Beginner", "Intermediate", "Advanced"]).optional().nullable(),
   durationMin: z.coerce.number().int().optional().nullable(),
   language: z.enum(["fr","en"]).optional().nullable(),
-  thumbnail: z.string().url({ message: "Invalid URL" }).optional().nullable(),
+  thumbnail: z.string().optional().nullable().refine(
+    v => !v || v.startsWith('data:') || v.startsWith('http://') || v.startsWith('https://') || v.startsWith('/'),
+    { message: "URL invalide" }
+  ),
   tags: z.array(z.string()).default([]),
   eventIds: z.array(z.string()).default([]),
   creatorIds: z.array(z.string()).default([]),
   sponsorIds: z.array(z.string()).default([]),
   sections: z.array(sectionSchema).optional().default([]),
   moduleType: z.enum(['internal', 'moodle']).default('internal'),
-  moodleCourseUrl: z.string().url({ message: "Invalid Moodle URL" }).optional().nullable(),
+  // Moodle fields
+  moodleMode: z.enum(['url', 'lti', 'offline']).optional().nullable(),
+  moodleCourseUrl: z.string().optional().nullable(),
+  moodleInstanceId: z.string().optional().nullable(),
+  moodleCourseId: z.string().optional().nullable(),
+  moodlePackageId: z.string().optional().nullable(),
+  // New course creation fields (used when creating a course inline)
+  newCourseName: z.string().optional().nullable(),
+  newCourseRemoteId: z.coerce.number().int().optional().nullable(),
+  // Associations
+  timelineSlug: z.string().optional().nullable(),
+  // LMS features
+  resources: z.array(courseResourceSchema).default([]),
+  finalQuiz: quizSchema.optional().nullable(),
+  hasCertificate: z.boolean().default(false),
+  certificateName: z.string().optional().nullable(),
 }).refine(data => {
-    if (data.moduleType === 'moodle') {
-        return !!data.moodleCourseUrl && data.moodleCourseUrl.length > 0;
+  if (data.moduleType === 'moodle') {
+    if (data.moodleMode === 'url') return !!data.moodleCourseUrl;
+    if (data.moodleMode === 'lti' || data.moodleMode === 'offline') {
+      return !!data.moodleInstanceId && !!(data.moodleCourseId || data.newCourseName);
     }
-    return true;
+  }
+  return true;
 }, {
-    message: "Moodle course URL is required for Moodle modules",
-    path: ["moodleCourseUrl"],
+  message: "Veuillez compléter la configuration Moodle",
+  path: ["moodleInstanceId"],
 });
 
 // NOUVEAUX SCHÉMAS TIMELINE
@@ -104,18 +171,27 @@ export const timelineFormSchema = z.object({
 });
 
 export const featuredFormSchema = z.object({
-  title: z.string().min(3),
-  subtitle: z.string().min(10),
-  imageUrl: z.string().url(),
-  eventId: z.string().min(1, "Event ID is required"),
-  ctaLabel: z.string().min(3),
-  ctaTo: z.string().min(3, "Module slug is required"),
+  title: z.string().min(3, "Le titre doit avoir au moins 3 caractères"),
+  subtitle: z.string().min(10, "Le sous-titre doit avoir au moins 10 caractères"),
+  imageUrl: z.string().min(1, "Une image est requise").refine(
+    v => v.startsWith('data:') || v.startsWith('http://') || v.startsWith('https://') || v.startsWith('/'),
+    { message: "URL invalide — utilisez https:// ou chargez un fichier" }
+  ),
+  eventId: z.string().nullable().optional(),
+  ctaLabel: z.string().min(3, "Le texte du bouton doit avoir au moins 3 caractères"),
+  ctaTo: z.string().min(3, "La destination (module ou parcours) est requise"),
   active: z.boolean().default(true),
-  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Format : AAAA-MM-JJ"),
+  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Format : AAAA-MM-JJ"),
   order: z.coerce.number().int().min(0)
+}).refine(data => !data.startDate || !data.endDate || data.endDate >= data.startDate, {
+  message: "La date de fin doit être après la date de début",
+  path: ["endDate"],
 });
 
+export type QuizQuestionFormData = z.infer<typeof quizQuestionSchema>;
+export type QuizFormData = z.infer<typeof quizSchema>;
+export type CourseResourceFormData = z.infer<typeof courseResourceSchema>;
 export type EventFormData = z.infer<typeof eventFormSchema>;
 export type ThemeFormData = z.infer<typeof themeFormSchema>;
 export type ModuleFormData = z.infer<typeof moduleFormSchema>;

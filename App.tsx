@@ -25,7 +25,7 @@ import { TimelineFormPage } from './pages/admin/forms/TimelineFormPage';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import { motion, AnimatePresence } from 'motion/react';
 import type { Event, TrainingModule } from './types';
-import { EVENTS, ALL_TRAINING_MODULES, TIMELINES } from './constants';
+import { apiService } from './services/api.service';
 // Moodle Admin Pages
 import { AdminMoodleInstancesPage } from './pages/admin/moodle/AdminMoodleInstancesPage';
 import { AdminMoodleCoursesPage } from './pages/admin/moodle/AdminMoodleCoursesPage';
@@ -39,6 +39,8 @@ import { MoodlePackageUploadPage } from './pages/admin/moodle/forms/MoodlePackag
 // Offline Player Pages
 import { ScormPlayerPage } from './pages/offline/ScormPlayerPage';
 import { H5pPlayerPage } from './pages/offline/H5pPlayerPage';
+import { AdminSyncPage } from './pages/admin/AdminSyncPage';
+import { AdminImportPage } from './pages/admin/AdminImportPage';
 
 
 type View = 'home' | 'calendar' | 'favorites' | 'event' | 'timelines' | 'timeline' | 'module' | 'modules' | 'dateTimeline' |
@@ -50,6 +52,7 @@ type View = 'home' | 'calendar' | 'favorites' | 'event' | 'timelines' | 'timelin
             'adminMoodleCourses' | 'adminNewMoodleCourse' | 'adminEditMoodleCourse' |
             'adminMoodlePackages' | 'adminNewMoodlePackage' | 'adminEditMoodlePackage' | 'adminMoodlePackageUpload' |
             'adminMoodleMaps' | 'adminNewMoodleMap' | 'adminEditMoodleMap' |
+            'adminSync' | 'adminImport' |
             'offlineScorm' | 'offlineH5p';
 
 const AppContent: React.FC = () => {
@@ -104,9 +107,9 @@ const AppContent: React.FC = () => {
     window.scrollTo(0, 0);
   }, [view]);
   
-  const navigateToModule = useCallback((slug: string) => {
-      // On vérifie d'abord si c'est un module
-      const module = ALL_TRAINING_MODULES.find(m => m.slug === slug);
+  const navigateToModule = useCallback(async (slug: string) => {
+      // On vérifie d'abord dans IndexedDB si c'est un module
+      const module = await apiService.getModuleBySlug(slug);
       if (module) {
           scrollPositions.current[view] = window.scrollY;
           setPreviousView(view);
@@ -116,15 +119,15 @@ const AppContent: React.FC = () => {
           return;
       }
       // Sinon on vérifie si c'est une timeline (parcours)
-      const timeline = TIMELINES.find(t => t.slug === slug);
+      const timeline = await apiService.getTimelineBySlug(slug);
       if (timeline) {
           navigateToTimeline(slug);
           return;
       }
   }, [view, navigateToTimeline]);
 
-  const navigateToEventBySlug = useCallback((slug: string) => {
-    const event = EVENTS.find(e => e.slug === slug);
+  const navigateToEventBySlug = useCallback(async (slug: string) => {
+    const event = await apiService.getEventBySlug(slug);
     if (event) viewEvent(event);
   }, [viewEvent]);
 
@@ -161,8 +164,8 @@ const AppContent: React.FC = () => {
         return <AdminLoginPage navigateTo={navigateTo} />;
     }
     
-    const viewEventById = (eventId: string) => {
-        const event = EVENTS.find(e => e.id === eventId);
+    const viewEventById = async (eventId: string) => {
+        const event = await apiService.getEventById(eventId);
         if (event) viewEvent(event);
     };
     
@@ -247,6 +250,11 @@ const AppContent: React.FC = () => {
           return <MoodleMapFormPage mode="create" onSave={() => navigateTo('adminMoodleMaps')} />;
       case 'adminEditMoodleMap':
           return <MoodleMapFormPage mode="edit" id={selectedItemId} onSave={() => navigateTo('adminMoodleMaps')} />;
+      case 'adminSync':
+          return <AdminSyncPage navigateTo={navigateTo as any} />;
+      case 'adminImport':
+          return <AdminImportPage navigateTo={navigateTo as any} />;
+
       case 'offlineScorm':
           return <ScormPlayerPage baseUrl={selectedItemId!} onBack={navigateBack} />;
       case 'offlineH5p':

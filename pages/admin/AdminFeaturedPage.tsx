@@ -34,30 +34,65 @@ export const AdminFeaturedPage: React.FC<AdminFeaturedPageProps> = ({ navigateTo
       }
     }
 
+    const today = new Date().toISOString().split('T')[0];
+
+    const getVisibility = (item: FeaturedItem) => {
+        if (!item.active) return { label: 'Inactif', color: 'bg-gray-100 text-gray-500' };
+        if (today < item.startDate) return { label: 'Pas encore visible', color: 'bg-blue-50 text-blue-600' };
+        if (today > item.endDate) return { label: 'Expiré', color: 'bg-amber-50 text-amber-600' };
+        return { label: '● Visible', color: 'bg-green-50 text-green-700' };
+    };
+
     const columns = [
-        { 
-            header: 'Image', 
+        {
+            header: 'Image',
             accessor: (item: FeaturedItem) => (
-                <img src={item.imageUrl} alt={item.title} className="w-12 h-12 rounded-xl object-cover bg-muted" />
+                <img
+                    src={item.imageUrl || 'https://i.postimg.cc/8cYFbspt/Kasuku-logo.png'}
+                    alt={item.title}
+                    className="w-12 h-12 rounded-xl object-cover bg-muted"
+                    referrerPolicy="no-referrer"
+                />
             ),
             className: 'w-16'
         },
-        { header: 'Titre', accessor: 'title' as keyof FeaturedItem, className: 'font-bold text-dark' },
-        { 
-            header: 'Ordre', 
+        {
+            header: 'Titre',
+            accessor: (item: FeaturedItem) => (
+                <div>
+                    <div className="font-bold text-dark">{item.title}</div>
+                    {item.ctaTo && <div className="text-xs text-muted-foreground mt-0.5">→ {item.ctaTo}</div>}
+                </div>
+            ),
+        },
+        {
+            header: 'Période',
+            accessor: (item: FeaturedItem) => (
+                <div className="text-xs text-muted-foreground whitespace-nowrap">
+                    <div>{item.startDate}</div>
+                    <div>→ {item.endDate}</div>
+                </div>
+            ),
+            className: 'w-32'
+        },
+        {
+            header: 'Ordre',
             accessor: (item: FeaturedItem) => (
                 <span className="font-mono text-xs bg-muted px-2 py-1 rounded-md">{item.order}</span>
             ),
-            className: 'w-20 text-center'
+            className: 'w-16 text-center'
         },
-        { 
-            header: 'Statut', 
-            accessor: (item: FeaturedItem) => (
-                <Badge variant={item.active ? 'default' : 'secondary'}>
-                    {item.active ? 'Actif' : 'Inactif'}
-                </Badge>
-            ),
-            className: 'w-32'
+        {
+            header: 'Visibilité',
+            accessor: (item: FeaturedItem) => {
+                const v = getVisibility(item);
+                return (
+                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold whitespace-nowrap ${v.color}`}>
+                        {v.label}
+                    </span>
+                );
+            },
+            className: 'w-36'
         },
     ];
     
