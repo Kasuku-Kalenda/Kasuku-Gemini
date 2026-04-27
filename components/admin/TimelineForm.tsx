@@ -578,6 +578,7 @@ export function TimelineForm({ mode, initialData, onSave }: TimelineFormProps) {
   const [globalError, setGlobalError] = useState<string | null>(null);
   const [allEvents, setAllEvents] = useState<any[]>([]);
   const titleTouched = useRef(false);
+  const periodLabelTouched = useRef(!!initialData?.periodLabel); // touched if pre-existing data
 
   // Load events on mount
   useEffect(() => {
@@ -619,8 +620,30 @@ export function TimelineForm({ mode, initialData, onSave }: TimelineFormProps) {
   const form = useForm<TimelineFormData>({ defaultValues });
   const { fields, append, remove, move } = useFieldArray({ control: form.control, name: 'moments' });
 
-  // Auto-slug from title
+  // Watched values — declared first so effects below can reference them
   const titleValue = form.watch('title');
+  const watchedMoments = form.watch('moments');
+
+  // Auto-period-label from moment dates (oldest → newest year)
+  useEffect(() => {
+    if (periodLabelTouched.current) return;
+    const years: number[] = [];
+    for (const m of watchedMoments) {
+      if (m.dateExact) {
+        const y = new Date(m.dateExact + 'T12:00:00Z').getFullYear();
+        if (!isNaN(y) && y > 0) years.push(y);
+      } else if (m.periodText) {
+        const y = extractYear(m.periodText);
+        if (y) years.push(y);
+      }
+    }
+    if (years.length === 0) return;
+    const minY = Math.min(...years);
+    const maxY = Math.max(...years);
+    form.setValue('periodLabel', minY === maxY ? String(minY) : `${minY} – ${maxY}`, { shouldValidate: false });
+  }, [watchedMoments, form]);
+
+  // Auto-slug from title
   useEffect(() => {
     if (mode === 'create' && !titleTouched.current) {
       form.setValue('slug', slugify(titleValue ?? ''));
@@ -630,8 +653,6 @@ export function TimelineForm({ mode, initialData, onSave }: TimelineFormProps) {
   const handleSortByDate = useCallback(() => {
     form.setValue('moments', sortMomentsByDate(form.getValues('moments')));
   }, [form]);
-
-  const watchedMoments = form.watch('moments');
 
   const onSubmit = async (rawValues: TimelineFormData) => {
     setGlobalError(null);
@@ -759,8 +780,24 @@ export function TimelineForm({ mode, initialData, onSave }: TimelineFormProps) {
               </select>
             </div>
             <div>
-              <Label>Label de période <span className="text-destructive">*</span></Label>
-              <Input {...form.register('periodLabel')} placeholder="ex: 1918 – 2013" className="mt-1" />
+              <Label className="flex items-center gap-2">
+                Label de période <span className="text-destructive">*</span>
+                {!periodLabelTouched.current && (
+                  <span className="text-[10px] font-black text-primary bg-primary/10 px-2 py-0.5 rounded-full">AUTO</span>
+                )}
+              </Label>
+              <Input
+                {...form.register('periodLabel')}
+                placeholder="ex: 1918 – 2013"
+                className="mt-1"
+                onChange={e => {
+                  periodLabelTouched.current = true;
+                  form.setValue('periodLabel', e.target.value, { shouldValidate: true });
+                }}
+              />
+              {!periodLabelTouched.current && (
+                <p className="text-[10px] text-muted-foreground mt-0.5">Calculé depuis les dates des moments — modifiez pour personnaliser.</p>
+              )}
               <E field="periodLabel" />
             </div>
           </div>
