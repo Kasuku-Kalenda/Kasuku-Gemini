@@ -1,4 +1,41 @@
 
+// ─── Gouvernance : provenance du contenu ─────────────────────────────────────
+
+export type ContentSourceType = 'central' | 'local' | 'imported_csv';
+
+export interface ContentSource {
+  type: ContentSourceType;
+  /** Identifiant de l'origine : 'kasuku_core', 'local_admin', 'kalenda_bujumbura_01', 'import_2026_04'… */
+  id: string;
+  syncedAt?: string;   // ISO date (si vient d'une sync centrale)
+  version?: string;    // version du paquet source
+}
+
+// ─── Kalenda : version déployée ciblée ───────────────────────────────────────
+
+export type KalendasStatus = 'draft' | 'published';
+
+export interface Kalenda {
+  id: string;
+  name: string;             // "Kalenda Éducation Sénégal"
+  slug: string;
+  description: string;
+  region?: string;          // "Sénégal", "RDC", "Burundi"…
+  themeLabel?: string;      // "Éducation", "Culture", "Formation"…
+  coverUrl?: string;
+  // Sélection de contenus embarqués
+  eventIds: string[];
+  timelineIds: string[];
+  moduleIds: string[];
+  themeIds: string[];
+  // Méta
+  version: string;          // "1.0.0"
+  status: KalendasStatus;
+  notes?: string;           // notes de version
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Media {
   id?: string;
   type: "image" | "video";
@@ -17,6 +54,9 @@ export interface Theme {
   id: string;
   name: string;
   slug: string;
+  color?: string;   // hex ex: "#E57C3C"
+  emoji?: string;   // ex: "🎵"
+  source?: ContentSource;
 }
 
 export interface Creator {
@@ -34,21 +74,59 @@ export interface Sponsor {
   linkUrl?: string;
 }
 
+// ─── Quiz ────────────────────────────────────────────────────────────────────
+export type QuizQuestionType = 'multiple_choice' | 'true_false';
+
+export interface QuizQuestion {
+  id?: string;
+  question: string;
+  type: QuizQuestionType;
+  options?: string[];        // for multiple_choice (2-4 options)
+  correctIndex?: number;     // 0-based index for multiple_choice
+  correctBool?: boolean;     // for true_false
+  explanation?: string;      // shown after answering
+}
+
+export interface Quiz {
+  id?: string;
+  title?: string;
+  passingScore: number;      // 0-100 percentage required to pass
+  questions: QuizQuestion[];
+}
+
+// ─── Course resources ────────────────────────────────────────────────────────
+export type ResourceType = 'audio' | 'video' | 'image' | 'pdf' | 'link' | 'event' | 'timeline';
+
+export interface CourseResource {
+  id?: string;
+  type: ResourceType;
+  title: string;
+  url?: string;              // for audio/video/image/pdf/link
+  eventId?: string;          // for event resources
+  timelineSlug?: string;     // for timeline resources
+  description?: string;
+}
+
+// ─── Lessons & Sections ──────────────────────────────────────────────────────
 export interface Lesson {
   id: string;
   title: string;
-  type: "video" | "audio" | "pdf" | "quiz";
-  durationMin?: number;
-  url?: string;
-  transcript?: string;
+  type: 'video' | 'audio' | 'pdf' | 'text' | 'quiz';
+  durationMin?: number | null;
+  url?: string | null;
+  content?: string | null;   // rich text / markdown for 'text' type lessons
+  transcript?: string | null;
   order: number;
+  quiz?: Quiz | null;        // optional competency check after this lesson
 }
 
 export interface Section {
   id: string;
   title: string;
+  description?: string | null;
   order: number;
   lessons: Lesson[];
+  quiz?: Quiz | null;        // optional section-level quiz
 }
 
 export interface TrainingModule {
@@ -69,6 +147,19 @@ export interface TrainingModule {
   tags?: string[];
   moduleType?: 'internal' | 'moodle';
   moodleCourseUrl?: string;
+  // Associations
+  timelineSlug?: string | null;
+  // Moodle integration metadata
+  moodleInstanceId?: string | null;
+  moodleCourseId?: string | null;
+  moodleMode?: 'lti' | 'offline' | 'url' | null;
+  moodlePackageId?: string | null;
+  // LMS features (internal modules)
+  resources?: CourseResource[];
+  finalQuiz?: Quiz | null;
+  hasCertificate?: boolean;
+  certificateName?: string | null;
+  source?: ContentSource;
 }
 
 // MODÈLE CALENDRIER CORRIGÉ
@@ -89,6 +180,7 @@ export interface Event {
   timelineId?: string;
   timelineMomentId?: string;
   timelineSlug?: string; // Pour compatibilité navigation actuelle
+  source?: ContentSource; // provenance du contenu
 }
 
 // MODÈLE NARRATIF COMPLET
@@ -96,9 +188,18 @@ export type TimelineType = 'personnage' | 'evenement';
 export type TimelineStatus = 'draft' | 'published';
 export type TimeType = 'date' | 'period';
 
+export interface MomentResource {
+  id?: string;
+  type: 'audio' | 'video' | 'image' | 'pdf' | 'link';
+  title: string;
+  url: string;
+  caption?: string | null;
+}
+
 export interface TimelineMoment {
   id: string;
   timelineId: string;
+  eventId?: string | null;       // lien vers un événement du calendrier
   title: string;
   narrative: string;
   timeType: TimeType;
@@ -106,6 +207,7 @@ export interface TimelineMoment {
   periodText?: string;
   position: number;
   media: Media[];
+  resources?: MomentResource[];  // ressources complémentaires du moment
 }
 
 export interface TimelineNarrative {
@@ -123,6 +225,7 @@ export interface TimelineNarrative {
   moments?: TimelineMoment[];
   createdAt?: string;
   updatedAt?: string;
+  source?: ContentSource;
 }
 
 export interface FavItem {
@@ -149,7 +252,7 @@ export interface FeaturedItem {
   title: string;
   subtitle: string;
   imageUrl: string;
-  eventId: string;
+  eventId?: string | null;
   active: boolean;
   startDate: string;
   endDate: string;
@@ -163,9 +266,9 @@ export interface FeaturedStory {
   title: string;
   subtitle?: string;
   imageUrl?: string;
-  eventSlug: string;
+  eventSlug?: string | null;
   dateISO?: string | null;
-  moduleSlug?: string | null;
+  ctaType?: 'module' | 'timeline' | null;
   ctaLabel: string;
   ctaTo: string;
 }

@@ -1,6 +1,7 @@
 
 import React, { useState, useRef } from 'react';
 import type { Event } from '../types';
+import { CardMediaPreview } from '../components/MediaGallery';
 import { formatDate } from '../utils/helpers';
 import { THEME_COLORS } from '../constants';
 import { Badge } from '../components/ui/Badge';
@@ -125,14 +126,13 @@ export const DateTimelinePage: React.FC<DateTimelinePageProps> = ({ onViewEvent,
                                 `}
                             >
                                 <div className="h-72 relative overflow-hidden">
-                                    <img 
-                                        src={event.media[0]?.url || 'https://picsum.photos/800/600'} 
-                                        alt="" 
-                                        className={`w-full h-full object-cover transition-transform duration-[4000ms] ease-out ${isFocused ? 'scale-110' : 'scale-100 group-hover/card:scale-105'}`} 
-                                        referrerPolicy="no-referrer"
+                                    <CardMediaPreview
+                                        media={event.media ?? []}
+                                        isFocused={isFocused}
+                                        fallbackUrl="https://picsum.photos/800/600"
                                     />
-                                    <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
-                                    <div className="absolute top-8 left-8 px-5 py-2.5 bg-black/50 backdrop-blur-xl rounded-2xl text-white text-[10px] font-black tracking-[0.2em] border border-white/20 uppercase shadow-xl">
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none" />
+                                    <div className="absolute top-8 left-8 px-5 py-2.5 bg-black/50 backdrop-blur-xl rounded-2xl text-white text-[10px] font-black tracking-[0.2em] border border-white/20 uppercase shadow-xl pointer-events-none">
                                         {event.year || (event.dateISO ? new Date(event.dateISO).getFullYear() : '')}
                                     </div>
                                 </div>

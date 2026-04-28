@@ -41,8 +41,8 @@ export const ScormPlayer: React.FC<{ baseUrl: string }> = ({ baseUrl }) => {
     // Mock the SCORM API for compatibility with many packages
     (window as any).API = {
       LMSInitialize: () => "true",
-      LMSSetValue: (k: string, v: string) => { console.log(`SCORM SET: ${k}=${v}`); localStorage.setItem(`scorm_${k}`, v); return "true"; },
-      LMSGetValue: (k: string) => { const val = localStorage.getItem(`scorm_${k}`) ?? ""; console.log(`SCORM GET: ${k}=${val}`); return val; },
+      LMSSetValue: (k: string, v: string) => { localStorage.setItem(`scorm_${k}`, v); return "true"; },
+      LMSGetValue: (k: string) => { return localStorage.getItem(`scorm_${k}`) ?? ""; },
       LMSCommit: () => "true",
       LMSFinish: () => "true",
       LMSGetLastError: () => "0",

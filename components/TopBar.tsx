@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
+import { useLayerDepth } from '../core/navigation';
 import { ParrotIcon } from './icons/ParrotIcon';
 import { GoogleIcon } from './icons/GoogleIcon';
 import { LogOutIcon } from './icons/LogOutIcon';
@@ -44,6 +45,8 @@ const navItems = [
 ] as const;
 
 export const TopBar: React.FC<TopBarProps> = ({ currentView, navigateTo }) => {
+  // Tous les hooks d'abord (règle React)
+  const layerDepth    = useLayerDepth();
   const { session, status, signOut } = useAuth();
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
@@ -62,6 +65,9 @@ export const TopBar: React.FC<TopBarProps> = ({ currentView, navigateTo }) => {
   const user = session?.user;
   const isAuthenticated = status === 'authenticated';
   const isAuthorizedAdmin = user?.role === 'SUPERADMIN' || user?.role === 'EDITOR';
+
+  // Ne pas rendre dans les couches en arrière-plan (évite les doublons de chrome)
+  if (layerDepth > 0) return null;
 
   return (
     <header className="bg-light/80 backdrop-blur-sm sticky top-0 z-50 border-b border-border shadow-soft">
