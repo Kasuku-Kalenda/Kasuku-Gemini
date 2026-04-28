@@ -5,7 +5,6 @@ import type { TimelineNarrative, Event } from '../../types';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { AdminDataTable } from '../../components/admin/AdminDataTable';
-import { db } from '../../services/db';
 
 type AdminView = 'adminDashboard' | 'adminTimelines' | 'adminNewTimeline' | 'adminEditTimeline';
 
@@ -20,10 +19,11 @@ export const AdminTimelinesPage: React.FC<AdminTimelinesPageProps> = ({ navigate
 
     const loadTimelines = async () => {
         setIsLoading(true);
-        const [result, allEvents] = await Promise.all([
+        const [result, evRes] = await Promise.all([
             adminApi.listTimelines(),
-            db.events.toArray(),
+            adminApi.listEvents(),
         ]);
+        const allEvents = evRes.items ?? [];
         setTimelines(result.items);
         // Compte les événements liés à chaque timeline
         const counts: Record<string, number> = {};

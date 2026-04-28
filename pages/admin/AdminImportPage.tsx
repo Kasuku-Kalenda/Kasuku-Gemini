@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { AdminLayout } from '../../components/admin/AdminLayout';
 import { Button } from '../../components/ui/Button';
-import { db } from '../../services/db';
+import { adminApi } from '../../services/adminApi';
 import type { Event, Theme, TimelineNarrative } from '../../types';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -120,14 +120,19 @@ function validateEventRow(row: Record<string, string>): string[] {
 }
 
 async function importEvents(rows: Record<string, string>[]): Promise<ImportResult> {
-  const allThemes = await db.themes.toArray();
-  const allTimelines = await db.timelines.toArray();
+  const [themeRes, timelineRes] = await Promise.all([
+    adminApi.listThemes(),
+    adminApi.listTimelines(),
+  ]);
+  const allThemes  = (themeRes as unknown as { items: Theme[] })?.items ?? themeRes as unknown as Theme[];
+  const allTimelines = timelineRes.items ?? [];
+
   const themeBySlug: Record<string, Theme> = {};
-  allThemes.forEach(t => { themeBySlug[t.slug] = t; });
+  (allThemes as Theme[]).forEach(t => { themeBySlug[t.slug] = t; });
   const timelineBySlug: Record<string, TimelineNarrative> = {};
   allTimelines.forEach(t => { timelineBySlug[t.slug] = t; });
 
-  const eventsToAdd: Event[] = [];
+  let imported = 0;
   let skipped = 0;
   const importErrors: string[] = [];
 
@@ -139,46 +144,33 @@ async function importEvents(rows: Record<string, string>[]): Promise<ImportResul
     const themes = themeSlugs.map(s => themeBySlug[s]).filter(Boolean) as Theme[];
 
     const title = row['titre'];
-    const slug = row['slug'] || slugify(title);
-    const year = row['annee'] ? parseInt(row['annee'], 10) : undefined;
+    const slug  = row['slug'] || slugify(title);
+    const year  = row['annee'] ? parseInt(row['annee'], 10) : undefined;
     const timelineSlug = row['slugtimeline'] || row['timeline_slug'] || '';
     const timeline = timelineSlug ? timelineBySlug[timelineSlug] : undefined;
 
-    const event: Event = {
-      id: `evt${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-      title,
-      slug,
-      summary: row['resume'],
-      dateISO: row['dateiso'] || undefined,
-      year,
-      period: row['periode'] || undefined,
-      countryCode: row['codepays'] || undefined,
-      themes,
-      media: row['imageurl'] ? [{
-        id: `med${crypto.randomUUID()}`,
-        type: 'image',
-        url: row['imageurl'],
-        caption: row['imagelegende'] || undefined,
-      }] : [],
-      sources: row['sourcelabel'] && row['sourceurl'] ? [{
-        id: `src${crypto.randomUUID()}`,
-        label: row['sourcelabel'],
-        url: row['sourceurl'],
-      }] : [],
-      timelineId: timeline?.id,
-      timelineSlug: timeline?.slug,
-    };
-
-    eventsToAdd.push(event);
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await adminApi.createEvent({
+        title, slug,
+        summary:     row['resume'],
+        dateISO:     row['dateiso']  || undefined,
+        year,
+        period:      row['periode']  || undefined,
+        countryCode: row['codepays'] || undefined,
+        themes,
+        media: row['imageurl'] ? [{ type: 'image', url: row['imageurl'], caption: row['imagelegende'] || undefined }] : [],
+        sources: row['sourcelabel'] && row['sourceurl'] ? [{ label: row['sourcelabel'], url: row['sourceurl'] }] : [],
+        timelineId:   timeline?.id,
+        timelineSlug: timeline?.slug,
+      } as any);
+      imported++;
+    } catch (err) {
+      importErrors.push(`Ligne "${title}": ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 
-  try {
-    await db.events.bulkAdd(eventsToAdd);
-  } catch (err) {
-    importErrors.push(`Erreur DB : ${err instanceof Error ? err.message : String(err)}`);
-  }
-
-  return { imported: eventsToAdd.length, skipped, errors: importErrors };
+  return { imported, skipped, errors: importErrors };
 }
 
 // ─── Validation et import moments ────────────────────────────────────────────
@@ -195,7 +187,7 @@ function validateMomentRow(row: Record<string, string>, timelineSlugs: Set<strin
 }
 
 async function importMoments(rows: Record<string, string>[]): Promise<ImportResult> {
-  const allTimelines = await db.timelines.toArray();
+  const { items: allTimelines } = await adminApi.listTimelines();
   const timelineBySlug: Record<string, TimelineNarrative> = {};
   allTimelines.forEach(t => { timelineBySlug[t.slug] = t; });
   const timelineSlugs = new Set(Object.keys(timelineBySlug));
@@ -246,12 +238,12 @@ async function importMoments(rows: Record<string, string>[]): Promise<ImportResu
       const tb = b.dateExact ? new Date(b.dateExact + 'T12:00:00Z').getTime() : Infinity;
       return ta - tb;
     }).map((m, i) => ({ ...m, position: i }));
-    await db.timelines.put({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await adminApi.updateTimeline(tl.id, {
       ...tl,
       moments: sorted as TimelineNarrative['moments'],
       eventCount: sorted.length,
-      updatedAt: new Date().toISOString(),
-    });
+    } as any);
   }
 
   return { imported, skipped, errors: importErrors };
@@ -285,7 +277,7 @@ export const AdminImportPage: React.FC<AdminImportPageProps> = ({ navigateTo }) 
     // Valider chaque ligne
     let timelineSlugs: Set<string> = new Set();
     if (mode === 'moments') {
-      const tls = await db.timelines.toArray();
+      const { items: tls } = await adminApi.listTimelines();
       timelineSlugs = new Set(tls.map(t => t.slug));
     }
 

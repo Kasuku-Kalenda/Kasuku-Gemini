@@ -3,7 +3,7 @@ import { motion } from 'motion/react';
 import { AdminLayout } from '../../components/admin/AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
-import { db } from '../../services/db';
+import { adminApi } from '../../services/adminApi';
 import { ContentIcon } from '../../components/icons/ContentIcon';
 import { ModulesIcon } from '../../components/icons/ModulesIcon';
 import { ThemeIcon } from '../../components/icons/ThemeIcon';
@@ -91,26 +91,31 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ navigate
   const [isRecentLoading, setIsRecentLoading] = useState(true);
 
   useEffect(() => {
-    // Load all counts in parallel
+    // Load counts + recent content via API
     Promise.all([
-      db.events.count(),
-      db.modules.count(),
-      db.themes.count(),
-      db.timelines.count(),
-      db.featured.count(),
-    ]).then(([events, modules, themes, timelines, featured]) => {
-      setCounts({ events, modules, themes, timelines, featured });
-    });
+      adminApi.listEvents(),
+      adminApi.listModules(),
+      adminApi.listThemes(),
+      adminApi.listTimelines(),
+      adminApi.listFeatured(),
+    ]).then(([evRes, modRes, thRes, tlRes, ftRes]) => {
+      const events    = evRes.items  ?? [];
+      const modules   = modRes.items ?? [];
+      const themes    = (thRes as unknown as { items: unknown[] })?.items ?? thRes ?? [];
+      const timelines = tlRes.items  ?? [];
+      const featured  = ftRes.items  ?? [];
 
-    // Load recent content
-    Promise.all([
-      db.events.orderBy('id').reverse().limit(5).toArray(),
-      db.modules.orderBy('updatedAt').reverse().limit(5).toArray(),
-    ]).then(([events, modules]) => {
-      setRecentEvents(events);
-      setRecentModules(modules);
+      setCounts({
+        events:    events.length,
+        modules:   modules.length,
+        themes:    (themes as unknown[]).length,
+        timelines: timelines.length,
+        featured:  featured.length,
+      });
+      setRecentEvents(events.slice(0, 5) as Event[]);
+      setRecentModules(modules.slice(0, 5) as TrainingModule[]);
       setIsRecentLoading(false);
-    });
+    }).catch(() => setIsRecentLoading(false));
   }, []);
 
   const today = new Date().toLocaleDateString('fr-FR', {
