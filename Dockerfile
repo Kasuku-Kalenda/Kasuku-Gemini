@@ -14,7 +14,7 @@ WORKDIR /app
 # Copier les manifestes en premier (cache layer efficace)
 COPY package.json package-lock.json ./
 
-RUN npm ci --frozen-lockfile
+RUN npm ci
 
 # Copier le reste du code source
 COPY . .
