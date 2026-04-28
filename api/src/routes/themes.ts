@@ -2,6 +2,7 @@
  * api/src/routes/themes.ts
  *
  * GET    /api/v1/themes       — liste complète (public)
+ * GET    /api/v1/themes/:id   — détail (public)
  * POST   /api/v1/themes       — créer [admin]
  * PUT    /api/v1/themes/:id   — modifier [admin]
  * DELETE /api/v1/themes/:id   — supprimer [admin]
@@ -18,6 +19,13 @@ export async function themesRoutes(app: FastifyInstance) {
   app.get('/', async (_req, reply) => {
     const themes = await Theme.find().sort({ slug: 1 }).lean();
     return reply.send(themes.map(t => ({ ...t, id: t._id.toString() })));
+  });
+
+  // GET /:id (public)
+  app.get<{ Params: { id: string } }>('/:id', async (req, reply) => {
+    const theme = await Theme.findById(req.params.id).lean();
+    if (!theme) return reply.status(404).send({ error: 'Thème introuvable' });
+    return reply.send({ ...theme, id: theme._id.toString() });
   });
 
   // POST / [admin]
