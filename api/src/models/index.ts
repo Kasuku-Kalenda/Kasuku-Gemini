@@ -46,7 +46,6 @@ export interface IUser extends Document {
   image: string | null;
   role: 'SUPERADMIN' | 'EDITOR' | 'VIEWER';
   passwordHash?: string;
-  googleId?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -57,7 +56,6 @@ const UserSchema = new Schema<IUser>({
   image:        { type: String, default: null },
   role:         { type: String, enum: ['SUPERADMIN', 'EDITOR', 'VIEWER'], default: 'VIEWER' },
   passwordHash: String,
-  googleId:     String,
 }, { timestamps: true });
 
 export const User: Model<IUser> = mongoose.models.User ?? mongoose.model<IUser>('User', UserSchema);

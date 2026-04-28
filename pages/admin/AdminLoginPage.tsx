@@ -2,8 +2,6 @@ import React, { useState } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { ParrotIcon } from '../../components/icons/ParrotIcon';
 import { Button } from '../../components/ui/Button';
-import { Separator } from '../../components/ui/Separator';
-import { GoogleIcon } from '../../components/icons/GoogleIcon';
 
 type View = 'adminDashboard' | 'home';
 
@@ -23,7 +21,7 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({ navigateTo }) =>
     setError('');
     setIsLoading(true);
 
-    const success = await signIn('credentials', { email, pass: password });
+    const success = await signIn({ email, pass: password });
 
     setIsLoading(false);
     if (success) {
@@ -33,16 +31,6 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({ navigateTo }) =>
     }
   };
   
-  const handleGoogleSubmit = async () => {
-    const success = await signIn('google');
-    if (success) {
-        // Redirect non-admin Google users to the home page
-        navigateTo('home');
-    } else {
-        setError('Google sign-in failed.');
-    }
-  };
-
   return (
     <div className="min-h-screen bg-light flex flex-col justify-center items-center p-4">
       <div className="w-full max-w-sm">
@@ -83,12 +71,6 @@ export const AdminLoginPage: React.FC<AdminLoginPageProps> = ({ navigateTo }) =>
             </Button>
           </form>
 
-          <Separator className="my-4" />
-
-          <Button variant="outline" className="w-full" onClick={handleGoogleSubmit}>
-            <GoogleIcon className="h-4 w-4 mr-2" />
-            Continuer avec Google
-          </Button>
         </div>
       </div>
     </div>

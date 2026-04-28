@@ -2,7 +2,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useLayerDepth } from '../core/navigation';
 import { ParrotIcon } from './icons/ParrotIcon';
-import { GoogleIcon } from './icons/GoogleIcon';
 import { LogOutIcon } from './icons/LogOutIcon';
 import { useAuth } from '../hooks/useAuth';
 import { DashboardIcon } from './icons/DashboardIcon';

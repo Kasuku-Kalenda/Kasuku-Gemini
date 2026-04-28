@@ -13,7 +13,7 @@ interface Session { user: User; }
 interface AuthContextType {
   session: Session | null;
   status:  AuthStatus;
-  signIn:  (provider: 'credentials' | 'google', credentials?: { email: string; pass: string }) => Promise<boolean>;
+  signIn:  (credentials: { email: string; pass: string }) => Promise<boolean>;
   signOut: () => void;
 }
 
@@ -47,27 +47,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return () => window.removeEventListener('kasuku:logout', handleLogout);
   }, []);
 
-  // Récupérer le token renvoyé par Google OAuth (callback redirect ?token=...)
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const token  = params.get('token');
-    if (!token) return;
-    window.history.replaceState({}, '', window.location.pathname);
-    tokenStore.setTokens(token);
-    api.get<User>('/auth/me')
-      .then(user => { setSession({ user }); setStatus('authenticated'); })
-      .catch(() => { tokenStore.clear(); setStatus('unauthenticated'); });
-  }, []);
-
   const signIn = useCallback(async (
-    provider: 'credentials' | 'google',
-    credentials?: { email: string; pass: string },
+    credentials: { email: string; pass: string },
   ): Promise<boolean> => {
-    if (provider === 'google') {
-      window.location.href = `${(import.meta.env.VITE_API_URL as string | undefined) ?? '/api/v1'}/auth/google`;
-      return true;
-    }
-    if (!credentials) return false;
     try {
       const res = await api.post<{ accessToken: string; refreshToken: string; user: User }>(
         '/auth/login',
