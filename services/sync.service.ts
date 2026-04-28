@@ -223,24 +223,41 @@ export const syncService = {
         // Étape 2 — Sauvegarde dans IndexedDB
         onProgress({ packageId: id, status: 'saving', progress: 70 });
 
+        // ── Règle de gouvernance : ne jamais écraser le contenu local ──────────
+        // Chaque item entrant reçoit source = { type:'central', id: packageId, syncedAt }
+        // Si un item existe déjà avec source.type === 'local', on le préserve.
+        const now = new Date().toISOString();
+        const centralSource = { type: 'central' as const, id, syncedAt: now };
+
         await db.transaction('rw', [db.events, db.timelines, db.themes, db.modules], async () => {
           if (payload.events?.length) {
-            await db.events.bulkPut(payload.events);
+            const incoming = payload.events.map(ev => ({ ...ev, source: centralSource }));
+            const existing = await db.events.bulkGet(incoming.map(e => e.id));
+            const toSave = incoming.filter((_, i) => existing[i]?.source?.type !== 'local');
+            if (toSave.length) await db.events.bulkPut(toSave);
           }
           if (payload.timelines?.length) {
-            await db.timelines.bulkPut(
-              payload.timelines.map(t => ({
-                ...t,
-                updatedAt: t.updatedAt ?? new Date().toISOString(),
-                createdAt: t.createdAt ?? new Date().toISOString(),
-              }))
-            );
+            const incoming = payload.timelines.map(t => ({
+              ...t,
+              updatedAt: t.updatedAt ?? now,
+              createdAt: t.createdAt ?? now,
+              source: centralSource,
+            }));
+            const existing = await db.timelines.bulkGet(incoming.map(t => t.id));
+            const toSave = incoming.filter((_, i) => existing[i]?.source?.type !== 'local');
+            if (toSave.length) await db.timelines.bulkPut(toSave);
           }
           if (payload.themes?.length) {
-            await db.themes.bulkPut(payload.themes);
+            const incoming = payload.themes.map(th => ({ ...th, source: centralSource }));
+            const existing = await db.themes.bulkGet(incoming.map(t => t.id));
+            const toSave = incoming.filter((_, i) => existing[i]?.source?.type !== 'local');
+            if (toSave.length) await db.themes.bulkPut(toSave);
           }
           if (payload.modules?.length) {
-            await db.modules.bulkPut(payload.modules);
+            const incoming = payload.modules.map(m => ({ ...m, source: centralSource }));
+            const existing = await db.modules.bulkGet(incoming.map(m => m.id));
+            const toSave = incoming.filter((_, i) => existing[i]?.source?.type !== 'local');
+            if (toSave.length) await db.modules.bulkPut(toSave);
           }
         });
 

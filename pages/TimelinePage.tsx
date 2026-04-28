@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import type { Event, TimelineNarrative, Media } from '../types';
+import type { Event, TimelineNarrative, Media, MomentResource } from '../types';
 import { CardMediaPreview } from '../components/MediaGallery';
 import { getTimelineBySlug, getEvents } from '../services/api';
 import { formatDate } from '../utils/helpers';
@@ -27,6 +27,7 @@ interface NarrativeSlide {
     sortTimestamp: number;        // timestamp ms pour tri fiable (Infinity = sans date)
     media: Media[];               // tableau complet (images + vidéos)
     themes: { id: string; name: string; slug: string }[];
+    resources: MomentResource[];           // ressources complémentaires (moments uniquement)
     originalType: 'intro' | 'moment' | 'event';
     refObject: any;
 }
@@ -61,6 +62,60 @@ const toSortTs = (
     return Infinity;
 };
 
+// ── Icônes par type de ressource ─────────────────────────────────────────────
+const RESOURCE_ICONS: Record<string, string> = {
+    audio: '🎵', video: '🎬', image: '🖼️', pdf: '📄', link: '🔗',
+};
+const RESOURCE_LABELS: Record<string, string> = {
+    audio: 'Audio', video: 'Vidéo', image: 'Image', pdf: 'PDF', link: 'Lien',
+};
+
+// ── Helper : ouvre une URL, y compris les data: URLs (bloquées par target=_blank) ──
+const openUrl = (url: string, filename = 'fichier') => {
+    if (!url) return;
+    if (url.startsWith('data:')) {
+        // Convertit le data URL en Blob pour contourner le blocage navigateur
+        try {
+            const [header, b64] = url.split(',');
+            const mime = header.match(/:(.*?);/)?.[1] ?? 'application/octet-stream';
+            const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+            const blob = new Blob([bytes], { type: mime });
+            const blobUrl = URL.createObjectURL(blob);
+            const win = window.open(blobUrl, '_blank');
+            // Libère la mémoire une fois la fenêtre chargée (ou après 30 s)
+            if (win) win.addEventListener('load', () => URL.revokeObjectURL(blobUrl), { once: true });
+            else setTimeout(() => URL.revokeObjectURL(blobUrl), 30_000);
+        } catch {
+            // Dernier recours : téléchargement direct
+            const a = document.createElement('a');
+            a.href = url; a.download = filename; a.click();
+        }
+    } else {
+        window.open(url, '_blank', 'noopener,noreferrer');
+    }
+};
+
+// ── Composant : une ressource ─────────────────────────────────────────────────
+// Note : dans la carte (overflow-hidden, espace limité) on n'embarque pas
+// de lecteur audio inline — tous les types utilisent le même bouton openUrl.
+const MomentResourceItem: React.FC<{ resource: MomentResource }> = ({ resource }) => (
+    <button
+        type="button"
+        onClick={e => { e.stopPropagation(); openUrl(resource.url, resource.title); }}
+        className="w-full flex items-center gap-2.5 px-4 py-2.5 bg-white/60 hover:bg-white/90 active:bg-white rounded-2xl border border-white/50 transition-all group/res text-left"
+    >
+        <span className="text-base leading-none flex-shrink-0">
+            {RESOURCE_ICONS[resource.type] ?? '📎'}
+        </span>
+        <span className="flex-1 truncate text-[11px] font-bold text-secondary">
+            {resource.title}
+        </span>
+        <span className="text-[9px] text-muted-foreground uppercase tracking-widest opacity-50 group-hover/res:opacity-100 transition-opacity flex-shrink-0">
+            {RESOURCE_LABELS[resource.type] ?? resource.type} ↗
+        </span>
+    </button>
+);
+
 // ── Slide d'introduction (toujours en position 0) ────────────────────────────
 const buildIntroSlide = (tl: TimelineNarrative): NarrativeSlide => ({
     id: `${tl.id}__intro`,
@@ -71,6 +126,7 @@ const buildIntroSlide = (tl: TimelineNarrative): NarrativeSlide => ({
     sortTimestamp: -Infinity,   // toujours premier
     media: tl.thumbnail ? [{ id: 'intro-thumb', type: 'image' as const, url: tl.thumbnail }] : [],
     themes: [],
+    resources: [],
     originalType: 'intro',
     refObject: tl,
 });
@@ -110,6 +166,7 @@ export const TimelinePage: React.FC<TimelinePageProps> = ({
                     ? m.media!
                     : tl.thumbnail ? [{ id: 'fallback', type: 'image' as const, url: tl.thumbnail }] : [],
                 themes: [],
+                resources: m.resources ?? [],
                 originalType: 'moment' as const,
                 refObject: m,
             }));
@@ -132,6 +189,7 @@ export const TimelinePage: React.FC<TimelinePageProps> = ({
                     ? e.media!
                     : tl.thumbnail ? [{ id: 'fallback', type: 'image' as const, url: tl.thumbnail }] : [],
                 themes: e.themes,
+                resources: [],      // les événements du calendrier n'ont pas de ressources de moment
                 originalType: 'event' as const,
                 refObject: e,
             }));
@@ -340,9 +398,24 @@ export const TimelinePage: React.FC<TimelinePageProps> = ({
                                     <h3 className={`font-black text-secondary leading-tight mb-5 tracking-tight group-hover/card:text-primary transition-colors ${isSlideIntro ? 'text-3xl sm:text-4xl' : 'text-2xl sm:text-3xl'}`}>
                                         {slide.title}
                                     </h3>
-                                    <p className="text-dark/80 text-sm sm:text-base leading-relaxed line-clamp-4 font-medium mb-6">
+                                    <p className={`text-dark/80 text-sm sm:text-base leading-relaxed font-medium mb-4 ${isFocused && slide.resources.length > 0 ? 'line-clamp-3' : 'line-clamp-4 mb-6'}`}>
                                         {slide.description}
                                     </p>
+
+                                    {/* ── Ressources complémentaires (moments uniquement, carte focalisée) ── */}
+                                    {isFocused && slide.originalType === 'moment' && slide.resources.length > 0 && (
+                                        <div className="mb-4" onClick={e => e.stopPropagation()}>
+                                            <div className="h-px bg-black/8 mb-3" />
+                                            <p className="text-[9px] font-black uppercase tracking-[0.25em] text-muted-foreground mb-2.5">
+                                                Ressources
+                                            </p>
+                                            <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1">
+                                                {slide.resources.map((res, ri) => (
+                                                    <MomentResourceItem key={res.id ?? ri} resource={res} />
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
 
                                     {/* Pied de la slide intro : nombre de moments */}
                                     {isSlideIntro && contentCount > 0 && isFocused && (

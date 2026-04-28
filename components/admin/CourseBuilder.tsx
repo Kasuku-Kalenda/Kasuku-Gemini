@@ -220,10 +220,11 @@ interface LessonCardProps {
   control: Control<ModuleFormData>;
   register: UseFormRegister<ModuleFormData>;
   setValue: UseFormSetValue<ModuleFormData>;
+  getValues: UseFormGetValues<ModuleFormData>;
   onRemove: () => void;
 }
 
-const LessonCard = memo(({ si, li, control, register, setValue, onRemove }: LessonCardProps) => {
+const LessonCard = memo(({ si, li, control, register, setValue, getValues, onRemove }: LessonCardProps) => {
   const lessonType = useWatch({ control, name: `sections.${si}.lessons.${li}.type` as any }) as string;
   const lessonQuiz = useWatch({ control, name: `sections.${si}.lessons.${li}.quiz` as any }) as Quiz | null;
   const fileRef = useRef<HTMLInputElement>(null);
@@ -232,6 +233,9 @@ const LessonCard = memo(({ si, li, control, register, setValue, onRemove }: Less
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]; if (!f) return;
+    // Auto-remplir le titre de la leçon avec le nom du fichier (sans extension) si vide
+    const titlePath = `sections.${si}.lessons.${li}.title` as any;
+    if (!getValues(titlePath)) setValue(titlePath, f.name.replace(/\.[^/.]+$/, ''));
     const reader = new FileReader();
     reader.onload = ev => setValue(`sections.${si}.lessons.${li}.url` as any, ev.target?.result as string);
     reader.readAsDataURL(f);
@@ -323,10 +327,11 @@ interface SectionCardProps {
   control: Control<ModuleFormData>;
   register: UseFormRegister<ModuleFormData>;
   setValue: UseFormSetValue<ModuleFormData>;
+  getValues: UseFormGetValues<ModuleFormData>;
   onRemove: () => void;
 }
 
-const SectionCard = memo(({ si, control, register, setValue, onRemove }: SectionCardProps) => {
+const SectionCard = memo(({ si, control, register, setValue, getValues, onRemove }: SectionCardProps) => {
   const { fields: lessonFields, append: appendLesson, remove: removeLesson } =
     useFieldArray({ control, name: `sections.${si}.lessons` as any });
 
@@ -368,7 +373,7 @@ const SectionCard = memo(({ si, control, register, setValue, onRemove }: Section
           <LessonCard
             key={lf.id}
             si={si} li={li}
-            control={control} register={register} setValue={setValue}
+            control={control} register={register} setValue={setValue} getValues={getValues}
             onRemove={() => removeLesson(li)}
           />
         ))}
@@ -402,12 +407,13 @@ interface ResourceRowProps {
   control: Control<ModuleFormData>;
   register: UseFormRegister<ModuleFormData>;
   setValue: UseFormSetValue<ModuleFormData>;
+  getValues: UseFormGetValues<ModuleFormData>;
   allEvents: any[];
   timelines: any[];
   onRemove: () => void;
 }
 
-const ResourceRow = memo(({ ri, control, register, setValue, allEvents, timelines, onRemove }: ResourceRowProps) => {
+const ResourceRow = memo(({ ri, control, register, setValue, getValues, allEvents, timelines, onRemove }: ResourceRowProps) => {
   const type = useWatch({ control, name: `resources.${ri}.type` as any }) as string;
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -415,6 +421,9 @@ const ResourceRow = memo(({ ri, control, register, setValue, allEvents, timeline
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]; if (!f) return;
+    // Auto-remplir le titre de la ressource avec le nom du fichier (sans extension) si vide
+    const titlePath = `resources.${ri}.title` as any;
+    if (!getValues(titlePath)) setValue(titlePath, f.name.replace(/\.[^/.]+$/, ''));
     const reader = new FileReader();
     reader.onload = ev => setValue(`resources.${ri}.url` as any, ev.target?.result as string);
     reader.readAsDataURL(f);
@@ -997,7 +1006,7 @@ export function CourseBuilder({ mode, initialData, onSave }: CourseBuilderProps)
                   <SectionCard
                     key={section.id}
                     si={si}
-                    control={control} register={register} setValue={setValue}
+                    control={control} register={register} setValue={setValue} getValues={getValues}
                     onRemove={() => removeSection(si)}
                   />
                 ))}
@@ -1047,7 +1056,7 @@ export function CourseBuilder({ mode, initialData, onSave }: CourseBuilderProps)
                 {resourcesFields.map((resource, ri) => (
                   <ResourceRow
                     key={resource.id}
-                    ri={ri} control={control} register={register} setValue={setValue}
+                    ri={ri} control={control} register={register} setValue={setValue} getValues={getValues}
                     allEvents={allEvents} timelines={timelines}
                     onRemove={() => removeResource(ri)}
                   />

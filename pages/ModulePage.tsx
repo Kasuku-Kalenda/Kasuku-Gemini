@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import type { TrainingModule, Section, Lesson, Event, MoodleCourseMap, MoodleOfflinePackage } from '../types';
+import type { AppView } from '../core/navigation';
 import { useModuleProgress } from '../hooks/useModuleProgress';
 import { useFavorites } from '../hooks/useFavorites';
 import { formatDate } from '../utils/helpers';
@@ -32,7 +33,7 @@ interface ModulePageProps {
   module: TrainingModule;
   onNavigateToEvent: (eventId: string) => void;
   onBack: () => void;
-  navigateTo: (view: any, id?: string) => void;
+  navigateTo: (view: AppView, id?: string) => void;
 }
 
 const getLessonIcon = (type: Lesson['type']) => {
@@ -275,6 +276,28 @@ export const ModulePage: React.FC<ModulePageProps> = ({ module, onNavigateToEven
 const RESOURCE_ICONS: Record<string, string> = {
     audio: '🎵', video: '🎬', image: '🖼️', pdf: '📄',
     link: '🔗', event: '📅', timeline: '🎭',
+};
+
+// ─── Helper : ouvre une URL y compris data: (bloquées par target=_blank) ─────
+const openUrl = (url: string, filename = 'fichier') => {
+    if (!url) return;
+    if (url.startsWith('data:')) {
+        try {
+            const [header, b64] = url.split(',');
+            const mime = header.match(/:(.*?);/)?.[1] ?? 'application/octet-stream';
+            const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+            const blob = new Blob([bytes], { type: mime });
+            const blobUrl = URL.createObjectURL(blob);
+            const win = window.open(blobUrl, '_blank');
+            if (win) win.addEventListener('load', () => URL.revokeObjectURL(blobUrl), { once: true });
+            else setTimeout(() => URL.revokeObjectURL(blobUrl), 30_000);
+        } catch {
+            const a = document.createElement('a');
+            a.href = url; a.download = filename; a.click();
+        }
+    } else {
+        window.open(url, '_blank', 'noopener,noreferrer');
+    }
 };
 
 // ─── QUIZ PLAYER ─────────────────────────────────────────────────────────────
@@ -537,7 +560,7 @@ function InternalCoursePlayer({
     completedLessons, toggleLessonComplete, progressPercentage, relatedEvents,
 }: {
     module: any; onBack: () => void; onNavigateToEvent: (id: string) => void;
-    navigateTo: (v: any, id?: string) => void;
+    navigateTo: (v: AppView, id?: string) => void;
     isFav: boolean; onToggleFav: () => void; onShare: () => void;
     completedLessons: Set<string>; toggleLessonComplete: (id: string) => void;
     progressPercentage: number; relatedEvents: any[];
@@ -749,30 +772,72 @@ function InternalCoursePlayer({
                             <h3 className="font-bold text-secondary">🔗 Ressources complémentaires</h3>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 {module.resources.map((r: any) => (
-                                    <div key={r.id} className="flex items-start gap-3 p-3.5 bg-white rounded-xl border border-muted hover:border-primary/30 hover:shadow-sm transition-all">
-                                        <span className="text-xl shrink-0">{RESOURCE_ICONS[r.type] ?? '🔗'}</span>
-                                        <div className="flex-1 min-w-0">
-                                            <p className="font-bold text-sm text-secondary line-clamp-1">{r.title}</p>
-                                            {r.description && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{r.description}</p>}
-                                            {r.url && (
-                                                <a href={r.url} target="_blank" rel="noopener noreferrer"
-                                                    className="text-xs text-primary font-bold hover:underline mt-1 inline-block">
-                                                    Accéder →
-                                                </a>
-                                            )}
-                                            {r.type === 'event' && r.eventId && (
-                                                <button onClick={() => onNavigateToEvent(r.eventId)}
-                                                    className="text-xs text-primary font-bold hover:underline mt-1 inline-block">
-                                                    Voir l'événement →
-                                                </button>
-                                            )}
-                                            {r.type === 'timeline' && r.timelineSlug && (
-                                                <button onClick={() => navigateTo('timeline', r.timelineSlug)}
-                                                    className="text-xs text-primary font-bold hover:underline mt-1 inline-block">
-                                                    Voir le parcours →
-                                                </button>
-                                            )}
-                                        </div>
+                                    <div key={r.id} className={`flex items-start gap-3 p-3.5 bg-white rounded-xl border border-muted hover:border-primary/30 hover:shadow-sm transition-all ${r.type === 'audio' ? 'flex-col' : ''}`}>
+                                        {/* ── Audio : lecteur inline ── */}
+                                        {r.type === 'audio' ? (
+                                            <div className="w-full">
+                                                <div className="flex items-center gap-2 mb-2">
+                                                    <span className="text-xl shrink-0">🎵</span>
+                                                    <p className="font-bold text-sm text-secondary line-clamp-1 flex-1">{r.title}</p>
+                                                </div>
+                                                {r.description && <p className="text-xs text-muted-foreground mb-2 line-clamp-1">{r.description}</p>}
+                                                {r.url
+                                                    ? <audio controls src={r.url} className="w-full h-9" />
+                                                    : <p className="text-xs text-muted-foreground italic">Aucun fichier audio</p>
+                                                }
+                                            </div>
+                                        ) : r.type === 'image' ? (
+                                            /* ── Image : miniature + lien ── */
+                                            <>
+                                                {r.url
+                                                    ? <img src={r.url} alt={r.title} className="w-14 h-14 rounded-lg object-cover shrink-0 border border-muted" />
+                                                    : <span className="text-xl shrink-0">🖼️</span>
+                                                }
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="font-bold text-sm text-secondary line-clamp-1">{r.title}</p>
+                                                    {r.description && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{r.description}</p>}
+                                                    {r.url && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => openUrl(r.url, r.title)}
+                                                            className="text-xs text-primary font-bold hover:underline mt-1 inline-block"
+                                                        >
+                                                            Voir l'image →
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </>
+                                        ) : (
+                                            /* ── PDF, Vidéo, Lien, Événement, Timeline ── */
+                                            <>
+                                                <span className="text-xl shrink-0">{RESOURCE_ICONS[r.type] ?? '🔗'}</span>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="font-bold text-sm text-secondary line-clamp-1">{r.title}</p>
+                                                    {r.description && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{r.description}</p>}
+                                                    {r.url && r.type !== 'event' && r.type !== 'timeline' && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => openUrl(r.url, r.title)}
+                                                            className="text-xs text-primary font-bold hover:underline mt-1 inline-block"
+                                                        >
+                                                            {r.type === 'pdf' ? 'Ouvrir le PDF →' : r.type === 'video' ? 'Voir la vidéo →' : 'Accéder →'}
+                                                        </button>
+                                                    )}
+                                                    {r.type === 'event' && r.eventId && (
+                                                        <button onClick={() => onNavigateToEvent(r.eventId)}
+                                                            className="text-xs text-primary font-bold hover:underline mt-1 inline-block">
+                                                            Voir l'événement →
+                                                        </button>
+                                                    )}
+                                                    {r.type === 'timeline' && r.timelineSlug && (
+                                                        <button onClick={() => navigateTo('timeline', r.timelineSlug)}
+                                                            className="text-xs text-primary font-bold hover:underline mt-1 inline-block">
+                                                            Voir le parcours →
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </>
+                                        )}
                                     </div>
                                 ))}
                             </div>

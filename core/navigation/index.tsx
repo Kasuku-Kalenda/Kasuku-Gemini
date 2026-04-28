@@ -1,12 +1,21 @@
 /**
- * core/navigation/index.tsx — NavigationContext
+ * core/navigation/index.tsx
  *
- * Replaces the scattered navigateTo / selectedEvent / selectedModule / etc.
- * state that lived in App.tsx. All shell components use useNavigation() to
- * read the current view and navigate between views.
+ * Stack-based history manager with layered keep-alive rendering.
+ *
+ *  • Each navigate() push creates a new HistoryEntry with a stable UUID.
+ *  • All entries stay mounted (React state + scroll preserved automatically).
+ *  • LayeredViewStack reads `stack` and renders each entry as an absolute layer.
+ *  • ViewOverrideProvider lets each layer see its own view/payload via useNavigation().
+ *  • LayerDepthProvider tells chrome components (TopBar, BottomNav) to hide in bg layers.
+ *  • direction ('forward'|'backward') drives animation variants in LayeredViewStack.
+ *  • Browser ← button is wired via popstate + suppressPopState guard.
  */
 
-import React, { createContext, useContext, useState, useCallback, useRef, ReactNode } from 'react';
+import React, {
+  createContext, useContext, useState, useCallback, useRef, useEffect,
+  useMemo, ReactNode,
+} from 'react';
 import type { Event, TrainingModule } from '../../types';
 
 // ─── Payload ──────────────────────────────────────────────────────────────────
@@ -36,26 +45,81 @@ export type AppView =
   | 'adminMoodleCourses' | 'adminNewMoodleCourse' | 'adminEditMoodleCourse'
   | 'adminMoodlePackages' | 'adminNewMoodlePackage' | 'adminEditMoodlePackage' | 'adminMoodlePackageUpload'
   | 'adminMoodleMaps' | 'adminNewMoodleMap' | 'adminEditMoodleMap'
+  | 'adminKalenda'
   | 'adminSync' | 'adminImport'
   | 'offlineScorm' | 'offlineH5p';
+
+// ─── History entry ────────────────────────────────────────────────────────────
+
+export interface HistoryEntry {
+  /** Stable React key — never changes for the lifetime of this visit. */
+  id: string;
+  view: AppView;
+  payload: NavigationPayload;
+}
+
+export type NavigationDirection = 'forward' | 'backward';
 
 // ─── Context type ─────────────────────────────────────────────────────────────
 
 export type NavigationContextType = {
+  // Full stack — consumed by LayeredViewStack
+  stack: HistoryEntry[];
+  direction: NavigationDirection;
+  // Convenience derived values (compatible with existing consumers)
   view: AppView;
   previousView: AppView | null;
   payload: NavigationPayload;
   scrollTargetId: string | null;
+  canGoBack: boolean;
+  // Actions
   navigate: (view: AppView, payload?: NavigationPayload) => void;
   goBack: () => void;
   clearScrollTarget: () => void;
 };
 
-// ─── Context ──────────────────────────────────────────────────────────────────
+// ─── Layer override context ───────────────────────────────────────────────────
+// Each layer in the stack wraps its content with ViewOverrideProvider so that
+// useNavigation() inside that layer sees the layer's own view/payload (not the
+// current top of the stack). navigate/goBack still target the global stack.
+
+interface LayerOverride {
+  view: AppView;
+  payload: NavigationPayload;
+}
+
+const LayerOverrideContext = createContext<LayerOverride | null>(null);
+
+export const ViewOverrideProvider: React.FC<LayerOverride & { children: ReactNode }> = ({
+  view, payload, children,
+}) => (
+  <LayerOverrideContext.Provider value={{ view, payload }}>
+    {children}
+  </LayerOverrideContext.Provider>
+);
+
+// ─── Layer depth context ──────────────────────────────────────────────────────
+// 0 = active (top) layer  |  1+ = background layer
+// TopBar and BottomNav return null when depth > 0 to avoid stacked chrome.
+
+const LayerDepthContext = createContext(0);
+
+export const LayerDepthProvider: React.FC<{ depth: number; children: ReactNode }> = ({
+  depth, children,
+}) => (
+  <LayerDepthContext.Provider value={depth}>{children}</LayerDepthContext.Provider>
+);
+
+export const useLayerDepth = () => useContext(LayerDepthContext);
+
+// ─── ID counter ───────────────────────────────────────────────────────────────
+
+let _seq = 0;
+const nextId = () => `he-${++_seq}-${Math.random().toString(36).slice(2, 6)}`;
+
+// ─── Navigation context ───────────────────────────────────────────────────────
 
 const NavigationContext = createContext<NavigationContextType | undefined>(undefined);
-
-// ─── Provider ─────────────────────────────────────────────────────────────────
 
 interface NavigationProviderProps {
   children: ReactNode;
@@ -66,64 +130,95 @@ export const NavigationProvider: React.FC<NavigationProviderProps> = ({
   children,
   initialView = 'calendar',
 }) => {
-  const [view, setView] = useState<AppView>(initialView);
-  const [previousView, setPreviousView] = useState<AppView | null>(null);
-  const [payload, setPayload] = useState<NavigationPayload>({});
+  const [stack, setStack] = useState<HistoryEntry[]>([
+    { id: nextId(), view: initialView, payload: {} },
+  ]);
+  const [direction, setDirection] = useState<NavigationDirection>('forward');
   const [scrollTargetId, setScrollTargetId] = useState<string | null>(null);
 
-  const scrollPositions = useRef<Partial<Record<AppView, number>>>({});
+  const suppressPopState = useRef(false);
 
+  // ── Derived values ─────────────────────────────────────────────────────────
+  const current      = stack[stack.length - 1];
+  const view         = current.view;
+  const payload      = current.payload;
+  const canGoBack    = stack.length > 1;
+  const previousView = stack.length >= 2 ? stack[stack.length - 2].view : null;
+
+  // ── navigate ───────────────────────────────────────────────────────────────
   const navigate = useCallback((newView: AppView, newPayload?: NavigationPayload) => {
-    // Save current scroll position for the view we're leaving
-    scrollPositions.current[view] = window.scrollY;
+    setDirection('forward');
+    setStack(prev => [
+      ...prev,
+      { id: nextId(), view: newView, payload: newPayload ?? {} },
+    ]);
 
-    // When navigating to an event, we want to be able to scroll back to the
-    // card that was clicked after returning to the list view.
     if (newView === 'event' && newPayload?.event?.id) {
       setScrollTargetId(newPayload.event.id);
     } else {
       setScrollTargetId(null);
     }
 
-    setPreviousView(view);
-    setView(newView);
-    setPayload(newPayload ?? {});
-    window.scrollTo(0, 0);
-  }, [view]);
+    // Push a browser-history entry so the ← button can trigger popstate
+    window.history.pushState(null, '', window.location.href);
+  }, []);
 
-  const goBack = useCallback(() => {
-    if (previousView) {
-      // Restore scroll position when going back
-      const savedPosition = scrollPositions.current[previousView];
-      setView(previousView);
-      setPayload({});
-      // For some parent views like 'module' → 'modules', keep previousView one further back
-      if (previousView === 'module') {
-        setPreviousView('modules');
-      } else {
-        setPreviousView(null);
-      }
-      if (typeof savedPosition === 'number') {
-        setTimeout(() => window.scrollTo({ top: savedPosition, behavior: 'auto' }), 0);
-      }
+  // ── goBack ────────────────────────────────────────────────────────────────
+  const goBackImpl = useCallback((fromPopState: boolean) => {
+    setDirection('backward');
+    setStack(prev => (prev.length <= 1 ? prev : prev.slice(0, -1)));
+
+    if (!fromPopState) {
+      suppressPopState.current = true;
+      window.history.go(-1);
+      setTimeout(() => { suppressPopState.current = false; }, 300);
     }
-  }, [previousView]);
+  }, []);
+
+  const goBack = useCallback(() => goBackImpl(false), [goBackImpl]);
+
+  // ── Browser ← button ──────────────────────────────────────────────────────
+  useEffect(() => {
+    const onPopState = () => {
+      if (suppressPopState.current) return;
+      goBackImpl(true);
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, [goBackImpl]);
 
   const clearScrollTarget = useCallback(() => setScrollTargetId(null), []);
 
+  // ── Context value (memoised) ───────────────────────────────────────────────
+  const value = useMemo<NavigationContextType>(() => ({
+    stack,
+    direction,
+    view,
+    previousView,
+    payload,
+    scrollTargetId,
+    canGoBack,
+    navigate,
+    goBack,
+    clearScrollTarget,
+  }), [stack, direction, view, previousView, payload, scrollTargetId, canGoBack, navigate, goBack, clearScrollTarget]);
+
   return (
-    <NavigationContext.Provider
-      value={{ view, previousView, payload, scrollTargetId, navigate, goBack, clearScrollTarget }}
-    >
+    <NavigationContext.Provider value={value}>
       {children}
     </NavigationContext.Provider>
   );
 };
 
-// ─── Hook ─────────────────────────────────────────────────────────────────────
+// ─── useNavigation ────────────────────────────────────────────────────────────
+// When called inside a ViewOverrideProvider (i.e. inside a background layer),
+// the returned view/payload reflect that layer's snapshot — not the current top.
+// All other fields (navigate, goBack, stack …) come from the global context.
 
 export const useNavigation = (): NavigationContextType => {
-  const ctx = useContext(NavigationContext);
+  const ctx      = useContext(NavigationContext);
+  const override = useContext(LayerOverrideContext);
   if (!ctx) throw new Error('useNavigation must be used within a NavigationProvider');
+  if (override) return { ...ctx, view: override.view, payload: override.payload };
   return ctx;
 };

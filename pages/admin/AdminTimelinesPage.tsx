@@ -114,6 +114,17 @@ export const AdminTimelinesPage: React.FC<AdminTimelinesPageProps> = ({ navigate
                                 );
                             },
                             className: "text-center w-24"
+                        },
+                        {
+                            header: "Source",
+                            accessor: (t) => {
+                                const src = t.source;
+                                if (!src) return <span className="text-[9px] text-muted-foreground">—</span>;
+                                if (src.type === 'central') return <span className="text-[9px] font-bold text-blue-600 bg-blue-50 border border-blue-200 rounded px-1.5 py-0.5">🏛️ Central</span>;
+                                if (src.type === 'imported_csv') return <span className="text-[9px] font-bold text-violet-600 bg-violet-50 border border-violet-200 rounded px-1.5 py-0.5">⬆️ Importé</span>;
+                                return <span className="text-[9px] font-bold text-green-600 bg-green-50 border border-green-200 rounded px-1.5 py-0.5">📍 Local</span>;
+                            },
+                            className: "w-24"
                         }
                     ]}
                 />

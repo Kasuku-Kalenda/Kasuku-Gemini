@@ -30,6 +30,7 @@ import { MoodleCourseFormPage } from '../pages/admin/moodle/forms/MoodleCourseFo
 import { MoodlePackageFormPage } from '../pages/admin/moodle/forms/MoodlePackageFormPage';
 import { MoodleMapFormPage } from '../pages/admin/moodle/forms/MoodleMapFormPage';
 import { MoodlePackageUploadPage } from '../pages/admin/moodle/forms/MoodlePackageUploadPage';
+import { AdminKalendaPage } from '../pages/admin/AdminKalendaPage';
 import { AdminSyncPage } from '../pages/admin/AdminSyncPage';
 import { AdminImportPage } from '../pages/admin/AdminImportPage';
 
@@ -136,6 +137,10 @@ export const AdminApp: React.FC = () => {
         return <MoodleMapFormPage mode="create" onSave={goToList('adminMoodleMaps')} />;
       case 'adminEditMoodleMap':
         return <MoodleMapFormPage mode="edit" id={payload.id ?? null} onSave={goToList('adminMoodleMaps')} />;
+
+      // ── Kalenda (paquets déployés) ─────────────────────────────────────────
+      case 'adminKalenda':
+        return <AdminKalendaPage navigateTo={legacyNavigateTo as any} />;
 
       // ── Sync / Import ─────────────────────────────────────────────────────
       case 'adminSync':

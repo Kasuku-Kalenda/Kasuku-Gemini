@@ -17,7 +17,7 @@ import { ArrowLeftIcon } from '../icons/ArrowLeftIcon';
 import { DatabaseIcon } from '../icons/DatabaseIcon';
 import { TimelineIcon } from '../icons/TimelineIcon';
 
-type AdminView = 'adminDashboard' | 'adminEvents' | 'adminModules' | 'adminThemes' | 'adminFeatured' | 'adminTimelines' | 'adminSync' | 'adminImport' | string;
+type AdminView = 'adminDashboard' | 'adminEvents' | 'adminModules' | 'adminThemes' | 'adminFeatured' | 'adminTimelines' | 'adminKalenda' | 'adminSync' | 'adminImport' | string;
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -59,6 +59,7 @@ const navItems = [
   { view: 'adminEvents', label: 'Événements Calendrier', icon: <ContentIcon className="h-5 w-5" /> },
   { view: 'adminModules', label: 'Modules', icon: <ModulesIcon className="h-5 w-5" /> },
   { view: 'adminThemes', label: 'Thèmes', icon: <ThemeIcon className="h-5 w-5" /> },
+  { view: 'adminKalenda', label: 'Kalenda (Paquets)', icon: <span className="h-5 w-5 flex items-center justify-center text-base">📦</span> },
   { view: 'adminImport', label: 'Import en masse', icon: <span className="h-5 w-5 flex items-center justify-center text-base">⬆️</span> },
   { view: 'adminSync', label: 'Synchronisation', icon: <SyncIcon className="h-5 w-5" /> },
   // Moodle admin nav items removed — management done directly in module form

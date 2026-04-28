@@ -107,6 +107,11 @@ const MomentResources: React.FC<MomentResourcesProps> = ({ momentIndex, form }) 
 
   const handleFile = (ri: number, type: string) => (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file) return;
+    // Auto-remplir le titre avec le nom du fichier (sans extension) si vide
+    const titlePath = `moments.${momentIndex}.resources.${ri}.title` as any;
+    if (!form.getValues(titlePath)) {
+      form.setValue(titlePath, file.name.replace(/\.[^/.]+$/, ''));
+    }
     const reader = new FileReader();
     reader.onload = ev => form.setValue(`moments.${momentIndex}.resources.${ri}.url` as any, ev.target?.result as string);
     reader.readAsDataURL(file);
@@ -355,9 +360,11 @@ const MomentCard: React.FC<MomentCardProps> = ({
 
   const linkedEvent = useMemo(() => allEvents.find((e: any) => e.id === eventId), [allEvents, eventId]);
 
-  const titleErr = (form.formState.errors.moments as any)?.[index]?.title?.message;
-  const narrativeErr = (form.formState.errors.moments as any)?.[index]?.narrative?.message;
-  const dateErr = (form.formState.errors.moments as any)?.[index]?.dateExact?.message;
+  // Les erreurs de champ sont affichées dans le banner globalError (barre sticky)
+  // et non via form.setError (qui bloquerait handleSubmit au clic suivant).
+  const titleErr: string | undefined = undefined;
+  const narrativeErr: string | undefined = undefined;
+  const dateErr: string | undefined = undefined;
 
   // Select an event → auto-fill moment fields
   const handleSelectEvent = useCallback((ev: any) => {
@@ -541,6 +548,8 @@ const MomentCard: React.FC<MomentCardProps> = ({
           {/* Right: Main illustration */}
           <div className="space-y-2">
             <Label className="text-[10px] uppercase font-black tracking-widest text-muted-foreground">Illustration principale</Label>
+            {/* type enregistré en hidden pour que Zod reçoive toujours 'image'|'video' */}
+            <input type="hidden" {...form.register(`moments.${index}.media.0.type`)} defaultValue="image" />
             <div className="flex gap-1 p-1 bg-muted rounded-lg w-fit">
               <Input {...form.register(`moments.${index}.media.0.url`)} placeholder="https://…" className="h-8 text-xs flex-1" />
               <button type="button" className="h-8 px-2 text-xs border border-muted rounded-md hover:border-primary/40"
@@ -588,7 +597,9 @@ export function TimelineForm({ mode, initialData, onSave }: TimelineFormProps) {
   const buildDefaultMoment = (overrides?: Partial<TimelineFormData['moments'][0]>) => ({
     title: '', narrative: '', timeType: 'date' as const,
     dateExact: null, periodText: null, position: 0,
-    media: [], resources: [], eventId: null,
+    // media[0] est toujours initialisé avec type:'image' pour que Zod reçoive toujours un type valide
+    media: [{ type: 'image' as const, url: '', caption: '' }],
+    resources: [], eventId: null,
     ...overrides,
   });
 
@@ -655,8 +666,13 @@ export function TimelineForm({ mode, initialData, onSave }: TimelineFormProps) {
   }, [form]);
 
   const onSubmit = async (rawValues: TimelineFormData) => {
+    // Purger _formState.errors : sans cette ligne, RHF 7.x bloque onSubmit
+    // au prochain appel si des erreurs manuelles ont été posées (form.setError).
+    form.clearErrors();
     setGlobalError(null);
     setIsSaving(true);
+
+    // ── Nettoyage et normalisation des valeurs avant validation ───────────────
     const values: TimelineFormData = {
       ...rawValues,
       subtitle: norm(rawValues.subtitle),
@@ -667,22 +683,61 @@ export function TimelineForm({ mode, initialData, onSave }: TimelineFormProps) {
           dateExact: norm(m.dateExact),
           periodText: norm(m.periodText),
           position: i,
-          media: (m.media ?? []).filter((med: any) => med?.url),
-          resources: (m.resources ?? []).filter((r: any) => r?.url && r?.title),
+          // Filtrer les medias vides ET garantir que type est toujours 'image'|'video'
+          media: (m.media ?? [])
+            .filter((med: any) => med?.url?.trim())
+            .map((med: any) => ({
+              ...med,
+              type: (['image', 'video'] as const).includes(med.type) ? med.type : 'image',
+            })),
+          // Filtrer les ressources incomplètes
+          resources: (m.resources ?? []).filter((r: any) => r?.url?.trim() && r?.title?.trim()),
         }))
       ),
     };
+
+    // ── Validation Zod ────────────────────────────────────────────────────────
+    // IMPORTANT : on ne fait jamais form.setError() ici.
+    // form.setError() écrit dans _formState.errors, et RHF 7.x refuse d'appeler
+    // onSubmit au prochain clic si _formState.errors est non-vide.
+    // Tout le feedback d'erreur passe par le banner globalError.
     const result = await timelineFormSchema.safeParseAsync(values);
     if (!result.success) {
+      const humanLabels: Record<string, string> = {
+        title: 'Titre', slug: 'Slug', shortDescription: 'Description courte',
+        thumbnail: 'Image de couverture', periodLabel: 'Label de période',
+        status: 'Statut', type: 'Type',
+      };
+      const messages: string[] = [];
+      const seenPaths = new Set<string>();
+
       for (const issue of result.error.issues) {
-        if (issue.path.length > 0) form.setError(issue.path.join('.') as any, { type: 'manual', message: issue.message });
+        const pathStr = issue.path.join('.');
+        if (!seenPaths.has(pathStr)) {
+          seenPaths.add(pathStr);
+          if (issue.path.length === 1) {
+            const field = humanLabels[String(issue.path[0])] ?? String(issue.path[0]);
+            messages.push(`${field} : ${issue.message}`);
+          } else if (issue.path[0] === 'moments') {
+            const idx = Number(issue.path[1]) + 1;
+            const subField = issue.path.slice(2).join(' › ');
+            messages.push(`Moment ${idx} › ${subField} : ${issue.message}`);
+          } else {
+            messages.push(`${pathStr} : ${issue.message}`);
+          }
+        }
       }
-      const top = result.error.issues.filter(i => i.path.length === 0);
-      if (top.length > 0) setGlobalError(top.map(i => i.message).join(' · '));
+
+      setGlobalError('Veuillez corriger les erreurs suivantes :\n' + messages.map(m => `• ${m}`).join('\n'));
       setIsSaving(false);
-      setTimeout(() => document.querySelector('[data-error="true"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50);
+      // Scroller vers le banner d'erreur dans la barre sticky (toujours visible)
+      setTimeout(() => {
+        document.querySelector('[data-global-error]')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }, 50);
       return;
     }
+
+    // ── Sauvegarde ────────────────────────────────────────────────────────────
     try {
       if (mode === 'create') await adminApi.createTimeline(result.data);
       else await adminApi.updateTimeline(initialData.id, result.data);
@@ -721,7 +776,9 @@ export function TimelineForm({ mode, initialData, onSave }: TimelineFormProps) {
       </div>
 
       {globalError && (
-        <div className="bg-destructive/10 border border-destructive/30 text-destructive rounded-xl p-4 text-sm">{globalError}</div>
+        <div data-global-error className="bg-destructive/10 border border-destructive/30 text-destructive rounded-xl p-4 text-sm whitespace-pre-line">
+          {globalError}
+        </div>
       )}
 
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
@@ -815,17 +872,11 @@ export function TimelineForm({ mode, initialData, onSave }: TimelineFormProps) {
               </h2>
               <p className="text-xs text-muted-foreground mt-0.5">Chaque moment = un événement du calendrier (existant ou à créer).</p>
             </div>
-            <div className="flex gap-2">
-              {fields.length > 1 && (
-                <Button type="button" size="sm" variant="outline" onClick={handleSortByDate} className="text-primary border-primary/30">
-                  🔄 Trier par date
-                </Button>
-              )}
-              <Button type="button" size="sm" variant="outline"
-                onClick={() => append(buildDefaultMoment({ position: fields.length }))}>
-                + Ajouter un moment
+            {fields.length > 1 && (
+              <Button type="button" size="sm" variant="outline" onClick={handleSortByDate} className="text-primary border-primary/30">
+                🔄 Trier par date
               </Button>
-            </div>
+            )}
           </div>
 
           {fields.length === 0 ? (
@@ -853,23 +904,40 @@ export function TimelineForm({ mode, initialData, onSave }: TimelineFormProps) {
                   canMoveDown={index < fields.length - 1 && !swapWouldBreakOrder(watchedMoments, index + 1, index)}
                 />
               ))}
+
+              {/* Bouton "+ Ajouter un moment" toujours en bas, juste après le dernier moment */}
+              <button
+                type="button"
+                onClick={() => append(buildDefaultMoment({ position: fields.length }))}
+                className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-primary/30 rounded-2xl text-sm font-bold text-primary hover:bg-primary/5 hover:border-primary/60 transition-colors"
+              >
+                <span className="text-lg leading-none">+</span> Ajouter un moment
+              </button>
             </div>
           )}
         </section>
 
         {/* ── Barre d'action sticky ──────────────────────────────────────── */}
-        <div className="flex items-center gap-4 pt-4 border-t sticky bottom-0 bg-background/95 backdrop-blur-sm py-4 -mx-6 px-6">
-          <Button type="submit" disabled={isSaving} className="min-w-[200px] gap-2">
-            {isSaving ? (
-              <><svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg> Enregistrement…</>
-            ) : (
-              <>✓ {mode === 'create' ? 'Créer le parcours' : 'Enregistrer les modifications'}</>
-            )}
-          </Button>
-          <Button type="button" variant="outline" onClick={onSave}>Annuler</Button>
-          <span className="text-xs text-muted-foreground ml-auto">
-            {fields.length} moment{fields.length > 1 ? 's' : ''} — {mode === 'create' ? 'sera visible après publication.' : 'modifications instantanées.'}
-          </span>
+        <div className="sticky bottom-0 bg-background/95 backdrop-blur-sm border-t -mx-6 px-6 pt-3 pb-4 space-y-2">
+          {/* Résumé d'erreurs inline (visible même sans scroller) */}
+          {globalError && (
+            <div className="bg-destructive/10 border border-destructive/20 text-destructive rounded-lg px-4 py-2 text-xs whitespace-pre-line leading-relaxed">
+              {globalError}
+            </div>
+          )}
+          <div className="flex items-center gap-4">
+            <Button type="submit" disabled={isSaving} className="min-w-[200px] gap-2">
+              {isSaving ? (
+                <><svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12a9 9 0 1 1-6.219-8.56" /></svg> Enregistrement…</>
+              ) : (
+                <>✓ {mode === 'create' ? 'Créer le parcours' : 'Enregistrer les modifications'}</>
+              )}
+            </Button>
+            <Button type="button" variant="outline" onClick={onSave}>Annuler</Button>
+            <span className="text-xs text-muted-foreground ml-auto">
+              {fields.length} moment{fields.length > 1 ? 's' : ''} — {mode === 'create' ? 'sera visible après publication.' : 'modifications instantanées.'}
+            </span>
+          </div>
         </div>
 
       </form>

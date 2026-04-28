@@ -179,8 +179,12 @@ export const timelineFormSchema = z.object({
   type: z.enum(['personnage', 'evenement']),
   shortDescription: z.string().min(10).max(200),
   longDescription: z.string().optional().nullable(),
-  thumbnail: z.string().url(),
-  periodLabel: z.string().min(2),
+  // Accepte : https://, http://, data: (base64), /, blob:
+  thumbnail: z.string().min(1, "Une image de couverture est requise").refine(
+    v => v.startsWith('data:') || v.startsWith('http://') || v.startsWith('https://') || v.startsWith('/') || v.startsWith('blob:'),
+    { message: "URL invalide — utilisez https:// ou chargez un fichier" }
+  ),
+  periodLabel: z.string().min(2, "Le label de période est requis (min 2 car.)"),
   status: z.enum(['draft', 'published']),
   moments: z.array(timelineMomentSchema).default([])
 });

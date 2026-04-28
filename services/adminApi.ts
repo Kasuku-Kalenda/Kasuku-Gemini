@@ -1,7 +1,10 @@
 import { db } from './db';
-import type { Event, TrainingModule, Theme, FeaturedItem, MoodleInstance, MoodleCourse, MoodleOfflinePackage, MoodleCourseMap, TimelineNarrative } from '../types';
+import type { Event, TrainingModule, Theme, FeaturedItem, Kalenda, MoodleInstance, MoodleCourse, MoodleOfflinePackage, MoodleCourseMap, TimelineNarrative } from '../types';
 import type { EventFormData, ModuleFormData, ThemeFormData, FeaturedFormData, TimelineFormData } from '../schemas/admin';
 import type { MoodleInstanceFormData, MoodleCourseFormData, MoodlePackageFormData, MoodleMapFormData } from '../schemas/moodle';
+
+// Source locale assignée automatiquement à tout contenu créé par l'admin local
+const LOCAL_SOURCE = { type: 'local' as const, id: 'local_admin' };
 
 // --- Timelines ---
 
@@ -59,6 +62,7 @@ const createTimeline = async (data: TimelineFormData): Promise<TimelineNarrative
         createdAt: now,
         updatedAt: now,
         moments: sortMoments(rawMoments),
+        source: LOCAL_SOURCE,
     };
     await db.timelines.add(newTimeline);
     return newTimeline;
@@ -116,6 +120,7 @@ const createEvent = async (data: EventFormData): Promise<Event> => {
         timelineId: data.timelineId ?? undefined,
         timelineMomentId: data.timelineMomentId ?? undefined,
         timelineSlug: timeline?.slug,
+        source: LOCAL_SOURCE,
     };
     await db.events.add(newEvent);
     return newEvent;
@@ -161,7 +166,7 @@ const getTheme = async (id: string): Promise<Theme | null> => {
 };
 
 const createTheme = async (data: ThemeFormData): Promise<Theme> => {
-    const newTheme: Theme = { id: `theme${Date.now()}`, ...data };
+    const newTheme: Theme = { id: `theme${Date.now()}`, ...data, source: LOCAL_SOURCE };
     await db.themes.add(newTheme);
     return newTheme;
 };
@@ -196,6 +201,7 @@ const createModule = async (data: ModuleFormData): Promise<TrainingModule> => {
         creators: [],
         sponsors: [],
         updatedAt: new Date().toISOString(),
+        source: LOCAL_SOURCE,
         sections: (data.sections ?? []).map(s => ({
             ...s,
             id: s.id || `sec${crypto.randomUUID()}`,
@@ -378,6 +384,41 @@ const uploadMoodlePackage = async (courseId: string, file: File): Promise<Moodle
     return newPackage;
 };
 
+// --- Kalenda (projets déployés ciblés) ---
+const listKalendas = async () => {
+    const items = await db.kalendas.orderBy('updatedAt').reverse().toArray();
+    return { items };
+};
+
+const getKalenda = async (id: string): Promise<Kalenda | null> => {
+    return (await db.kalendas.get(id)) ?? null;
+};
+
+const createKalenda = async (data: Omit<Kalenda, 'id' | 'createdAt' | 'updatedAt'>): Promise<Kalenda> => {
+    const now = new Date().toISOString();
+    const newKalenda: Kalenda = { id: `kal_${Date.now()}`, ...data, createdAt: now, updatedAt: now };
+    await db.kalendas.add(newKalenda);
+    return newKalenda;
+};
+
+const updateKalenda = async (id: string, data: Partial<Omit<Kalenda, 'id' | 'createdAt'>>): Promise<Kalenda> => {
+    const existing = await db.kalendas.get(id);
+    if (!existing) throw new Error('Kalenda non trouvé');
+    const updated: Kalenda = { ...existing, ...data, id, updatedAt: new Date().toISOString() };
+    await db.kalendas.put(updated);
+    return updated;
+};
+
+const deleteKalenda = async (id: string): Promise<boolean> => {
+    await db.kalendas.delete(id);
+    return true;
+};
+
+// Publie ou dépublie un Kalenda
+const publishKalenda = async (id: string, status: 'draft' | 'published'): Promise<Kalenda> => {
+    return updateKalenda(id, { status });
+};
+
 // --- Moodle Maps ---
 const listMoodleMaps = async () => {
     const items = await db.moodleMaps.orderBy('createdAt').reverse().toArray();
@@ -414,6 +455,7 @@ export const adminApi = {
     listModules, getModule, createModule, updateModule, deleteModule,
     listFeatured, getFeatured, createFeatured, updateFeatured, deleteFeatured,
     listTimelines, getTimeline, createTimeline, updateTimeline, deleteTimeline,
+    listKalendas, getKalenda, createKalenda, updateKalenda, deleteKalenda, publishKalenda,
     listMoodleInstances, getMoodleInstance, createMoodleInstance, updateMoodleInstance, deleteMoodleInstance,
     listMoodleCourses, getMoodleCourse, createMoodleCourse, updateMoodleCourse, deleteMoodleCourse,
     listMoodlePackages, getMoodlePackage, createMoodlePackage, updateMoodlePackage, deleteMoodlePackage, uploadMoodlePackage,

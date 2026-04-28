@@ -1,4 +1,41 @@
 
+// ─── Gouvernance : provenance du contenu ─────────────────────────────────────
+
+export type ContentSourceType = 'central' | 'local' | 'imported_csv';
+
+export interface ContentSource {
+  type: ContentSourceType;
+  /** Identifiant de l'origine : 'kasuku_core', 'local_admin', 'kalenda_bujumbura_01', 'import_2026_04'… */
+  id: string;
+  syncedAt?: string;   // ISO date (si vient d'une sync centrale)
+  version?: string;    // version du paquet source
+}
+
+// ─── Kalenda : version déployée ciblée ───────────────────────────────────────
+
+export type KalendasStatus = 'draft' | 'published';
+
+export interface Kalenda {
+  id: string;
+  name: string;             // "Kalenda Éducation Sénégal"
+  slug: string;
+  description: string;
+  region?: string;          // "Sénégal", "RDC", "Burundi"…
+  themeLabel?: string;      // "Éducation", "Culture", "Formation"…
+  coverUrl?: string;
+  // Sélection de contenus embarqués
+  eventIds: string[];
+  timelineIds: string[];
+  moduleIds: string[];
+  themeIds: string[];
+  // Méta
+  version: string;          // "1.0.0"
+  status: KalendasStatus;
+  notes?: string;           // notes de version
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Media {
   id?: string;
   type: "image" | "video";
@@ -19,6 +56,7 @@ export interface Theme {
   slug: string;
   color?: string;   // hex ex: "#E57C3C"
   emoji?: string;   // ex: "🎵"
+  source?: ContentSource;
 }
 
 export interface Creator {
@@ -121,6 +159,7 @@ export interface TrainingModule {
   finalQuiz?: Quiz | null;
   hasCertificate?: boolean;
   certificateName?: string | null;
+  source?: ContentSource;
 }
 
 // MODÈLE CALENDRIER CORRIGÉ
@@ -141,6 +180,7 @@ export interface Event {
   timelineId?: string;
   timelineMomentId?: string;
   timelineSlug?: string; // Pour compatibilité navigation actuelle
+  source?: ContentSource; // provenance du contenu
 }
 
 // MODÈLE NARRATIF COMPLET
@@ -185,6 +225,7 @@ export interface TimelineNarrative {
   moments?: TimelineMoment[];
   createdAt?: string;
   updatedAt?: string;
+  source?: ContentSource;
 }
 
 export interface FavItem {
