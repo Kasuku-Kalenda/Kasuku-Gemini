@@ -21,9 +21,7 @@ COPY . .
 
 # Variables passées au build Vite (doivent commencer par VITE_)
 ARG VITE_API_URL=http://localhost/api/v1
-ARG VITE_GEMINI_API_KEY=""
 ENV VITE_API_URL=$VITE_API_URL
-ENV VITE_GEMINI_API_KEY=$VITE_GEMINI_API_KEY
 
 RUN npm run build
 

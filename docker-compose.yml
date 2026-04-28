@@ -40,7 +40,6 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_API_URL: ${VITE_API_URL:-http://localhost/api/v1}
-        VITE_GEMINI_API_KEY: ${VITE_GEMINI_API_KEY:-}
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost/index.html"]
       interval: 30s
@@ -77,7 +76,6 @@ services:
       INITIAL_ADMIN_EMAIL: ${INITIAL_ADMIN_EMAIL:-admin@kasuku.app}
       INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD}
       INITIAL_ADMIN_NAME: ${INITIAL_ADMIN_NAME:-Admin Kasuku}
-      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
     depends_on:
       mongo:
         condition: service_healthy
