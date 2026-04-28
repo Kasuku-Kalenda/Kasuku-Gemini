@@ -35,17 +35,26 @@ export let THEMES: Theme[] = [
 ];
 
 export const THEME_COLORS: Record<string, string> = {
-  'history': '#9B59B6', 
-  'music': '#3498DB', 
-  'cinema': '#E74C3C', 
-  'literature': '#2ECC71', 
-  'politics': '#34495E', 
-  'science-tech': '#1ABC9C', 
-  'heritage': '#D35400', 
-  'figures': '#F1C40F', 
-  'social-movements': '#C0392B', 
-  'sports': '#27AE60', 
-  'health': '#E67E22', 
+  // ── slugs anciens (données mock) ──────────────────────────────────────────
+  'history': '#9B59B6',
+  'music': '#3498DB',
+  'cinema': '#E74C3C',
+  'literature': '#2ECC71',
+  'politics': '#34495E',
+  'science-tech': '#1ABC9C',
+  'heritage': '#D35400',
+  'figures': '#F1C40F',
+  'social-movements': '#C0392B',
+  'sports': '#27AE60',
+  'health': '#E67E22',
+  // ── slugs API / base de données ───────────────────────────────────────────
+  'histoire-memoire': '#8B4513',
+  'arts-culture': '#9B2335',
+  'politique-societe': '#1B4F72',
+  'resistance-independance': '#1E8449',
+  'musique-traditions': '#7D3C98',
+  'sciences-savoirs': '#117A65',
+  'femmes-africaines': '#CB4335',
 };
 
 // --- MOMENTS NARRATIFS NELSON MANDELA ---
