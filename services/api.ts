@@ -6,8 +6,10 @@
  * Un événement créé en admin est donc immédiatement visible dans le front.
  */
 
-import { db } from './db';
+import { api } from './apiClient';
 import type { Event, Theme, TrainingModule, FeaturedStory, TimelineNarrative } from '../types';
+
+interface PaginatedResponse<T> { items: T[]; page: number; totalPages: number; totalItems: number; }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -27,102 +29,49 @@ interface EventFilterOptions {
   query?: string;
   theme?: string;
   country?: string;
-  date?: string;   // YYYY-MM-DD
+  date?: string;
   year?: number;
 }
 
+// ─── Events ───────────────────────────────────────────────────────────────────
+
 export const getEvents = async (filters: EventFilterOptions = {}): Promise<Event[]> => {
-  let events = await db.events.toArray();
-
-  if (filters.query) {
-    const q = filters.query.toLowerCase();
-    events = events.filter(e =>
-      e.title.toLowerCase().includes(q) ||
-      e.summary.toLowerCase().includes(q)
-    );
-  }
-  if (filters.theme) {
-    events = events.filter(e => e.themes.some(t => t.slug === filters.theme));
-  }
-  if (filters.country) {
-    events = events.filter(e => e.countryCode === filters.country);
-  }
-  if (filters.year) {
-    const y = Number(filters.year);
-    if (!isNaN(y)) events = events.filter(e => e.year === y);
-  }
-  if (filters.date) {
-    const d = new Date(filters.date);
-    const month = d.getMonth();
-    const day = d.getDate();
-    events = events.filter(e => {
-      if (!e.dateISO) return false;
-      const ed = new Date(e.dateISO);
-      return ed.getMonth() === month && ed.getDate() === day;
-    });
-  }
-
-  // Tri par date décroissante — événements sans date en fin de liste
-  return events.sort((a, b) => {
-    if (a.dateISO && b.dateISO) return b.dateISO.localeCompare(a.dateISO);
-    if (a.dateISO) return -1;
-    if (b.dateISO) return 1;
-    return (b.year ?? 0) - (a.year ?? 0);
-  });
+  const params = new URLSearchParams();
+  if (filters.query)   params.set('q',       filters.query);
+  if (filters.theme)   params.set('theme',   filters.theme);
+  if (filters.country) params.set('country', filters.country);
+  if (filters.date)    params.set('date',    filters.date);
+  if (filters.year)    params.set('year',    String(filters.year));
+  const qs = params.toString();
+  const res = await api.get<PaginatedResponse<Event>>(`/events${qs ? `?${qs}` : ''}`);
+  return res.items;
 };
 
 // ─── Modules ──────────────────────────────────────────────────────────────────
 
 export const getModules = async (options: {
-  query?: string;
-  page?: number;
-  limit?: number;
-  level?: string;
-  lang?: string;
-  maxDuration?: number;
-  type?: string;
-  creator?: string;
+  query?: string; page?: number; limit?: number; level?: string;
+  lang?: string; maxDuration?: number; type?: string; creator?: string;
 } = {}): Promise<{ items: TrainingModule[]; page: number; totalPages: number; totalItems: number }> => {
-  let modules = await db.modules.toArray();
-
-  if (options.query) {
-    const q = options.query.toLowerCase();
-    modules = modules.filter(m =>
-      m.title.toLowerCase().includes(q) ||
-      m.summary.toLowerCase().includes(q)
-    );
-  }
-  if (options.level) modules = modules.filter(m => m.level === options.level);
-  if (options.lang) modules = modules.filter(m => m.language === options.lang);
-  if (options.maxDuration) modules = modules.filter(m => (m.durationMin ?? 0) <= options.maxDuration!);
-  if (options.type) modules = modules.filter(m => m.moduleType === options.type);
-  if (options.creator) {
-    modules = modules.filter(m => m.creators.some(c => c.id === options.creator));
-  }
-
-  const page = options.page ?? 1;
-  const limit = options.limit ?? 12;
-  const start = (page - 1) * limit;
-  const items = modules.slice(start, start + limit);
-
-  return {
-    items,
-    page,
-    totalPages: Math.ceil(modules.length / limit),
-    totalItems: modules.length,
-  };
+  const params = new URLSearchParams();
+  if (options.query)   params.set('q',       options.query);
+  if (options.level)   params.set('level',   options.level);
+  if (options.lang)    params.set('lang',    options.lang);
+  if (options.type)    params.set('type',    options.type);
+  if (options.creator) params.set('creator', options.creator);
+  if (options.page)    params.set('page',    String(options.page));
+  if (options.limit)   params.set('limit',   String(options.limit));
+  const qs = params.toString();
+  return api.get<PaginatedResponse<TrainingModule>>(`/modules${qs ? `?${qs}` : ''}`);
 };
 
 export const getModuleCreators = async (): Promise<{ id: string; name: string }[]> => {
-  const modules = await db.modules.toArray();
+  const res = await api.get<PaginatedResponse<TrainingModule>>('/modules?limit=200');
   const seen = new Set<string>();
   const creators: { id: string; name: string }[] = [];
-  for (const m of modules) {
+  for (const m of res.items) {
     for (const c of m.creators) {
-      if (!seen.has(c.id)) {
-        seen.add(c.id);
-        creators.push({ id: c.id, name: c.name });
-      }
+      if (!seen.has(c.id)) { seen.add(c.id); creators.push({ id: c.id, name: c.name }); }
     }
   }
   return creators;
@@ -130,23 +79,21 @@ export const getModuleCreators = async (): Promise<{ id: string; name: string }[
 
 // ─── Timelines ────────────────────────────────────────────────────────────────
 
-export const getTimelines = async (): Promise<TimelineNarrative[]> => {
-  return db.timelines.where('status').equals('published').toArray();
-};
+export const getTimelines = async (): Promise<TimelineNarrative[]> =>
+  api.get<TimelineNarrative[]>('/timelines');
 
 export const getTimelineBySlug = async (slug: string): Promise<TimelineNarrative | null> => {
-  return (await db.timelines.where('slug').equals(slug).first()) ?? null;
+  try { return await api.get<TimelineNarrative>(`/timelines/slug/${slug}`); } catch { return null; }
 };
 
-// ─── Thèmes & Pays ───────────────────────────────────────────────────────────
+// ─── Thèmes & Pays ────────────────────────────────────────────────────────────
 
-export const getThemes = async (): Promise<Theme[]> => {
-  return db.themes.orderBy('slug').toArray();
-};
+export const getThemes = async (): Promise<Theme[]> =>
+  api.get<Theme[]>('/themes');
 
 export const getCountries = async (): Promise<{ code: string; name: string }[]> => {
-  const events = await db.events.toArray();
-  const codes = [...new Set(events.map(e => e.countryCode).filter(Boolean) as string[])];
+  const res = await api.get<PaginatedResponse<Event>>('/events?limit=500');
+  const codes = [...new Set(res.items.map(e => e.countryCode).filter(Boolean) as string[])];
   return codes
     .map(code => ({ code, name: COUNTRY_NAMES[code] ?? code }))
     .sort((a, b) => a.name.localeCompare(b.name));
@@ -154,64 +101,5 @@ export const getCountries = async (): Promise<{ code: string; name: string }[]> 
 
 // ─── Featured Stories ─────────────────────────────────────────────────────────
 
-export const getFeaturedItems = async (_limit = 12): Promise<FeaturedStory[]> => {
-  const [featured, events, modules, timelines] = await Promise.all([
-    db.featured.toArray(),
-    db.events.toArray(),
-    db.modules.toArray(),
-    db.timelines.toArray(),
-  ]);
-
-  const today = new Date().toISOString().split('T')[0]; // "YYYY-MM-DD"
-
-  const activeItems = featured
-    .filter(item => {
-      if (!item.active) return false;
-      // Date range filtering
-      if (item.startDate && today < item.startDate) return false;
-      if (item.endDate && today > item.endDate) return false;
-      return true;
-    })
-    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-
-  const result: FeaturedStory[] = [];
-
-  for (const item of activeItems) {
-    // eventId is now optional — a featured item can link only to a timeline/module
-    const event = item.eventId ? events.find(e => e.id === item.eventId) : null;
-
-    const matchedModule = modules.find(m => m.slug === item.ctaTo);
-    const matchedTimeline = timelines.find(t => t.slug === item.ctaTo);
-    const ctaType: FeaturedStory['ctaType'] = matchedModule
-      ? 'module'
-      : matchedTimeline
-        ? 'timeline'
-        : null;
-
-    // Resolve image: use item imageUrl, or fall back to timeline thumbnail, or event first media
-    const imageUrl =
-      item.imageUrl ||
-      matchedTimeline?.thumbnail ||
-      event?.media?.[0]?.url ||
-      undefined;
-
-    result.push({
-      id: item.id,
-      title: item.title,
-      subtitle: item.subtitle,
-      imageUrl,
-      eventSlug: event?.slug ?? null,
-      dateISO: event?.dateISO
-        ? new Date(event.dateISO + 'T12:00:00Z')
-            .toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
-            .replace(/\./g, '')      // fix: remove ALL dots (janv. → janv)
-            .trim()
-        : (event?.period ?? null),
-      ctaType,
-      ctaLabel: item.ctaLabel,
-      ctaTo: item.ctaTo,
-    });
-  }
-
-  return result;
-};
+export const getFeaturedItems = async (_limit = 12): Promise<FeaturedStory[]> =>
+  api.get<FeaturedStory[]>('/featured');

@@ -1,113 +1,125 @@
-import { db } from './db';
+/**
+ * services/api.service.ts — CRUD centralisé (remplace Dexie/IndexedDB)
+ * Chaque méthode appelle l'API REST Kasuku (/api/v1).
+ */
+import { api } from './apiClient';
 import type { Event, TrainingModule, TimelineNarrative, Theme } from '../types';
 
+interface PaginatedResponse<T> { items: T[]; page: number; totalPages: number; totalItems: number; }
+
 export const apiService = {
-  // --- EVENTS ---
-  async getEvents(): Promise<Event[]> {
-    return db.events.orderBy('id').reverse().toArray();
+
+  // ─── Events ───────────────────────────────────────────────────────────────
+
+  async getEvents(filters: { q?: string; theme?: string; country?: string; date?: string; year?: number } = {}): Promise<Event[]> {
+    const params = new URLSearchParams();
+    if (filters.q)       params.set('q',       filters.q);
+    if (filters.theme)   params.set('theme',   filters.theme);
+    if (filters.country) params.set('country', filters.country);
+    if (filters.date)    params.set('date',    filters.date);
+    if (filters.year)    params.set('year',    String(filters.year));
+    const qs = params.toString();
+    const res = await api.get<PaginatedResponse<Event>>(`/events${qs ? `?${qs}` : ''}`);
+    return res.items;
   },
 
   async getEventById(id: string): Promise<Event | null> {
-    return (await db.events.get(id)) ?? null;
+    try { return await api.get<Event>(`/events/${id}`); } catch { return null; }
   },
 
   async getEventBySlug(slug: string): Promise<Event | null> {
-    return (await db.events.where('slug').equals(slug).first()) ?? null;
+    try { return await api.get<Event>(`/events/slug/${slug}`); } catch { return null; }
   },
 
   async createEvent(data: Omit<Event, 'id'>): Promise<Event> {
-    const newEvent: Event = { ...data, id: crypto.randomUUID() };
-    await db.events.add(newEvent);
-    return newEvent;
+    return api.post<Event>('/events', data);
   },
 
   async updateEvent(id: string, data: Partial<Event>): Promise<Event> {
-    const existing = await db.events.get(id);
-    if (!existing) throw new Error('Événement non trouvé');
-    const updatedEvent = { ...existing, ...data };
-    await db.events.put(updatedEvent);
-    return updatedEvent;
+    return api.put<Event>(`/events/${id}`, data);
   },
 
   async deleteEvent(id: string): Promise<void> {
-    await db.events.delete(id);
+    return api.delete(`/events/${id}`);
   },
 
-  // --- MODULES ---
-  async getModules(): Promise<TrainingModule[]> {
-    return db.modules.orderBy('updatedAt').reverse().toArray();
+  // ─── Modules ──────────────────────────────────────────────────────────────
+
+  async getModules(options: { q?: string; level?: string; lang?: string; type?: string; creator?: string; page?: number; limit?: number } = {}): Promise<TrainingModule[]> {
+    const params = new URLSearchParams();
+    if (options.q)       params.set('q',       options.q);
+    if (options.level)   params.set('level',   options.level);
+    if (options.lang)    params.set('lang',    options.lang);
+    if (options.type)    params.set('type',    options.type);
+    if (options.creator) params.set('creator', options.creator);
+    if (options.page)    params.set('page',    String(options.page));
+    if (options.limit)   params.set('limit',   String(options.limit));
+    const qs = params.toString();
+    const res = await api.get<PaginatedResponse<TrainingModule>>(`/modules${qs ? `?${qs}` : ''}`);
+    return res.items;
   },
 
   async getModuleById(id: string): Promise<TrainingModule | null> {
-    return (await db.modules.get(id)) ?? null;
+    try { return await api.get<TrainingModule>(`/modules/${id}`); } catch { return null; }
   },
 
   async getModuleBySlug(slug: string): Promise<TrainingModule | null> {
-    return (await db.modules.where('slug').equals(slug).first()) ?? null;
+    try { return await api.get<TrainingModule>(`/modules/slug/${slug}`); } catch { return null; }
   },
 
   async createModule(data: Omit<TrainingModule, 'id'>): Promise<TrainingModule> {
-    const newModule: TrainingModule = { ...data, id: crypto.randomUUID(), updatedAt: new Date().toISOString() };
-    await db.modules.add(newModule);
-    return newModule;
+    return api.post<TrainingModule>('/modules', data);
   },
 
   async updateModule(id: string, data: Partial<TrainingModule>): Promise<TrainingModule> {
-    const existing = await db.modules.get(id);
-    if (!existing) throw new Error('Module non trouvé');
-    const updatedModule = { ...existing, ...data, updatedAt: new Date().toISOString() };
-    await db.modules.put(updatedModule);
-    return updatedModule;
+    return api.put<TrainingModule>(`/modules/${id}`, data);
   },
 
   async deleteModule(id: string): Promise<void> {
-    await db.modules.delete(id);
+    return api.delete(`/modules/${id}`);
   },
 
-  // --- TIMELINES ---
+  // ─── Timelines ────────────────────────────────────────────────────────────
+
   async getTimelines(): Promise<TimelineNarrative[]> {
-    return db.timelines.orderBy('id').reverse().toArray();
+    return api.get<TimelineNarrative[]>('/timelines');
   },
 
   async getTimelineById(id: string): Promise<TimelineNarrative | null> {
-    return (await db.timelines.get(id)) ?? null;
+    try { return await api.get<TimelineNarrative>(`/timelines/${id}`); } catch { return null; }
   },
 
   async getTimelineBySlug(slug: string): Promise<TimelineNarrative | null> {
-    return (await db.timelines.where('slug').equals(slug).first()) ?? null;
+    try { return await api.get<TimelineNarrative>(`/timelines/slug/${slug}`); } catch { return null; }
   },
 
   async createTimeline(data: Omit<TimelineNarrative, 'id'>): Promise<TimelineNarrative> {
-    const now = new Date().toISOString();
-    const newTimeline: TimelineNarrative = { ...data, id: crypto.randomUUID(), eventCount: 0, createdAt: now, updatedAt: now };
-    await db.timelines.add(newTimeline);
-    return newTimeline;
+    return api.post<TimelineNarrative>('/timelines', data);
   },
 
   async updateTimeline(id: string, data: Partial<TimelineNarrative>): Promise<TimelineNarrative> {
-    const existing = await db.timelines.get(id);
-    if (!existing) throw new Error('Timeline non trouvée');
-    const updatedTimeline = { ...existing, ...data, updatedAt: new Date().toISOString() };
-    await db.timelines.put(updatedTimeline);
-    return updatedTimeline;
+    return api.put<TimelineNarrative>(`/timelines/${id}`, data);
   },
 
   async deleteTimeline(id: string): Promise<void> {
-    await db.timelines.delete(id);
+    return api.delete(`/timelines/${id}`);
   },
 
-  // --- THEMES ---
+  // ─── Themes ───────────────────────────────────────────────────────────────
+
   async getThemes(): Promise<Theme[]> {
-    return db.themes.orderBy('slug').toArray();
+    return api.get<Theme[]>('/themes');
   },
 
   async createTheme(data: Omit<Theme, 'id'>): Promise<Theme> {
-    const newTheme: Theme = { ...data, id: crypto.randomUUID() };
-    await db.themes.add(newTheme);
-    return newTheme;
+    return api.post<Theme>('/themes', data);
+  },
+
+  async updateTheme(id: string, data: Partial<Theme>): Promise<Theme> {
+    return api.put<Theme>(`/themes/${id}`, data);
   },
 
   async deleteTheme(id: string): Promise<void> {
-    await db.themes.delete(id);
+    return api.delete(`/themes/${id}`);
   },
 };

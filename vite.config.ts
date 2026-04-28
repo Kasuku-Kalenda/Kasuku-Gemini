@@ -8,6 +8,20 @@ export default defineConfig(({ mode }) => {
       server: {
         port: 3000,
         host: '0.0.0.0',
+        proxy: {
+          // Dev : proxyfier /api vers l'API Fastify locale (port 4000)
+          // Prod : nginx gère ce routing directement
+          '/api': {
+            target: 'http://localhost:4000',
+            changeOrigin: true,
+          },
+          // Dev : proxyfier /storage vers MinIO local (port 9000)
+          '/storage': {
+            target: 'http://localhost:9000',
+            changeOrigin: true,
+            rewrite: (path) => path.replace(/^\/storage/, '/kasuku-media'),
+          },
+        },
       },
       plugins: [react()],
       define: {
