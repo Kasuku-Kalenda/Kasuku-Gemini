@@ -56,7 +56,7 @@ services:
       context: ./api
       dockerfile: Dockerfile
     environment:
-      NODE_ENV: ${NODE_ENV:-development}
+      NODE_ENV: production
       MONGODB_URI: ${MONGODB_URI}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
       JWT_SECRET: ${JWT_SECRET}
