@@ -42,7 +42,7 @@ services:
         VITE_API_URL: ${VITE_API_URL:-http://localhost/api/v1}
         VITE_GEMINI_API_KEY: ${VITE_GEMINI_API_KEY:-}
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost/health"]
+      test: ["CMD", "wget", "-qO-", "http://localhost/index.html"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -147,7 +147,7 @@ services:
       - "9000:9000"   # API S3
       - "9001:9001"   # Console admin MinIO
     healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 30s
       timeout: 10s
       retries: 3
