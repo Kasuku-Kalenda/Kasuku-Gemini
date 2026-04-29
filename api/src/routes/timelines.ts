@@ -14,24 +14,12 @@ import type { FastifyInstance } from 'fastify';
 import { Timeline }     from '../models';
 import { requireAdmin } from '../middleware/auth';
 import slugify from 'slugify';
+import { findBase64Fields } from '../utils/validation';
 
 function toSlug(title: string) {
   return slugify(title, { lower: true, strict: true, locale: 'fr' });
 }
 
-/** Détecte récursivement les data URLs base64 dans un objet/tableau */
-function findBase64Fields(obj: unknown, path = ''): string[] {
-  if (typeof obj === 'string') {
-    return /^data:[a-z]+\/[a-z0-9.+-]+;base64,/i.test(obj) ? [path || '(racine)'] : [];
-  }
-  if (Array.isArray(obj)) {
-    return obj.flatMap((item, i) => findBase64Fields(item, `${path}[${i}]`));
-  }
-  if (obj && typeof obj === 'object') {
-    return Object.entries(obj).flatMap(([k, v]) => findBase64Fields(v, path ? `${path}.${k}` : k));
-  }
-  return [];
-}
 
 function sortMoments(moments: Array<Record<string, unknown>>) {
   return [...moments].sort((a, b) => {
@@ -114,6 +102,8 @@ export async function timelinesRoutes(app: FastifyInstance) {
       source: { type: 'local', id: 'local_admin' },
     });
 
+    // Invalide le cache timeline_map pour que resolveTimelineSlugs reflète le nouveau récit
+    try { await app.redis.del('kasuku:timeline_map'); } catch { /* ignoré */ }
     return reply.status(201).send({ ...timeline.toObject(), id: timeline._id.toString() });
   });
 
@@ -139,6 +129,7 @@ export async function timelinesRoutes(app: FastifyInstance) {
     ).lean();
 
     if (!timeline) return reply.status(404).send({ error: 'Timeline introuvable' });
+    try { await app.redis.del('kasuku:timeline_map'); } catch { /* ignoré */ }
     return reply.send({ ...timeline, id: timeline._id.toString() });
   });
 
@@ -146,6 +137,7 @@ export async function timelinesRoutes(app: FastifyInstance) {
   app.delete<{ Params: { id: string } }>('/:id', { preHandler: requireAdmin }, async (req, reply) => {
     const result = await Timeline.findByIdAndDelete(req.params.id);
     if (!result) return reply.status(404).send({ error: 'Timeline introuvable' });
+    try { await app.redis.del('kasuku:timeline_map'); } catch { /* ignoré */ }
     return reply.status(204).send();
   });
 }

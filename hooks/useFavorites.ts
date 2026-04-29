@@ -1,100 +1,132 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import type { FavItem } from '../types';
 
-const KEY = "kasuku_favorites_v1";
+/**
+ * Versioning du schéma localStorage.
+ *
+ * Règle : si le schéma de FavItem change (nouveaux champs obligatoires,
+ * type union étendu…), incrémenter CURRENT_VERSION ET ajouter une entrée
+ * dans migrate() pour transformer les données de la version précédente.
+ *
+ * Historique :
+ *  v1 → données brutes sans version (type: "event" | "module")
+ *  v2 → ajout du type "timeline" ; migration : items sans type connu
+ *        sont conservés s'ils ont type "event" ou "module", filtrés sinon.
+ */
+const CURRENT_VERSION = 2;
+const KEY = 'kasuku_favorites';
+const VERSION_KEY = 'kasuku_favorites_version';
+
+const VALID_TYPES = new Set<FavItem['type']>(['event', 'module', 'timeline']);
+
+function isValidItem(i: unknown): i is FavItem {
+  if (!i || typeof i !== 'object') return false;
+  const item = i as Record<string, unknown>;
+  return (
+    typeof item.type === 'string' &&
+    VALID_TYPES.has(item.type as FavItem['type']) &&
+    typeof item.id === 'string' &&
+    typeof item.slug === 'string' &&
+    typeof item.title === 'string'
+  );
+}
+
+/**
+ * Migre les données d'une version antérieure vers CURRENT_VERSION.
+ * Chaque étape est idempotente et conservative : on ne perd aucun
+ * favori valide, on supprime uniquement ce qui ne peut pas être normalisé.
+ */
+function migrate(raw: unknown[], fromVersion: number): FavItem[] {
+  let items = raw;
+
+  // v1 → v2 : filtrer les items dont le type n'est pas dans le nouvel ensemble
+  if (fromVersion < 2) {
+    items = items.filter(i => {
+      if (!i || typeof i !== 'object') return false;
+      const type = (i as Record<string, unknown>).type;
+      return type === 'event' || type === 'module';
+    });
+  }
+
+  return items.filter(isValidItem);
+}
+
+function loadFromStorage(): FavItem[] {
+  try {
+    const raw = localStorage.getItem(KEY);
+    // Compat avec l'ancienne clé kasuku_favorites_v1
+    const rawLegacy = !raw ? localStorage.getItem('kasuku_favorites_v1') : null;
+    const data = raw ?? rawLegacy;
+    if (!data) return [];
+
+    const parsed: unknown = JSON.parse(data);
+    if (!Array.isArray(parsed)) return [];
+
+    const storedVersion = parseInt(localStorage.getItem(VERSION_KEY) ?? '1', 10);
+
+    if (storedVersion < CURRENT_VERSION) {
+      const migrated = migrate(parsed, storedVersion);
+      // Persiste immédiatement les données migrées
+      localStorage.setItem(KEY, JSON.stringify(migrated));
+      localStorage.setItem(VERSION_KEY, String(CURRENT_VERSION));
+      // Nettoie l'ancienne clé si elle existait
+      if (rawLegacy) localStorage.removeItem('kasuku_favorites_v1');
+      return migrated;
+    }
+
+    return parsed.filter(isValidItem);
+  } catch {
+    return [];
+  }
+}
 
 export function useFavorites() {
-  const [items, setItems] = useState<FavItem[]>([]);
+  const [items, setItems] = useState<FavItem[]>(() => loadFromStorage());
 
+  // Synchronisation entre onglets (storage event)
   useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(KEY);
-      if (raw) {
-        const parsedItems = JSON.parse(raw);
-        if (Array.isArray(parsedItems)) {
-          setItems(parsedItems);
-        }
-      }
-    } catch (error) {
-      console.error("Failed to load favorites from localStorage", error);
-    }
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === KEY) setItems(loadFromStorage());
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
   }, []);
 
   const persist = useCallback((list: FavItem[]) => {
     setItems(list);
     try {
       localStorage.setItem(KEY, JSON.stringify(list));
+      localStorage.setItem(VERSION_KEY, String(CURRENT_VERSION));
     } catch (error) {
-        console.error("Failed to save favorites to localStorage", error);
+      console.error('useFavorites: impossible de sauvegarder', error);
     }
   }, []);
 
   const add = useCallback((item: FavItem) => {
-    // Add item if it doesn't exist, preventing duplicates
-    setItems(prevItems => {
-        if (prevItems.some(i => i.type === item.type && i.id === item.id)) {
-            return prevItems;
-        }
-        const newItems = [...prevItems, item];
-        persist(newItems);
-        return newItems;
+    setItems(prev => {
+      if (prev.some(i => i.type === item.type && i.id === item.id)) return prev;
+      const next = [...prev, item];
+      persist(next);
+      return next;
     });
   }, [persist]);
 
-  const remove = useCallback((type: FavItem["type"], id: string) => {
-    setItems(prevItems => {
-        const newItems = prevItems.filter(i => !(i.type === type && i.id === id));
-        persist(newItems);
-        return newItems;
+  const remove = useCallback((type: FavItem['type'], id: string) => {
+    setItems(prev => {
+      const next = prev.filter(i => !(i.type === type && i.id === id));
+      persist(next);
+      return next;
     });
   }, [persist]);
 
-  const exists = useCallback((type: FavItem["type"], id: string) => {
+  const exists = useCallback((type: FavItem['type'], id: string) => {
     return items.some(i => i.type === type && i.id === id);
   }, [items]);
 
   const toggle = useCallback((item: FavItem) => {
-    if (exists(item.type, item.id)) {
-      remove(item.type, item.id);
-    } else {
-      add(item);
-    }
+    if (exists(item.type, item.id)) remove(item.type, item.id);
+    else add(item);
   }, [exists, remove, add]);
 
-  const exportJson = useCallback(() => {
-    const blob = new Blob([JSON.stringify(items, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'kasuku-favorites.json';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  }, [items]);
-  
-  const importJson = useCallback((file: File) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const text = e.target?.result;
-        if (typeof text === 'string') {
-          const importedItems = JSON.parse(text);
-          if (Array.isArray(importedItems) && importedItems.every(i => i.type && i.id && i.slug && i.title)) {
-            persist(importedItems);
-            alert(`${importedItems.length} items imported successfully!`);
-          } else {
-            throw new Error('Invalid file format or missing properties');
-          }
-        }
-      } catch (error) {
-        console.error('Error importing favorites', error);
-        alert('Failed to import favorites. Please check the file format.');
-      }
-    };
-    reader.readAsText(file);
-  }, [persist]);
-
-  return { items, toggle, exists, exportJson, importJson };
+  return { items, toggle, exists };
 }
