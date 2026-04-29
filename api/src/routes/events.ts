@@ -10,9 +10,11 @@
  */
 
 import type { FastifyInstance } from 'fastify';
+import type { RedisClientType } from 'redis';
 import { Event, Timeline } from '../models';
 import { requireAdmin } from '../middleware/auth';
 import slugify from 'slugify';
+import { findBase64Fields } from '../utils/validation';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -20,59 +22,72 @@ function toSlug(title: string) {
   return slugify(title, { lower: true, strict: true, locale: 'fr' });
 }
 
+type TimelineInfo = { slug: string; title: string; thumbnail?: string };
+type TimelineMap = { byId: Record<string, TimelineInfo>; byEventId: Record<string, TimelineInfo> };
+
+const TIMELINE_MAP_TTL = 60; // secondes
+const TIMELINE_MAP_KEY = 'kasuku:timeline_map';
+
 /**
- * Résolution bidirectionnelle des associations timeline ↔ événement.
- *
- * Direction 1 — event.timelineId → timeline.slug (lien direct sur l'event)
- * Direction 2 — timeline.moments[].eventId → event._id (lien inverse via les moments)
- *
- * Les deux sont fusionnés pour que TOUS les événements dans un récit
- * affichent l'indicateur de timeline dans le calendrier.
+ * Charge la map timeline depuis Redis ou MongoDB.
+ * TTL 60 s — invalidée automatiquement. En cas d'erreur Redis,
+ * on tombe silencieusement sur MongoDB.
  */
-async function resolveTimelineSlugs<T extends { id?: unknown; timelineId?: unknown; timelineSlug?: unknown }>(
-  events: T[],
-): Promise<T[]> {
-  if (events.length === 0) return events;
+async function getTimelineMap(redis: RedisClientType): Promise<TimelineMap> {
+  // Tentative cache Redis
+  try {
+    const cached = await redis.get(TIMELINE_MAP_KEY);
+    if (cached) return JSON.parse(cached) as TimelineMap;
+  } catch { /* Redis indisponible — continue sans cache */ }
 
-  const eventIds = events.map(e => e.id as string).filter(Boolean);
+  // Chargement MongoDB
+  const timelines = await Timeline
+    .find({})
+    .select('_id slug title thumbnail moments')
+    .lean();
 
-  // Direction 1 : event a timelineId mais pas de timelineSlug
-  const directIds = [...new Set(
-    events.filter(e => e.timelineId && !e.timelineSlug).map(e => e.timelineId as string),
-  )];
+  const byId: Record<string, TimelineInfo> = {};
+  const byEventId: Record<string, TimelineInfo> = {};
 
-  // Direction 2 : timelines qui référencent ces events dans leurs moments
-  const [directTimelines, reverseTimelines] = await Promise.all([
-    directIds.length > 0
-      ? Timeline.find({ _id: { $in: directIds } }).select('_id slug title thumbnail').lean()
-      : Promise.resolve([]),
-    Timeline.find({ 'moments.eventId': { $in: eventIds } }).select('_id slug title thumbnail moments').lean(),
-  ]);
-
-  // Map timelineId → info
-  const byId: Record<string, { slug: string; title: string; thumbnail?: string }> = {};
-  [...directTimelines, ...reverseTimelines].forEach(t => {
-    byId[t._id.toString()] = { slug: t.slug, title: t.title, thumbnail: (t as any).thumbnail };
-  });
-
-  // Map eventId → info (depuis les moments des timelines)
-  const byEventId: Record<string, { slug: string; title: string; thumbnail?: string }> = {};
-  reverseTimelines.forEach(t => {
+  timelines.forEach(t => {
+    const info: TimelineInfo = { slug: t.slug, title: t.title, thumbnail: (t as any).thumbnail };
+    byId[t._id.toString()] = info;
     ((t as any).moments ?? []).forEach((m: any) => {
-      if (m.eventId) byEventId[m.eventId] = byId[t._id.toString()];
+      if (m.eventId) byEventId[String(m.eventId)] = info;
     });
   });
 
-  return events.map(e => {
-    if (e.timelineSlug) return e; // déjà résolu
+  const map: TimelineMap = { byId, byEventId };
 
-    // Direction 1
+  // Mise en cache Redis
+  try {
+    await redis.set(TIMELINE_MAP_KEY, JSON.stringify(map), { EX: TIMELINE_MAP_TTL });
+  } catch { /* ignoré */ }
+
+  return map;
+}
+
+/**
+ * Résolution bidirectionnelle des associations timeline ↔ événement.
+ * Utilise un cache Redis (TTL 60 s) pour éviter les requêtes MongoDB
+ * répétées sur chaque appel GET /events.
+ */
+async function resolveTimelineSlugs<T extends { id?: unknown; timelineId?: unknown; timelineSlug?: unknown }>(
+  events: T[],
+  redis: RedisClientType,
+): Promise<T[]> {
+  if (events.length === 0) return events;
+
+  const { byId, byEventId } = await getTimelineMap(redis);
+
+  return events.map(e => {
+    if (e.timelineSlug) return e;
+
     if (e.timelineId) {
       const info = byId[e.timelineId as string];
       if (info) return { ...e, timelineSlug: info.slug, timelineTitle: info.title, timelineThumbnail: info.thumbnail };
     }
 
-    // Direction 2
     const info = byEventId[e.id as string];
     if (info) return { ...e, timelineSlug: info.slug, timelineTitle: info.title, timelineThumbnail: info.thumbnail };
 
@@ -81,19 +96,6 @@ async function resolveTimelineSlugs<T extends { id?: unknown; timelineId?: unkno
 }
 
 /** Détecte récursivement les data URLs base64 dans un objet/tableau */
-function findBase64Fields(obj: unknown, path = ''): string[] {
-  if (typeof obj === 'string') {
-    return /^data:[a-z]+\/[a-z0-9.+-]+;base64,/i.test(obj) ? [path || '(racine)'] : [];
-  }
-  if (Array.isArray(obj)) {
-    return obj.flatMap((item, i) => findBase64Fields(item, `${path}[${i}]`));
-  }
-  if (obj && typeof obj === 'object') {
-    return Object.entries(obj).flatMap(([k, v]) => findBase64Fields(v, path ? `${path}.${k}` : k));
-  }
-  return [];
-}
-
 // ─── Routes ───────────────────────────────────────────────────────────────────
 
 export async function eventsRoutes(app: FastifyInstance) {
@@ -140,7 +142,7 @@ export async function eventsRoutes(app: FastifyInstance) {
     ]);
 
     const mapped = rawItems.map(e => ({ ...e, id: e._id.toString() }));
-    const items  = await resolveTimelineSlugs(mapped);
+    const items  = await resolveTimelineSlugs(mapped, app.redis);
 
     return reply.send({
       items,
@@ -154,7 +156,7 @@ export async function eventsRoutes(app: FastifyInstance) {
   app.get<{ Params: { slug: string } }>('/slug/:slug', async (req, reply) => {
     const event = await Event.findOne({ slug: req.params.slug }).lean();
     if (!event) return reply.status(404).send({ error: 'Événement introuvable' });
-    const [resolved] = await resolveTimelineSlugs([{ ...event, id: event._id.toString() }]);
+    const [resolved] = await resolveTimelineSlugs([{ ...event, id: event._id.toString() }], app.redis);
     return reply.send(resolved);
   });
 
@@ -162,7 +164,7 @@ export async function eventsRoutes(app: FastifyInstance) {
   app.get<{ Params: { id: string } }>('/:id', async (req, reply) => {
     const event = await Event.findById(req.params.id).lean();
     if (!event) return reply.status(404).send({ error: 'Événement introuvable' });
-    const [resolved] = await resolveTimelineSlugs([{ ...event, id: event._id.toString() }]);
+    const [resolved] = await resolveTimelineSlugs([{ ...event, id: event._id.toString() }], app.redis);
     return reply.send(resolved);
   });
 
