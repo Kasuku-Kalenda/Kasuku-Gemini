@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { timelineFormSchema, TimelineFormData } from '../../schemas/admin';
 import { adminApi } from '../../services/adminApi';
+import { uploadFile } from '../../services/apiClient';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Label } from '../ui/Label';
@@ -60,13 +61,19 @@ const ThumbnailInput: React.FC<{
   value: string; onChange: (url: string) => void; error?: string; label?: string;
 }> = ({ value, onChange, error, label = 'Image de couverture' }) => {
   const [mode, setMode] = useState<'url' | 'upload'>('url');
+  const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
-  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file) return;
-    if (file.size > 5 * 1024 * 1024) { alert('Fichier trop lourd (max 5 Mo).'); return; }
-    const reader = new FileReader();
-    reader.onload = ev => onChange(ev.target?.result as string);
-    reader.readAsDataURL(file);
+    setUploading(true);
+    try {
+      const { url } = await uploadFile(file, 'timelines');
+      onChange(url);
+    } catch {
+      alert('Erreur lors de l\'upload. Réessayez.');
+    } finally {
+      setUploading(false);
+    }
   };
   return (
     <div className="space-y-2">
@@ -76,7 +83,7 @@ const ThumbnailInput: React.FC<{
           <button key={m} type="button"
             onClick={() => { setMode(m); if (m === 'upload') fileRef.current?.click(); }}
             className={`px-3 py-1 text-xs rounded-md transition-colors ${mode === m ? 'bg-white shadow text-primary font-medium' : 'text-muted-foreground'}`}>
-            {m === 'url' ? '🔗 URL' : '📁 Fichier'}
+            {m === 'url' ? '🔗 URL' : uploading ? '⏳ Upload…' : '📁 Fichier'}
           </button>
         ))}
       </div>
@@ -105,16 +112,19 @@ const MomentResources: React.FC<MomentResourcesProps> = ({ momentIndex, form }) 
   });
   const fileRefs = useRef<Map<number, HTMLInputElement>>(new Map());
 
-  const handleFile = (ri: number, type: string) => (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFile = (ri: number, type: string) => async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file) return;
     // Auto-remplir le titre avec le nom du fichier (sans extension) si vide
     const titlePath = `moments.${momentIndex}.resources.${ri}.title` as any;
     if (!form.getValues(titlePath)) {
       form.setValue(titlePath, file.name.replace(/\.[^/.]+$/, ''));
     }
-    const reader = new FileReader();
-    reader.onload = ev => form.setValue(`moments.${momentIndex}.resources.${ri}.url` as any, ev.target?.result as string);
-    reader.readAsDataURL(file);
+    try {
+      const { url } = await uploadFile(file, 'moments');
+      form.setValue(`moments.${momentIndex}.resources.${ri}.url` as any, url);
+    } catch {
+      alert('Erreur lors de l\'upload. Réessayez.');
+    }
   };
 
   const resourceType = (ri: number) =>
@@ -414,14 +424,15 @@ const MomentCard: React.FC<MomentCardProps> = ({
     }
   }, [handleSelectEvent, onEventCreated]);
 
-  const handleMediaFile = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleMediaFile = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file) return;
-    const reader = new FileReader();
-    reader.onload = ev => {
-      form.setValue(`moments.${index}.media.0.url`, ev.target?.result as string, { shouldValidate: true });
+    try {
+      const { url } = await uploadFile(file, 'moments');
+      form.setValue(`moments.${index}.media.0.url`, url, { shouldValidate: true });
       form.setValue(`moments.${index}.media.0.type`, 'image');
-    };
-    reader.readAsDataURL(file);
+    } catch {
+      alert('Erreur lors de l\'upload. Réessayez.');
+    }
   }, [form, index]);
 
   return (

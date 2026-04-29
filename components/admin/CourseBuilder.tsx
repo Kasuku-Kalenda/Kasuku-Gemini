@@ -21,6 +21,7 @@ import {
 import { zodResolver } from '@hookform/resolvers/zod';
 import { moduleFormSchema, type ModuleFormData } from '../../schemas/admin';
 import { adminApi } from '../../services/adminApi';
+import { uploadFile } from '../../services/apiClient';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Label } from '../ui/Label';
@@ -231,14 +232,17 @@ const LessonCard = memo(({ si, li, control, register, setValue, getValues, onRem
 
   const accept = lessonType === 'audio' ? 'audio/*' : lessonType === 'video' ? 'video/*,audio/*' : '.pdf,application/pdf';
 
-  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]; if (!f) return;
     // Auto-remplir le titre de la leçon avec le nom du fichier (sans extension) si vide
     const titlePath = `sections.${si}.lessons.${li}.title` as any;
     if (!getValues(titlePath)) setValue(titlePath, f.name.replace(/\.[^/.]+$/, ''));
-    const reader = new FileReader();
-    reader.onload = ev => setValue(`sections.${si}.lessons.${li}.url` as any, ev.target?.result as string);
-    reader.readAsDataURL(f);
+    try {
+      const { url } = await uploadFile(f, 'modules');
+      setValue(`sections.${si}.lessons.${li}.url` as any, url);
+    } catch {
+      alert('Erreur lors de l\'upload. Réessayez.');
+    }
   };
 
   return (
@@ -419,14 +423,17 @@ const ResourceRow = memo(({ ri, control, register, setValue, getValues, allEvent
 
   const fileAccept = type === 'audio' ? 'audio/*' : type === 'video' ? 'video/*' : type === 'image' ? 'image/*' : '.pdf,application/pdf';
 
-  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]; if (!f) return;
     // Auto-remplir le titre de la ressource avec le nom du fichier (sans extension) si vide
     const titlePath = `resources.${ri}.title` as any;
     if (!getValues(titlePath)) setValue(titlePath, f.name.replace(/\.[^/.]+$/, ''));
-    const reader = new FileReader();
-    reader.onload = ev => setValue(`resources.${ri}.url` as any, ev.target?.result as string);
-    reader.readAsDataURL(f);
+    try {
+      const { url } = await uploadFile(f, 'modules');
+      setValue(`resources.${ri}.url` as any, url);
+    } catch {
+      alert('Erreur lors de l\'upload. Réessayez.');
+    }
   };
 
   return (
@@ -740,11 +747,14 @@ export function CourseBuilder({ mode, initialData, onSave }: CourseBuilderProps)
                     <Input {...register('thumbnail')} placeholder="https://…" className="flex-1" />
                     <Button type="button" variant="outline" size="sm" onClick={() => thumbRef.current?.click()}>📁</Button>
                     <input ref={thumbRef} type="file" accept="image/*" className="hidden"
-                      onChange={e => {
+                      onChange={async e => {
                         const f = e.target.files?.[0]; if (!f) return;
-                        const r = new FileReader();
-                        r.onload = ev => { const d = ev.target?.result as string; setValue('thumbnail', d); };
-                        r.readAsDataURL(f);
+                        try {
+                          const { url } = await uploadFile(f, 'modules');
+                          setValue('thumbnail', url);
+                        } catch {
+                          alert('Erreur lors de l\'upload. Réessayez.');
+                        }
                       }} />
                   </div>
                   {thumbPreview && (

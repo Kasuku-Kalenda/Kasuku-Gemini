@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { moduleFormSchema, ModuleFormData } from '../../schemas/admin';
 import { adminApi } from '../../services/adminApi';
+import { uploadFile } from '../../services/apiClient';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Label } from '../ui/Label';
@@ -128,17 +129,16 @@ export function ModuleForm({ mode, initialData, onSave }: ModuleFormProps) {
     if (thumbMode === 'url') setThumbPreview(watchedThumb || '');
   }, [watchedThumb, thumbMode]);
 
-  const handleThumbFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleThumbFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    new Promise<string>((res) => {
-      const reader = new FileReader();
-      reader.onload = ev => res(ev.target?.result as string);
-      reader.readAsDataURL(file);
-    }).then(dataUrl => {
-      form.setValue('thumbnail', dataUrl, { shouldValidate: true });
-      setThumbPreview(dataUrl);
-    });
+    try {
+      const { url } = await uploadFile(file, 'modules');
+      form.setValue('thumbnail', url, { shouldValidate: true });
+      setThumbPreview(url);
+    } catch {
+      alert('Erreur lors de l\'upload. Réessayez.');
+    }
   };
 
   const toggleEvent = useCallback((id: string) => {

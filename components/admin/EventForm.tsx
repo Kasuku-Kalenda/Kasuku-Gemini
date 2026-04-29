@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { eventFormSchema, EventFormData } from '../../schemas/admin';
 import { adminApi } from '../../services/adminApi';
+import { uploadFile } from '../../services/apiClient';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Label } from '../ui/Label';
@@ -83,27 +84,20 @@ const MediaInput: React.FC<MediaInputProps> = ({ index, form, onRemove }) => {
     if (currentUrl && !currentUrl.startsWith('data:')) setPreview(currentUrl);
   }, [currentUrl]);
 
-  const handleFile = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFile = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    // Limite 5MB
-    if (file.size > 5 * 1024 * 1024) {
-      alert('Fichier trop lourd (max 5 Mo). Utilisez une image compressée.');
-      return;
-    }
-
     setUploading(true);
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const dataUrl = ev.target?.result as string;
-      form.setValue(`media.${index}.url`, dataUrl, { shouldValidate: true });
+    try {
+      const { url } = await uploadFile(file, 'events');
+      form.setValue(`media.${index}.url`, url, { shouldValidate: true });
       form.setValue(`media.${index}.type`, file.type.startsWith('video') ? 'video' : 'image');
-      setPreview(dataUrl);
+      setPreview(url);
+    } catch {
+      alert('Erreur lors de l\'upload. Vérifiez votre connexion et réessayez.');
+    } finally {
       setUploading(false);
-    };
-    reader.onerror = () => { alert('Erreur de lecture du fichier.'); setUploading(false); };
-    reader.readAsDataURL(file);
+    }
   }, [form, index]);
 
   return (
