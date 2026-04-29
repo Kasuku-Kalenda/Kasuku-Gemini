@@ -1,63 +1,80 @@
 /**
- * api/src/routes/themes.ts
- *
- * GET    /api/v1/themes       — liste complète (public)
- * GET    /api/v1/themes/:id   — détail (public)
- * POST   /api/v1/themes       — créer [admin]
- * PUT    /api/v1/themes/:id   — modifier [admin]
- * DELETE /api/v1/themes/:id   — supprimer [admin]
+ * GET  /api/v1/themes       — liste complète (publique)
+ * GET  /api/v1/themes/:id   — détail [admin]
+ * POST /api/v1/themes        — créer [admin]
+ * PUT  /api/v1/themes/:id   — modifier [admin]
+ * DELETE /api/v1/themes/:id — supprimer [admin]
  */
 
 import type { FastifyInstance } from 'fastify';
-import { Theme }        from '../models';
+import sql from '../db';
 import { requireAdmin } from '../middleware/auth';
-import slugify from 'slugify';
+import { uniqueSlug } from '../utils/slug';
 
 export async function themesRoutes(app: FastifyInstance) {
 
-  // GET / (public)
+  // ── GET / — liste complète ────────────────────────────────────────────────
   app.get('/', async (_req, reply) => {
-    const themes = await Theme.find().sort({ slug: 1 }).lean();
-    return reply.send(themes.map(t => ({ ...t, id: t._id.toString() })));
+    const items = await sql`
+      SELECT id, slug, name, description, parent_id, color, icon, position
+      FROM themes
+      ORDER BY position ASC, name ASC
+    `;
+    return reply.send(items);
   });
 
-  // GET /:id (public)
-  app.get<{ Params: { id: string } }>('/:id', async (req, reply) => {
-    const theme = await Theme.findById(req.params.id).lean();
+  // ── GET /:id ──────────────────────────────────────────────────────────────
+  app.get('/:id', { preHandler: requireAdmin }, async (req: any, reply) => {
+    const [theme] = await sql`SELECT * FROM themes WHERE id = ${req.params.id}`;
     if (!theme) return reply.status(404).send({ error: 'Thème introuvable' });
-    return reply.send({ ...theme, id: theme._id.toString() });
+    return reply.send(theme);
   });
 
-  // POST / [admin]
-  app.post<{ Body: { name: string; slug?: string; color?: string; emoji?: string } }>('/', {
-    preHandler: requireAdmin,
-  }, async (req, reply) => {
-    const { name, color, emoji } = req.body;
-    const slug = req.body.slug || slugify(name, { lower: true, strict: true, locale: 'fr' });
+  // ── POST / — créer ────────────────────────────────────────────────────────
+  app.post('/', { preHandler: requireAdmin }, async (req, reply) => {
+    const body = req.body as Record<string, any>;
+    const slug = await uniqueSlug('themes', String(body.name ?? ''));
 
-    const existing = await Theme.findOne({ slug });
-    if (existing) return reply.status(409).send({ error: `Slug "${slug}" déjà utilisé` });
-
-    const theme = await Theme.create({
-      name, slug, color, emoji,
-      source: { type: 'local', id: 'local_admin' },
-    });
-    return reply.status(201).send({ ...theme.toObject(), id: theme._id.toString() });
+    const [theme] = await sql`
+      INSERT INTO themes (slug, name, description, parent_id, color, icon, position)
+      VALUES (
+        ${slug}, ${body.name}, ${body.description ?? null},
+        ${body.parentId ?? null}, ${body.color ?? null},
+        ${body.icon ?? null}, ${body.position ?? 0}
+      )
+      RETURNING *
+    `;
+    return reply.status(201).send(theme);
   });
 
-  // PUT /:id [admin]
-  app.put<{ Params: { id: string }; Body: Record<string, unknown> }>('/:id', {
-    preHandler: requireAdmin,
-  }, async (req, reply) => {
-    const theme = await Theme.findByIdAndUpdate(req.params.id, req.body, { new: true }).lean();
-    if (!theme) return reply.status(404).send({ error: 'Thème introuvable' });
-    return reply.send({ ...theme, id: theme._id.toString() });
+  // ── PUT /:id — modifier ───────────────────────────────────────────────────
+  app.put('/:id', { preHandler: requireAdmin }, async (req: any, reply) => {
+    const body = req.body as Record<string, any>;
+    const { id } = req.params;
+
+    const [existing] = await sql`SELECT id FROM themes WHERE id = ${id}`;
+    if (!existing) return reply.status(404).send({ error: 'Thème introuvable' });
+
+    const slug = body.name ? await uniqueSlug('themes', String(body.name), id) : undefined;
+
+    const [theme] = await sql`
+      UPDATE themes SET
+        ${slug ? sql`slug = ${slug},` : sql``}
+        name        = ${body.name},
+        description = ${body.description ?? null},
+        parent_id   = ${body.parentId ?? null},
+        color       = ${body.color ?? null},
+        icon        = ${body.icon ?? null},
+        position    = ${body.position ?? 0}
+      WHERE id = ${id}
+      RETURNING *
+    `;
+    return reply.send(theme);
   });
 
-  // DELETE /:id [admin]
-  app.delete<{ Params: { id: string } }>('/:id', { preHandler: requireAdmin }, async (req, reply) => {
-    const result = await Theme.findByIdAndDelete(req.params.id);
-    if (!result) return reply.status(404).send({ error: 'Thème introuvable' });
-    return reply.status(204).send();
+  // ── DELETE /:id ───────────────────────────────────────────────────────────
+  app.delete('/:id', { preHandler: requireAdmin }, async (req: any, reply) => {
+    await sql`DELETE FROM themes WHERE id = ${req.params.id}`;
+    return reply.send({ success: true });
   });
 }

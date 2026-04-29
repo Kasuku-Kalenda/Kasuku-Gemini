@@ -1,17 +1,22 @@
 # ─── Kasuku — Docker Compose (développement) ─────────────────────────────────
 #
-# Démarrage rapide:
-#   cp .env.example .env        # remplir les variables
-#   docker compose up -d        # lancer tous les services
-#   docker compose logs -f api  # suivre les logs de l'API
+# Démarrage rapide :
+#   cp .env.example .env          # remplir les variables
+#   docker compose up -d          # lancer tous les services
+#   docker compose logs -f api    # suivre les logs de l'API
 #
-# Services:
-#   nginx    → :80             reverse proxy (entrée unique)
-#   frontend → via nginx       React SPA (Vite build)
-#   api      → via nginx/api   REST API Node.js/Fastify
-#   mongo    → :27017          MongoDB 7
-#   redis    → :6379           Cache + sessions
-#   minio    → :9000/:9001     Object storage (console admin :9001)
+# Ordre de démarrage :
+#   postgres → postgres-migrate → api → frontend → nginx
+#
+# Services :
+#   nginx            → :80              reverse proxy (entrée unique)
+#   frontend         → via nginx        React SPA (Vite build)
+#   api              → via nginx/api    REST API Node.js / Fastify
+#   postgres         → :5432            PostgreSQL 16
+#   postgres-migrate → (éphémère)       Applique les migrations au démarrage
+#   redis            → :6379            Cache + sessions
+#   minio            → :9000 / :9001    Object storage (console admin :9001)
+#   minio-init       → (éphémère)       Crée le bucket MinIO au premier démarrage
 
 name: kasuku
 
@@ -33,7 +38,7 @@ services:
     networks:
       - kasuku-net
 
-  # ── Frontend (SPA React) ──────────────────────────────────────────────────
+  # ── Frontend (SPA React / Vite) ───────────────────────────────────────────
   frontend:
     build:
       context: .
@@ -56,26 +61,26 @@ services:
       context: ./api
       dockerfile: Dockerfile
     environment:
-      NODE_ENV: production
-      MONGODB_URI: ${MONGODB_URI}
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
-      JWT_SECRET: ${JWT_SECRET}
-      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      NODE_ENV:               production
+      DATABASE_URL:           postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL:              ${REDIS_URL:-redis://redis:6379}
+      JWT_SECRET:             ${JWT_SECRET}
+      JWT_EXPIRES_IN:         ${JWT_EXPIRES_IN:-7d}
       JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-30d}
-      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-minio}
-      MINIO_PORT: ${MINIO_PORT:-9000}
-      MINIO_USE_SSL: ${MINIO_USE_SSL:-false}
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-      MINIO_BUCKET: ${MINIO_BUCKET:-kasuku-media}
-      MINIO_PUBLIC_URL: ${MINIO_PUBLIC_URL:-http://localhost/storage}
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost,http://localhost:3000}
-      INITIAL_ADMIN_EMAIL: ${INITIAL_ADMIN_EMAIL:-admin@kasuku.app}
+      MINIO_ENDPOINT:         ${MINIO_ENDPOINT:-minio}
+      MINIO_PORT:             ${MINIO_PORT:-9000}
+      MINIO_USE_SSL:          ${MINIO_USE_SSL:-false}
+      MINIO_ROOT_USER:        ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD:    ${MINIO_ROOT_PASSWORD}
+      MINIO_BUCKET:           ${MINIO_BUCKET:-kasuku-media}
+      MINIO_PUBLIC_URL:       ${MINIO_PUBLIC_URL:-http://localhost/storage}
+      CORS_ORIGINS:           ${CORS_ORIGINS:-http://localhost,http://localhost:3000}
+      INITIAL_ADMIN_EMAIL:    ${INITIAL_ADMIN_EMAIL:-admin@kasuku.app}
       INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD}
-      INITIAL_ADMIN_NAME: ${INITIAL_ADMIN_NAME:-Admin Kasuku}
+      INITIAL_ADMIN_NAME:     ${INITIAL_ADMIN_NAME:-Admin Kasuku}
     depends_on:
-      mongo:
-        condition: service_healthy
+      postgres-migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
       minio:
@@ -90,20 +95,20 @@ services:
     networks:
       - kasuku-net
 
-  # ── MongoDB ───────────────────────────────────────────────────────────────
-  mongo:
-    image: mongo:7
+  # ── PostgreSQL 16 ─────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
     environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-kasuku}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
-      MONGO_INITDB_DATABASE: ${MONGO_INITDB_DATABASE:-kasuku_db}
+      POSTGRES_USER:     ${POSTGRES_USER:-kasuku}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB:       ${POSTGRES_DB:-kasuku_db}
     volumes:
-      - mongo_data:/data/db
-      - ./docker/mongo/init.js:/docker-entrypoint-initdb.d/init.js:ro
+      - pg_data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     ports:
-      - "27017:27017"   # exposé en dev pour MongoDB Compass
+      - "5432:5432"     # exposé en dev (DBeaver, TablePlus, psql)
     healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-kasuku} -d ${POSTGRES_DB:-kasuku_db}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -112,6 +117,38 @@ services:
     networks:
       - kasuku-net
 
+  # ── Migrations PostgreSQL (service éphémère) ──────────────────────────────
+  # Lance les 16 migrations dans l'ordre puis s'arrête.
+  # Ne tourne qu'une fois par démarrage de la stack.
+  # Si une migration échoue, l'API ne démarre pas.
+  postgres-migrate:
+    image: postgres:16-alpine
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ./database/migrations:/migrations:ro
+    entrypoint: >
+      /bin/sh -c "
+        echo '⏳  Attente de PostgreSQL...' &&
+        until pg_isready -h postgres -U ${POSTGRES_USER:-kasuku} -d ${POSTGRES_DB:-kasuku_db} -q; do
+          sleep 2;
+        done &&
+        echo '✅  PostgreSQL prêt. Application des migrations...' &&
+        for f in /migrations/*.sql; do
+          echo \"▶️   $$(basename $$f)\" &&
+          psql -h postgres -U ${POSTGRES_USER:-kasuku} -d ${POSTGRES_DB:-kasuku_db} \
+               -f \"$$f\" --single-transaction -q ||
+          { echo \"❌  Échec sur $$(basename $$f)\"; exit 1; };
+        done &&
+        echo '🎉  Migrations terminées.'
+      "
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - kasuku-net
+    restart: on-failure
+
   # ── Redis ─────────────────────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
@@ -119,7 +156,7 @@ services:
     volumes:
       - redis_data:/data
     ports:
-      - "6379:6379"   # exposé en dev
+      - "6379:6379"     # exposé en dev
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -134,13 +171,13 @@ services:
     image: minio/minio:latest
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-kasuku_minio}
+      MINIO_ROOT_USER:     ${MINIO_ROOT_USER:-kasuku_minio}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     volumes:
       - minio_data:/data
     ports:
-      - "9000:9000"   # API S3
-      - "9001:9001"   # Console admin MinIO
+      - "9000:9000"     # API S3
+      - "9001:9001"     # Console admin MinIO
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 30s
@@ -159,22 +196,22 @@ services:
         condition: service_healthy
     entrypoint: >
       /bin/sh -c "
-        mc alias set local http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD};
-        mc mb --ignore-existing local/${MINIO_BUCKET:-kasuku-media};
-        mc anonymous set download local/${MINIO_BUCKET:-kasuku-media};
-        echo 'Bucket ${MINIO_BUCKET:-kasuku-media} prêt.';
+        mc alias set local http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD} &&
+        mc mb --ignore-existing local/$${MINIO_BUCKET:-kasuku-media} &&
+        mc anonymous set download local/$${MINIO_BUCKET:-kasuku-media} &&
+        echo '✅  Bucket $${MINIO_BUCKET:-kasuku-media} prêt.'
       "
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-kasuku_minio}
+      MINIO_ROOT_USER:     ${MINIO_ROOT_USER:-kasuku_minio}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-      MINIO_BUCKET: ${MINIO_BUCKET:-kasuku-media}
+      MINIO_BUCKET:        ${MINIO_BUCKET:-kasuku-media}
     networks:
       - kasuku-net
     restart: on-failure
 
 # ─── Volumes persistants ──────────────────────────────────────────────────────
 volumes:
-  mongo_data:
+  pg_data:
     driver: local
   redis_data:
     driver: local

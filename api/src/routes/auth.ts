@@ -1,26 +1,17 @@
 /**
- * api/src/routes/auth.ts
- *
- * Authentification Kasuku:
- *   POST /api/v1/auth/login         — email + mot de passe
- *   POST /api/v1/auth/refresh       — renouveler le token JWT
- *   POST /api/v1/auth/logout        — invalider la session (Redis)
- *   GET  /api/v1/auth/me            — profil de l'utilisateur connecté
- *   GET  /api/v1/auth/google        — initier OAuth Google
- *   GET  /api/v1/auth/google/callback — callback Google OAuth
+ * POST /api/v1/auth/login    — email + mot de passe
+ * POST /api/v1/auth/refresh  — renouveler le JWT
+ * POST /api/v1/auth/logout   — invalider la session
+ * GET  /api/v1/auth/me       — profil utilisateur connecté
  */
 
-import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import bcrypt from 'bcryptjs';
-import { User } from '../models';
+import sql from '../db';
 import { requireAuth } from '../middleware/auth';
 
-// ─── Types ───────────────────────────────────────────────────────────────────
-
-interface LoginBody { email: string; password: string; }
+interface LoginBody   { email: string; password: string; }
 interface RefreshBody { refreshToken: string; }
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function signTokens(app: FastifyInstance, userId: string, email: string, role: string) {
   const accessToken = app.jwt.sign(
@@ -34,21 +25,28 @@ function signTokens(app: FastifyInstance, userId: string, email: string, role: s
   return { accessToken, refreshToken };
 }
 
-// ─── Routes ───────────────────────────────────────────────────────────────────
-
 export async function authRoutes(app: FastifyInstance) {
 
-  // POST /login
+  // ── POST /login ───────────────────────────────────────────────────────────
   app.post<{ Body: LoginBody }>('/login', async (req, reply) => {
-    const { email, password } = req.body;
-
+    const { email, password } = req.body ?? {};
     if (!email || !password) {
       return reply.status(400).send({ error: 'Email et mot de passe requis' });
     }
 
-    const user = await User.findOne({ email: email.toLowerCase() });
+    const [user] = await sql`
+      SELECT id, email, name, role, avatar_url, password_hash, is_active
+      FROM users
+      WHERE email = ${email.toLowerCase()}
+      LIMIT 1
+    `;
+
     if (!user || !user.passwordHash) {
       return reply.status(401).send({ error: 'Identifiants invalides' });
+    }
+
+    if (!user.isActive) {
+      return reply.status(403).send({ error: 'Compte désactivé' });
     }
 
     const valid = await bcrypt.compare(password, user.passwordHash);
@@ -56,63 +54,58 @@ export async function authRoutes(app: FastifyInstance) {
       return reply.status(401).send({ error: 'Identifiants invalides' });
     }
 
-    if (!['SUPERADMIN', 'EDITOR'].includes(user.role)) {
+    if (!['admin', 'editor'].includes(user.role)) {
       return reply.status(403).send({ error: 'Accès admin requis' });
     }
 
-    const { accessToken, refreshToken } = signTokens(app, user._id.toString(), user.email, user.role);
+    // Mise à jour de last_seen_at
+    void sql`UPDATE users SET last_seen_at = now() WHERE id = ${user.id}`;
+
+    const { accessToken, refreshToken } = signTokens(app, user.id, user.email, user.role);
 
     return reply.send({
       accessToken,
       refreshToken,
-      user: {
-        id:    user._id.toString(),
-        name:  user.name,
-        email: user.email,
-        image: user.image,
-        role:  user.role,
-      },
+      user: { id: user.id, name: user.name, email: user.email, avatarUrl: user.avatarUrl, role: user.role },
     });
   });
 
-  // POST /refresh
+  // ── POST /refresh ─────────────────────────────────────────────────────────
   app.post<{ Body: RefreshBody }>('/refresh', async (req, reply) => {
-    const { refreshToken } = req.body;
+    const { refreshToken } = req.body ?? {};
     if (!refreshToken) return reply.status(400).send({ error: 'refreshToken manquant' });
 
     try {
       const payload = app.jwt.verify(refreshToken) as { sub: string; type: string };
-      if (payload.type !== 'refresh') throw new Error('Token type invalide');
+      if (payload.type !== 'refresh') throw new Error('Type invalide');
 
-      const user = await User.findById(payload.sub);
-      if (!user) return reply.status(401).send({ error: 'Utilisateur introuvable' });
+      const [user] = await sql`
+        SELECT id, email, role, is_active FROM users WHERE id = ${payload.sub} LIMIT 1
+      `;
+      if (!user || !user.isActive) return reply.status(401).send({ error: 'Utilisateur introuvable' });
 
-      const tokens = signTokens(app, user._id.toString(), user.email, user.role);
-      return reply.send(tokens);
+      return reply.send(signTokens(app, user.id, user.email, user.role));
     } catch {
       return reply.status(401).send({ error: 'Refresh token invalide ou expiré' });
     }
   });
 
-  // POST /logout  (côté serveur: liste noire Redis si nécessaire)
+  // ── POST /logout ──────────────────────────────────────────────────────────
   app.post('/logout', { preHandler: requireAuth }, async (_req, reply) => {
-    // En stateless JWT, le logout se fait côté client (supprimer le token).
-    // Extension possible: blacklist du JTI dans Redis.
+    // Stateless JWT — le logout se fait côté client.
+    // Extension possible : blacklist du JTI dans Redis.
     return reply.send({ message: 'Déconnecté avec succès' });
   });
 
-  // GET /me
+  // ── GET /me ───────────────────────────────────────────────────────────────
   app.get('/me', { preHandler: requireAuth }, async (req, reply) => {
-    const user = await User.findById(req.authUser!.id).select('-passwordHash').lean();
+    const [user] = await sql`
+      SELECT id, email, name, role, avatar_url, created_at, last_seen_at
+      FROM users
+      WHERE id = ${req.authUser!.id}
+      LIMIT 1
+    `;
     if (!user) return reply.status(404).send({ error: 'Utilisateur introuvable' });
-
-    return reply.send({
-      id:    user._id.toString(),
-      name:  user.name,
-      email: user.email,
-      image: user.image,
-      role:  user.role,
-    });
+    return reply.send(user);
   });
-
 }
