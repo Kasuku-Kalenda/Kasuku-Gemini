@@ -94,6 +94,7 @@ export const UserApp: React.FC = () => {
           <FavoritesPage
             onViewEvent={viewEvent}
             navigateToModule={navigateToModule}
+            navigateToTimeline={(slug) => navigateToTimeline(slug)}
           />
         );
 
