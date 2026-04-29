@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback, useRef, useLayoutEffect, useMemo } from 'react';
 import type { Event, Theme, FeaturedStory } from '../types';
-import { getEvents, getThemes, getFeaturedItems } from '../services/api';
+import { getEventBySlug, getEvents, getThemes, getFeaturedItems } from '../services/api';
 import { EventCard } from '../components/EventCard';
 import { EventCardSkeleton } from '../components/EventCardSkeleton';
 import { useFavorites } from '../hooks/useFavorites';
@@ -104,6 +104,12 @@ export const HomePage: React.FC<HomePageProps> = ({ onViewEvent, navigateToModul
     setIsSuggestionsVisible(false);
   };
 
+  const handleFeaturedEvent = useCallback(async (slug: string) => {
+    const cachedEvent = allEvents.find(e => e.slug === slug);
+    const event = cachedEvent ?? await getEventBySlug(slug);
+    if (event) onViewEvent(event);
+  }, [allEvents, onViewEvent]);
+
   // Client-side sort
   const sortedEvents = useMemo(() => {
     if (sort === 'default') return events;
@@ -122,10 +128,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onViewEvent, navigateToModul
       <FeaturedStories
         items={featuredItems}
         onNavigateToModule={navigateToModule}
-        onNavigateToEvent={(slug) => {
-          const event = allEvents.find(e => e.slug === slug);
-          if (event) onViewEvent(event);
-        }}
+        onNavigateToEvent={handleFeaturedEvent}
       />
 
       <div className="text-center p-8 bg-card rounded-2xl shadow-soft">
