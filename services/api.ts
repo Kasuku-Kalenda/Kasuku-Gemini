@@ -83,8 +83,22 @@ export const getModuleCreators = async (): Promise<{ id: string; name: string }[
 
 // ─── Timelines ────────────────────────────────────────────────────────────────
 
-export const getTimelines = async (): Promise<TimelineNarrative[]> =>
-  api.get<TimelineNarrative[]>('/timelines');
+interface TimelinesResponse {
+  items: TimelineNarrative[];
+  page: number;
+  totalPages: number;
+  totalItems: number;
+}
+
+export const getTimelines = async (opts: { page?: number; limit?: number; q?: string } = {}): Promise<TimelineNarrative[]> => {
+  const params = new URLSearchParams();
+  if (opts.page)  params.set('page',  String(opts.page));
+  if (opts.limit) params.set('limit', String(opts.limit));
+  if (opts.q)     params.set('q',     opts.q);
+  const qs = params.toString();
+  const res = await api.get<TimelinesResponse>(`/timelines${qs ? `?${qs}` : ''}`);
+  return res.items;
+};
 
 export const getTimelineBySlug = async (slug: string): Promise<TimelineNarrative | null> => {
   try { return await api.get<TimelineNarrative>(`/timelines/slug/${slug}`); } catch { return null; }
