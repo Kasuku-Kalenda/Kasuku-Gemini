@@ -116,9 +116,16 @@ export async function eventsRoutes(app: FastifyInstance) {
     if (country) filter.countryCode   = country;
     if (year)    filter.year          = parseInt(year, 10);
     if (date) {
-      const d = new Date(date);
-      const month = String(d.getMonth() + 1).padStart(2, '0');
-      const day   = String(d.getDate()).padStart(2, '0');
+      const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+      if (!match) {
+        return reply.status(400).send({ error: 'Format date invalide. Utilisez YYYY-MM-DD.' });
+      }
+      const [, , month, day] = match;
+      const monthNum = parseInt(month, 10);
+      const dayNum = parseInt(day, 10);
+      if (monthNum < 1 || monthNum > 12 || dayNum < 1 || dayNum > 31) {
+        return reply.status(400).send({ error: 'Date invalide.' });
+      }
       // Match les événements dont dateISO se termine par -MM-DD (même jour/mois toutes années)
       filter.dateISO = { $regex: `-${month}-${day}$` };
     }

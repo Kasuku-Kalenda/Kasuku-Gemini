@@ -47,6 +47,10 @@ export const getEvents = async (filters: EventFilterOptions = {}): Promise<Event
   return res.items;
 };
 
+export const getEventBySlug = async (slug: string): Promise<Event | null> => {
+  try { return await api.get<Event>(`/events/slug/${slug}`); } catch { return null; }
+};
+
 // ─── Modules ──────────────────────────────────────────────────────────────────
 
 export const getModules = async (options: {

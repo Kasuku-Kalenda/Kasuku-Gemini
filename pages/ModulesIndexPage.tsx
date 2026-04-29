@@ -204,8 +204,8 @@ export const ModulesIndexPage: React.FC<ModulesIndexPageProps> = ({ navigateToMo
                           </span>
                         )}
                       </div>
-                      {m.shortDescription && (
-                        <p className="text-xs text-muted-foreground line-clamp-1">{m.shortDescription}</p>
+                      {m.summary && (
+                        <p className="text-xs text-muted-foreground line-clamp-1">{m.summary}</p>
                       )}
                     </div>
                     {/* Actions */}
