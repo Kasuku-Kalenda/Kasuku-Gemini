@@ -114,7 +114,7 @@ export const EventDetailPage: React.FC<EventDetailPageProps> = ({ event, onBack,
   };
 
   return (
-    <div className="max-w-4xl mx-auto pb-24 md:pb-12">
+    <div className="max-w-4xl mx-auto pb-bottom-nav md:pb-12">
       <button 
         onClick={onBack} 
         className="flex items-center gap-2 text-sm text-primary mb-6 hover:underline min-h-[44px] px-2"
@@ -143,24 +143,46 @@ export const EventDetailPage: React.FC<EventDetailPageProps> = ({ event, onBack,
           <p className="text-lg leading-relaxed">{event.summary}</p>
         </div>
 
-        {/* LIEN VERS PARCOURS - NOUVELLE LOGIQUE "PARCOURS" */}
+        {/* LIEN VERS PARCOURS */}
         {event.timelineSlug && (
-          <div className="mt-8 p-6 bg-primary/5 border border-primary/10 rounded-[2.5rem] flex flex-col sm:flex-row items-center justify-between gap-6 transition-all hover:bg-primary/10">
-            <div className="flex items-center gap-5">
-              <div className="p-4 bg-primary/20 rounded-[1.5rem] shadow-sm">
-                <TimelineIcon className="h-8 w-8 text-primary" />
+          <div
+            onClick={() => navigateToTimeline(event.timelineSlug!, event.id)}
+            className="mt-8 cursor-pointer group bg-primary/5 border border-primary/10 rounded-[2rem] overflow-hidden flex flex-col sm:flex-row items-stretch transition-all hover:bg-primary/10 hover:shadow-md"
+          >
+            {/* Vignette */}
+            {event.timelineThumbnail && (
+              <div className="w-full sm:w-36 h-28 sm:h-auto shrink-0 overflow-hidden">
+                <img
+                  src={event.timelineThumbnail}
+                  alt={event.timelineTitle ?? 'Parcours'}
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                  referrerPolicy="no-referrer"
+                />
               </div>
-              <div className="space-y-1">
-                <h4 className="font-black text-secondary uppercase tracking-wider text-[11px]">Expérience Narrative</h4>
-                <p className="text-sm text-muted-foreground font-medium leading-tight">Cet événement est un moment clé du parcours.</p>
+            )}
+            {/* Contenu */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-5 flex-1">
+              <div className="flex items-center gap-4">
+                {!event.timelineThumbnail && (
+                  <div className="p-3 bg-primary/20 rounded-2xl shrink-0">
+                    <TimelineIcon className="h-7 w-7 text-primary" />
+                  </div>
+                )}
+                <div className="space-y-0.5">
+                  <p className="font-black text-secondary uppercase tracking-wider text-[10px]">Parcours associé</p>
+                  <p className="font-semibold text-base text-dark leading-snug">
+                    {event.timelineTitle ?? 'Découvrir le parcours'}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Cet événement fait partie de ce récit historique.</p>
+                </div>
               </div>
+              <Button
+                onClick={e => { e.stopPropagation(); navigateToTimeline(event.timelineSlug!, event.id); }}
+                className="shrink-0 rounded-full px-6 py-2 h-auto text-xs font-black uppercase tracking-widest bg-secondary text-white hover:bg-secondary/90 transition-transform active:scale-95"
+              >
+                Lire le récit →
+              </Button>
             </div>
-            <Button 
-                onClick={() => navigateToTimeline(event.timelineSlug!, event.id)} 
-                className="rounded-full shadow-lg px-8 py-7 h-auto font-black uppercase tracking-[0.2em] text-[10px] bg-secondary text-white hover:bg-secondary/90 transition-transform active:scale-95"
-            >
-               Découvrir le parcours associé
-            </Button>
           </div>
         )}
 
@@ -199,7 +221,10 @@ export const EventDetailPage: React.FC<EventDetailPageProps> = ({ event, onBack,
       </article>
 
       {/* Sticky Bottom Bar for Mobile */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-t border-border p-4 flex gap-3 shadow-t-lg">
+      <div
+        className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-t border-border flex gap-3 shadow-t-lg"
+        style={{ padding: '0.75rem 1rem', paddingBottom: 'max(0.75rem, var(--sab, 0px))' }}
+      >
         {event.trainingModules && event.trainingModules.length > 0 && (
           <Button
             onClick={handleOpenModule}
