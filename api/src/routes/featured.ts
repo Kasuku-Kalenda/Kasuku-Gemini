@@ -68,6 +68,13 @@ export async function featuredRoutes(app: FastifyInstance) {
     return reply.send({ items: items.map(i => ({ ...i, id: i._id.toString() })) });
   });
 
+  // GET /:id [admin]
+  app.get<{ Params: { id: string } }>('/:id', { preHandler: requireAdmin }, async (req, reply) => {
+    const item = await FeaturedItem.findById(req.params.id).lean();
+    if (!item) return reply.status(404).send({ error: 'Item introuvable' });
+    return reply.send({ ...item, id: item._id.toString() });
+  });
+
   // POST / [admin]
   app.post<{ Body: Record<string, unknown> }>('/', { preHandler: requireAdmin }, async (req, reply) => {
     const item = await FeaturedItem.create(req.body);

@@ -4,6 +4,8 @@ import { CourseBuilder } from '../../../components/admin/CourseBuilder';
 import { adminApi } from '../../../services/adminApi';
 import type { TrainingModule } from '../../../types';
 import { AdminLayout } from '../../../components/admin/AdminLayout';
+import { useNavigation } from '../../../core/navigation';
+import type { AppView } from '../../../core/navigation';
 
 interface ModuleFormPageProps {
     mode: 'create' | 'edit';
@@ -14,11 +16,16 @@ interface ModuleFormPageProps {
 export const ModuleFormPage: React.FC<ModuleFormPageProps> = ({ mode, id, onSave }) => {
     const [initialData, setInitialData] = useState<TrainingModule | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [notFound, setNotFound] = useState(false);
+    const { navigate } = useNavigation();
+
+    const navigateTo = (v: string, itemId?: string) =>
+        navigate(v as AppView, itemId ? { id: itemId } : undefined);
 
     useEffect(() => {
         if (mode === 'edit' && id) {
             adminApi.getModule(id).then(data => {
-                setInitialData(data);
+                if (data) setInitialData(data); else setNotFound(true);
                 setIsLoading(false);
             });
         } else {
@@ -27,23 +34,32 @@ export const ModuleFormPage: React.FC<ModuleFormPageProps> = ({ mode, id, onSave
     }, [id, mode]);
 
     if (isLoading) {
-        return <AdminLayout currentView="adminModules" navigateTo={() => {}}><p>Chargement...</p></AdminLayout>;
+        return (
+            <AdminLayout currentView="adminModules" navigateTo={navigateTo as any}>
+                <div className="flex items-center justify-center py-24 text-muted-foreground">Chargement…</div>
+            </AdminLayout>
+        );
     }
 
-    if (mode === 'edit' && !initialData) {
-        return <AdminLayout currentView="adminModules" navigateTo={() => {}}><p>Module introuvable.</p></AdminLayout>;
+    if (notFound) {
+        return (
+            <AdminLayout currentView="adminModules" navigateTo={navigateTo as any}>
+                <div className="flex flex-col items-center justify-center py-24 gap-4">
+                    <p className="text-lg font-semibold text-destructive">Module introuvable.</p>
+                    <button onClick={() => navigate('adminModules')} className="text-primary underline text-sm">← Retour à la liste</button>
+                </div>
+            </AdminLayout>
+        );
     }
 
-    // Use CourseBuilder for internal modules, ModuleForm for Moodle-linked modules
     const isMoodle = initialData?.moduleType === 'moodle';
 
     return (
-        <AdminLayout currentView="adminModules" navigateTo={onSave as any}>
-            {isMoodle ? (
-                <ModuleForm mode={mode} initialData={initialData} onSave={onSave} />
-            ) : (
-                <CourseBuilder mode={mode} initialData={initialData} onSave={onSave} />
-            )}
+        <AdminLayout currentView="adminModules" navigateTo={navigateTo as any}>
+            {isMoodle
+                ? <ModuleForm mode={mode} initialData={initialData} onSave={onSave} />
+                : <CourseBuilder mode={mode} initialData={initialData} onSave={onSave} />
+            }
         </AdminLayout>
     );
 };
