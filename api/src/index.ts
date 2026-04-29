@@ -47,6 +47,7 @@ const CORS_ORIGINS = (process.env.CORS_ORIGINS ?? 'http://localhost')
 
 async function bootstrap() {
   const app = Fastify({
+    bodyLimit: 50 * 1024 * 1024, // 50 Mo (sécurité — les vrais fichiers passent par MinIO)
     logger: {
       level: process.env.NODE_ENV === 'production' ? 'warn' : 'info',
       transport: process.env.NODE_ENV !== 'production'

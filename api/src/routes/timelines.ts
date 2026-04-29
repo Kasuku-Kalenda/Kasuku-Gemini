@@ -19,6 +19,20 @@ function toSlug(title: string) {
   return slugify(title, { lower: true, strict: true, locale: 'fr' });
 }
 
+/** Détecte récursivement les data URLs base64 dans un objet/tableau */
+function findBase64Fields(obj: unknown, path = ''): string[] {
+  if (typeof obj === 'string') {
+    return /^data:[a-z]+\/[a-z0-9.+-]+;base64,/i.test(obj) ? [path || '(racine)'] : [];
+  }
+  if (Array.isArray(obj)) {
+    return obj.flatMap((item, i) => findBase64Fields(item, `${path}[${i}]`));
+  }
+  if (obj && typeof obj === 'object') {
+    return Object.entries(obj).flatMap(([k, v]) => findBase64Fields(v, path ? `${path}.${k}` : k));
+  }
+  return [];
+}
+
 function sortMoments(moments: Array<Record<string, unknown>>) {
   return [...moments].sort((a, b) => {
     const ta = momentTs(a);
@@ -77,6 +91,14 @@ export async function timelinesRoutes(app: FastifyInstance) {
 
   // POST / [admin]
   app.post<{ Body: Record<string, unknown> }>('/', { preHandler: requireAdmin }, async (req, reply) => {
+    const base64Fields = findBase64Fields(req.body);
+    if (base64Fields.length > 0) {
+      return reply.status(400).send({
+        error: `Fichiers base64 dans : ${base64Fields.join(', ')}. Supprimez ces ressources et ré-uploadez-les (bouton 📁).`,
+        fields: base64Fields,
+      });
+    }
+
     const body    = req.body;
     const slug    = (body.slug as string) || toSlug(body.title as string);
     const moments = sortMoments((body.moments as Array<Record<string, unknown>>) ?? []);
@@ -99,6 +121,14 @@ export async function timelinesRoutes(app: FastifyInstance) {
   app.put<{ Params: { id: string }; Body: Record<string, unknown> }>('/:id', {
     preHandler: requireAdmin,
   }, async (req, reply) => {
+    const base64Fields = findBase64Fields(req.body);
+    if (base64Fields.length > 0) {
+      return reply.status(400).send({
+        error: `Fichiers base64 dans : ${base64Fields.join(', ')}. Supprimez ces ressources et ré-uploadez-les (bouton 📁).`,
+        fields: base64Fields,
+      });
+    }
+
     const body    = req.body;
     const moments = sortMoments((body.moments as Array<Record<string, unknown>>) ?? []);
 

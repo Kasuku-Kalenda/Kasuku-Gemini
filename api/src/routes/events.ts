@@ -10,7 +10,7 @@
  */
 
 import type { FastifyInstance } from 'fastify';
-import { Event }      from '../models';
+import { Event, Timeline } from '../models';
 import { requireAdmin } from '../middleware/auth';
 import slugify from 'slugify';
 
@@ -18,6 +18,80 @@ import slugify from 'slugify';
 
 function toSlug(title: string) {
   return slugify(title, { lower: true, strict: true, locale: 'fr' });
+}
+
+/**
+ * Résolution bidirectionnelle des associations timeline ↔ événement.
+ *
+ * Direction 1 — event.timelineId → timeline.slug (lien direct sur l'event)
+ * Direction 2 — timeline.moments[].eventId → event._id (lien inverse via les moments)
+ *
+ * Les deux sont fusionnés pour que TOUS les événements dans un récit
+ * affichent l'indicateur de timeline dans le calendrier.
+ */
+async function resolveTimelineSlugs<T extends { id?: unknown; timelineId?: unknown; timelineSlug?: unknown }>(
+  events: T[],
+): Promise<T[]> {
+  if (events.length === 0) return events;
+
+  const eventIds = events.map(e => e.id as string).filter(Boolean);
+
+  // Direction 1 : event a timelineId mais pas de timelineSlug
+  const directIds = [...new Set(
+    events.filter(e => e.timelineId && !e.timelineSlug).map(e => e.timelineId as string),
+  )];
+
+  // Direction 2 : timelines qui référencent ces events dans leurs moments
+  const [directTimelines, reverseTimelines] = await Promise.all([
+    directIds.length > 0
+      ? Timeline.find({ _id: { $in: directIds } }).select('_id slug title thumbnail').lean()
+      : Promise.resolve([]),
+    Timeline.find({ 'moments.eventId': { $in: eventIds } }).select('_id slug title thumbnail moments').lean(),
+  ]);
+
+  // Map timelineId → info
+  const byId: Record<string, { slug: string; title: string; thumbnail?: string }> = {};
+  [...directTimelines, ...reverseTimelines].forEach(t => {
+    byId[t._id.toString()] = { slug: t.slug, title: t.title, thumbnail: (t as any).thumbnail };
+  });
+
+  // Map eventId → info (depuis les moments des timelines)
+  const byEventId: Record<string, { slug: string; title: string; thumbnail?: string }> = {};
+  reverseTimelines.forEach(t => {
+    ((t as any).moments ?? []).forEach((m: any) => {
+      if (m.eventId) byEventId[m.eventId] = byId[t._id.toString()];
+    });
+  });
+
+  return events.map(e => {
+    if (e.timelineSlug) return e; // déjà résolu
+
+    // Direction 1
+    if (e.timelineId) {
+      const info = byId[e.timelineId as string];
+      if (info) return { ...e, timelineSlug: info.slug, timelineTitle: info.title, timelineThumbnail: info.thumbnail };
+    }
+
+    // Direction 2
+    const info = byEventId[e.id as string];
+    if (info) return { ...e, timelineSlug: info.slug, timelineTitle: info.title, timelineThumbnail: info.thumbnail };
+
+    return e;
+  });
+}
+
+/** Détecte récursivement les data URLs base64 dans un objet/tableau */
+function findBase64Fields(obj: unknown, path = ''): string[] {
+  if (typeof obj === 'string') {
+    return /^data:[a-z]+\/[a-z0-9.+-]+;base64,/i.test(obj) ? [path || '(racine)'] : [];
+  }
+  if (Array.isArray(obj)) {
+    return obj.flatMap((item, i) => findBase64Fields(item, `${path}[${i}]`));
+  }
+  if (obj && typeof obj === 'object') {
+    return Object.entries(obj).flatMap(([k, v]) => findBase64Fields(v, path ? `${path}.${k}` : k));
+  }
+  return [];
 }
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
@@ -53,13 +127,16 @@ export async function eventsRoutes(app: FastifyInstance) {
     const limitNum = Math.min(100, parseInt(limit, 10));
     const skip     = (pageNum - 1) * limitNum;
 
-    const [items, total] = await Promise.all([
+    const [rawItems, total] = await Promise.all([
       Event.find(filter).sort({ dateISO: -1 }).skip(skip).limit(limitNum).lean(),
       Event.countDocuments(filter),
     ]);
 
+    const mapped = rawItems.map(e => ({ ...e, id: e._id.toString() }));
+    const items  = await resolveTimelineSlugs(mapped);
+
     return reply.send({
-      items: items.map(e => ({ ...e, id: e._id.toString() })),
+      items,
       page:       pageNum,
       totalPages: Math.ceil(total / limitNum),
       totalItems: total,
@@ -70,20 +147,30 @@ export async function eventsRoutes(app: FastifyInstance) {
   app.get<{ Params: { slug: string } }>('/slug/:slug', async (req, reply) => {
     const event = await Event.findOne({ slug: req.params.slug }).lean();
     if (!event) return reply.status(404).send({ error: 'Événement introuvable' });
-    return reply.send({ ...event, id: event._id.toString() });
+    const [resolved] = await resolveTimelineSlugs([{ ...event, id: event._id.toString() }]);
+    return reply.send(resolved);
   });
 
   // GET /events/:id
   app.get<{ Params: { id: string } }>('/:id', async (req, reply) => {
     const event = await Event.findById(req.params.id).lean();
     if (!event) return reply.status(404).send({ error: 'Événement introuvable' });
-    return reply.send({ ...event, id: event._id.toString() });
+    const [resolved] = await resolveTimelineSlugs([{ ...event, id: event._id.toString() }]);
+    return reply.send(resolved);
   });
 
   // POST /events [admin]
   app.post<{ Body: Record<string, unknown> }>('/', {
     preHandler: requireAdmin,
   }, async (req, reply) => {
+    const base64Fields = findBase64Fields(req.body);
+    if (base64Fields.length > 0) {
+      return reply.status(400).send({
+        error: `Fichiers base64 dans : ${base64Fields.join(', ')}. Supprimez ces médias et ré-uploadez-les (bouton 📁).`,
+        fields: base64Fields,
+      });
+    }
+
     const body = req.body;
     const slug = (body.slug as string) || toSlug(body.title as string);
 
@@ -100,6 +187,14 @@ export async function eventsRoutes(app: FastifyInstance) {
   app.put<{ Params: { id: string }; Body: Record<string, unknown> }>('/:id', {
     preHandler: requireAdmin,
   }, async (req, reply) => {
+    const base64Fields = findBase64Fields(req.body);
+    if (base64Fields.length > 0) {
+      return reply.status(400).send({
+        error: `Fichiers base64 dans : ${base64Fields.join(', ')}. Supprimez ces médias et ré-uploadez-les (bouton 📁).`,
+        fields: base64Fields,
+      });
+    }
+
     const event = await Event.findByIdAndUpdate(
       req.params.id,
       { ...req.body, updatedAt: new Date() },

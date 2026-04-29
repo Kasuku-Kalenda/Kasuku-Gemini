@@ -179,7 +179,9 @@ export interface Event {
   // Liens vers le parcours
   timelineId?: string;
   timelineMomentId?: string;
-  timelineSlug?: string; // Pour compatibilité navigation actuelle
+  timelineSlug?: string;     // résolu automatiquement depuis timelineId si absent
+  timelineTitle?: string;    // titre du parcours associé (résolu par l'API)
+  timelineThumbnail?: string; // thumbnail du parcours associé (résolu par l'API)
   source?: ContentSource; // provenance du contenu
 }
 
@@ -229,7 +231,7 @@ export interface TimelineNarrative {
 }
 
 export interface FavItem {
-  type: "event" | "module";
+  type: "event" | "module" | "timeline";
   id: string;
   slug: string;
   title: string;
