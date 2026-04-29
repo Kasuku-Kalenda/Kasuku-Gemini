@@ -11,52 +11,52 @@ interface ListResponse<T> { items: T[] }
 
 // ─── Timelines ─────────────────────────────────────────────────────────────────
 
-const listTimelines  = async () => api.get<ListResponse<TimelineNarrative>>('/timelines/all');
-const getTimeline    = async (id: string) => { try { return await api.get<TimelineNarrative>(`/timelines/${id}`); } catch { return null; } };
-const createTimeline = async (data: TimelineFormData) => api.post<TimelineNarrative>('/timelines', data);
-const updateTimeline = async (id: string, data: TimelineFormData) => api.put<TimelineNarrative>(`/timelines/${id}`, data);
-const deleteTimeline = async (id: string) => { await api.delete(`/timelines/${id}`); return true; };
+const listTimelines  = async (): Promise<ListResponse<TimelineNarrative>> => api.get('/timelines/all');
+const getTimeline    = async (id: string): Promise<TimelineNarrative | null> => { try { return await api.get<TimelineNarrative>(`/timelines/${id}`); } catch { return null; } };
+const createTimeline = async (data: TimelineFormData): Promise<TimelineNarrative> => api.post('/timelines', data);
+const updateTimeline = async (id: string, data: TimelineFormData): Promise<TimelineNarrative> => api.put(`/timelines/${id}`, data);
+const deleteTimeline = async (id: string): Promise<boolean> => { await api.delete(`/timelines/${id}`); return true; };
 
 // ─── Events ────────────────────────────────────────────────────────────────────
 
-const listEvents  = async () => api.get<ListResponse<Event>>('/events?limit=200');
-const getEvent    = async (id: string) => { try { return await api.get<Event>(`/events/${id}`); } catch { return null; } };
-const createEvent = async (data: EventFormData) => api.post<Event>('/events', data);
-const updateEvent = async (id: string, data: EventFormData) => api.put<Event>(`/events/${id}`, data);
-const deleteEvent = async (id: string) => { await api.delete(`/events/${id}`); return true; };
+const listEvents  = async (): Promise<ListResponse<Event>> => api.get('/events?limit=200');
+const getEvent    = async (id: string): Promise<Event | null> => { try { return await api.get<Event>(`/events/${id}`); } catch { return null; } };
+const createEvent = async (data: EventFormData): Promise<Event> => api.post('/events', data);
+const updateEvent = async (id: string, data: EventFormData): Promise<Event> => api.put(`/events/${id}`, data);
+const deleteEvent = async (id: string): Promise<boolean> => { await api.delete(`/events/${id}`); return true; };
 
 // ─── Themes ────────────────────────────────────────────────────────────────────
 
-const listThemes  = async () => ({ items: await api.get<Theme[]>('/themes') });
-const getTheme    = async (id: string) => { try { return await api.get<Theme>(`/themes/${id}`); } catch { return null; } };
-const createTheme = async (data: ThemeFormData) => api.post<Theme>('/themes', data);
-const updateTheme = async (id: string, data: ThemeFormData) => api.put<Theme>(`/themes/${id}`, data);
-const deleteTheme = async (id: string) => { await api.delete(`/themes/${id}`); return true; };
+const listThemes  = async (): Promise<ListResponse<Theme>> => ({ items: await api.get<Theme[]>('/themes') });
+const getTheme    = async (id: string): Promise<Theme | null> => { try { return await api.get<Theme>(`/themes/${id}`); } catch { return null; } };
+const createTheme = async (data: ThemeFormData): Promise<Theme> => api.post('/themes', data);
+const updateTheme = async (id: string, data: ThemeFormData): Promise<Theme> => api.put(`/themes/${id}`, data);
+const deleteTheme = async (id: string): Promise<boolean> => { await api.delete(`/themes/${id}`); return true; };
 
 // ─── Modules ───────────────────────────────────────────────────────────────────
 
-const listModules  = async () => api.get<ListResponse<TrainingModule>>('/modules?limit=200');
-const getModule    = async (id: string) => { try { return await api.get<TrainingModule>(`/modules/${id}`); } catch { return null; } };
-const createModule = async (data: ModuleFormData) => api.post<TrainingModule>('/modules', data);
-const updateModule = async (id: string, data: ModuleFormData) => api.put<TrainingModule>(`/modules/${id}`, data);
-const deleteModule = async (id: string) => { await api.delete(`/modules/${id}`); return true; };
+const listModules  = async (): Promise<ListResponse<TrainingModule>> => api.get('/modules?limit=200');
+const getModule    = async (id: string): Promise<TrainingModule | null> => { try { return await api.get<TrainingModule>(`/modules/${id}`); } catch { return null; } };
+const createModule = async (data: ModuleFormData): Promise<TrainingModule> => api.post('/modules', data);
+const updateModule = async (id: string, data: ModuleFormData): Promise<TrainingModule> => api.put(`/modules/${id}`, data);
+const deleteModule = async (id: string): Promise<boolean> => { await api.delete(`/modules/${id}`); return true; };
 
 // ─── Featured ──────────────────────────────────────────────────────────────────
 
-const listFeatured  = async () => api.get<ListResponse<FeaturedItem>>('/featured/all');
-const getFeatured   = async (id: string) => { try { return await api.get<FeaturedItem>(`/featured/${id}`); } catch { return null; } };
-const createFeatured = async (data: FeaturedFormData) => api.post<FeaturedItem>('/featured', data);
-const updateFeatured = async (id: string, data: FeaturedFormData) => api.put<FeaturedItem>(`/featured/${id}`, data);
-const deleteFeatured = async (id: string) => { await api.delete(`/featured/${id}`); return true; };
+const listFeatured   = async (): Promise<ListResponse<FeaturedItem>> => api.get('/featured/all');
+const getFeatured    = async (id: string): Promise<FeaturedItem | null> => { try { return await api.get<FeaturedItem>(`/featured/${id}`); } catch { return null; } };
+const createFeatured = async (data: FeaturedFormData): Promise<FeaturedItem> => api.post('/featured', data);
+const updateFeatured = async (id: string, data: FeaturedFormData): Promise<FeaturedItem> => api.put(`/featured/${id}`, data);
+const deleteFeatured = async (id: string): Promise<boolean> => { await api.delete(`/featured/${id}`); return true; };
 
 // ─── Kalenda ───────────────────────────────────────────────────────────────────
 
-const listKalendas  = async () => api.get<ListResponse<Kalenda>>('/kalendas/all');
-const getKalenda    = async (id: string) => { try { return await api.get<Kalenda>(`/kalendas/${id}`); } catch { return null; } };
-const createKalenda = async (data: Omit<Kalenda, 'id' | 'createdAt' | 'updatedAt'>) => api.post<Kalenda>('/kalendas', data);
-const updateKalenda = async (id: string, data: Partial<Omit<Kalenda, 'id' | 'createdAt'>>) => api.put<Kalenda>(`/kalendas/${id}`, data);
-const deleteKalenda = async (id: string) => { await api.delete(`/kalendas/${id}`); return true; };
-const publishKalenda = async (id: string, status: 'draft' | 'published') => updateKalenda(id, { status });
+const listKalendas   = async (): Promise<ListResponse<Kalenda>> => api.get('/kalendas/all');
+const getKalenda     = async (id: string): Promise<Kalenda | null> => { try { return await api.get<Kalenda>(`/kalendas/${id}`); } catch { return null; } };
+const createKalenda  = async (data: Omit<Kalenda, 'id' | 'createdAt' | 'updatedAt'>): Promise<Kalenda> => api.post('/kalendas', data);
+const updateKalenda  = async (id: string, data: Partial<Omit<Kalenda, 'id' | 'createdAt'>>): Promise<Kalenda> => api.put(`/kalendas/${id}`, data);
+const deleteKalenda  = async (id: string): Promise<boolean> => { await api.delete(`/kalendas/${id}`); return true; };
+const publishKalenda = async (id: string, status: 'draft' | 'published'): Promise<Kalenda> => updateKalenda(id, { status });
 
 // ─── Moodle Instances ──────────────────────────────────────────────────────────
 

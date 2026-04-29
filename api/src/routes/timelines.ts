@@ -47,14 +47,29 @@ function momentTs(m: Record<string, unknown>): number {
 
 export async function timelinesRoutes(app: FastifyInstance) {
 
-  // GET / — timelines publiées (public)
-  app.get('/', async (_req, reply) => {
-    const items = await Timeline.find({ status: 'published' })
-      .select('-moments')
-      .sort({ createdAt: -1 })
-      .lean();
+  // GET / — timelines publiées (public), paginées
+  app.get<{ Querystring: { page?: string; limit?: string; q?: string } }>('/', async (req, reply) => {
+    const pageNum  = Math.max(1, parseInt(req.query.page  ?? '1',  10));
+    const limitNum = Math.min(100, Math.max(1, parseInt(req.query.limit ?? '50', 10)));
+    const skip     = (pageNum - 1) * limitNum;
 
-    return reply.send(items.map(t => ({ ...t, id: t._id.toString() })));
+    const filter: Record<string, unknown> = { status: 'published' };
+    if (req.query.q?.trim()) {
+      const re = new RegExp(req.query.q.trim(), 'i');
+      filter.$or = [{ title: re }, { shortDescription: re }];
+    }
+
+    const [items, total] = await Promise.all([
+      Timeline.find(filter).select('-moments').sort({ createdAt: -1 }).skip(skip).limit(limitNum).lean(),
+      Timeline.countDocuments(filter),
+    ]);
+
+    return reply.send({
+      items:      items.map(t => ({ ...t, id: t._id.toString() })),
+      page:       pageNum,
+      totalPages: Math.ceil(total / limitNum),
+      totalItems: total,
+    });
   });
 
   // GET /all — toutes [admin]
