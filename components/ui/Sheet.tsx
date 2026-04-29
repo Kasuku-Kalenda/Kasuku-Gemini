@@ -2,9 +2,6 @@
 import React from 'react';
 import { XIcon } from '../icons/XIcon';
 
-// NOTE: This is a simplified implementation for demo purposes.
-// A production-ready Sheet would use portals and more complex state management.
-
 const Sheet: React.FC<{ children: React.ReactNode }> = ({ children }) => <div>{children}</div>;
 export const SheetTrigger: React.FC<{ children: React.ReactNode; asChild?: boolean }> = ({ children }) => <>{children}</>;
 
@@ -17,65 +14,85 @@ interface SheetContentProps {
 }
 
 const sideClasses = {
-    top: 'top-0 left-0 right-0 h-auto max-h-[80vh] w-full translate-y-[-100%]',
-    bottom: 'bottom-0 left-0 right-0 h-auto max-h-[80vh] w-full translate-y-[100%]',
-    left: 'top-0 left-0 h-full w-full max-w-md -translate-x-full',
-    right: 'top-0 right-0 h-full w-full max-w-md translate-x-full',
-    center: 'top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90%] max-w-[400px] h-auto max-h-[90vh] rounded-2xl opacity-0 scale-95 pointer-events-none',
+  top:    'top-0 left-0 right-0 h-auto max-h-[85vh] w-full -translate-y-full rounded-b-3xl',
+  bottom: 'bottom-0 left-0 right-0 h-auto max-h-[85vh] w-full translate-y-full rounded-t-3xl',
+  left:   'top-0 left-0 h-full w-full max-w-md -translate-x-full',
+  right:  'top-0 right-0 h-full w-full max-w-md translate-x-full',
+  center: 'top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[92%] max-w-[420px] h-auto max-h-[88vh] rounded-3xl opacity-0 scale-95 pointer-events-none',
 };
+
 const openClasses = {
-    top: 'translate-y-0',
-    bottom: 'translate-y-0',
-    left: 'translate-x-0',
-    right: 'translate-x-0',
-    center: 'opacity-100 scale-100 pointer-events-auto',
-}
+  top:    'translate-y-0',
+  bottom: 'translate-y-0',
+  left:   'translate-x-0',
+  right:  'translate-x-0',
+  center: 'opacity-100 scale-100 pointer-events-auto',
+};
 
-
-export const SheetContent: React.FC<SheetContentProps> = ({ children, className, isOpen, onClose, side = 'right' }) => (
+export const SheetContent: React.FC<SheetContentProps> = ({
+  children, className, isOpen, onClose, side = 'right',
+}) => (
   <>
-    {isOpen && (
-      <div
-        className="fixed inset-0 bg-black/60 z-40"
-        onClick={onClose}
-        aria-hidden="true"
-      />
-    )}
+    {/* Backdrop */}
+    <div
+      className={`fixed inset-0 bg-black/60 z-40 transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+      onClick={onClose}
+      aria-hidden="true"
+    />
+
+    {/* Panel */}
     <div
       role="dialog"
       aria-modal="true"
-      className={`fixed bg-card shadow-lg z-50 transform transition-transform duration-300 ease-in-out ${sideClasses[side]} ${
+      className={`fixed bg-card shadow-2xl z-50 transform transition-all duration-300 ease-out ${sideClasses[side]} ${
         isOpen ? openClasses[side] : ''
-      } ${className}`}
+      } ${className ?? ''}`}
     >
-      <div className="h-full flex flex-col relative">
+      <div className="h-full flex flex-col relative overscroll-contain overflow-hidden">
+
+        {/* Drag handle (bottom sheet uniquement) */}
+        {side === 'bottom' && (
+          <div className="flex-shrink-0 flex justify-center pt-3 pb-1">
+            <div className="w-10 h-1 bg-border rounded-full" />
+          </div>
+        )}
+
+        {/* Bouton fermer */}
         <button
           onClick={onClose}
-          className={`absolute top-4 right-4 p-2 rounded-full transition-colors z-10 ${
-            side === 'center' 
-              ? 'bg-muted/80 text-foreground hover:bg-muted shadow-sm' 
-              : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+          className={`no-min-h absolute z-10 p-2.5 rounded-full transition-colors active:scale-95 ${
+            side === 'center'
+              ? 'top-3 right-3 bg-muted/80 hover:bg-muted'
+              : 'top-3 right-3 text-muted-foreground hover:bg-muted hover:text-foreground'
           }`}
-          aria-label="Close panel"
+          aria-label="Fermer"
+          style={{ top: side === 'bottom' ? '0.75rem' : undefined }}
         >
-          <XIcon className="h-6 w-6" />
+          <XIcon className="h-5 w-5" />
         </button>
-        {children}
+
+        {/* Contenu scrollable */}
+        <div
+          className="flex-1 flex flex-col overflow-hidden"
+          style={side === 'bottom' ? { paddingBottom: 'var(--sab, 0px)' } : undefined}
+        >
+          {children}
+        </div>
       </div>
     </div>
   </>
 );
 
-export const SheetHeader: React.FC<{ children: React.ReactNode; className?: string; }> = ({ children, className }) => (
-  <div className={`p-6 border-b ${className}`}>{children}</div>
+export const SheetHeader: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className }) => (
+  <div className={`px-5 py-4 border-b flex-shrink-0 ${className ?? ''}`}>{children}</div>
 );
 
-export const SheetTitle: React.FC<{ children: React.ReactNode; className?: string; }> = ({ children, className }) => (
-  <h2 className={`text-lg font-semibold text-foreground pr-8 ${className}`}>{children}</h2>
+export const SheetTitle: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className }) => (
+  <h2 className={`text-base sm:text-lg font-semibold text-foreground pr-10 ${className ?? ''}`}>{children}</h2>
 );
 
-export const SheetDescription: React.FC<{ children: React.ReactNode; className?: string; }> = ({ children, className }) => (
-  <p className={`text-sm text-muted-foreground ${className}`}>{children}</p>
+export const SheetDescription: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className }) => (
+  <p className={`text-sm text-muted-foreground ${className ?? ''}`}>{children}</p>
 );
 
 export { Sheet };

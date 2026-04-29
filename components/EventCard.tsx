@@ -129,12 +129,12 @@ export const EventCard: React.FC<EventCardProps> = ({ id, event, onView, isFavor
                   </span>
                 )}
               </div>
-              <button 
+              <button
                 onClick={handleFavoriteClick}
-                className="p-1.5 -mr-1 -mt-1 text-muted-foreground hover:text-primary transition-colors shrink-0"
+                className="no-min-h p-3 -mr-2 -mt-2 text-muted-foreground hover:text-primary active:scale-90 transition-all shrink-0"
                 aria-label={isFavorite ? 'Remove from saved items' : 'Save for later'}
               >
-                <StarIcon className={`h-4 w-4 ${isFavorite ? 'fill-primary stroke-primary' : 'fill-transparent stroke-current'}`} />
+                <StarIcon className={`h-5 w-5 ${isFavorite ? 'fill-primary stroke-primary' : 'fill-transparent stroke-current'}`} />
               </button>
             </div>
 

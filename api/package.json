@@ -1,0 +1,34 @@
+{
+  "name": "kasuku-api",
+  "version": "1.0.0",
+  "description": "Kasuku REST API — Fastify + Mongoose + MongoDB",
+  "private": true,
+  "type": "commonjs",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@fastify/cors": "^9.0.1",
+    "@fastify/jwt": "^8.0.1",
+    "@fastify/multipart": "^8.3.0",
+    "@fastify/rate-limit": "^9.1.0",
+    "bcryptjs": "^2.4.3",
+    "fastify": "^4.28.1",
+    "redis": "^4.7.0",
+    "minio": "^7.1.3",
+    "mongoose": "^8.5.1",
+    "nanoid": "^3.3.7",
+    "slugify": "^1.6.6",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^20.14.10",
+    "tsx": "^4.16.2",
+    "typescript": "^5.5.3"
+  }
+}

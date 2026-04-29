@@ -2,15 +2,42 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Safe-area CSS variables (iOS notch / Dynamic Island / home bar) ─────── */
+:root {
+  --sat: env(safe-area-inset-top, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  /* BottomNav total height = 64px content + safe area */
+  --bottom-nav-h: calc(4rem + var(--sab));
+}
+
 @layer base {
   html, body {
     @apply overflow-x-hidden bg-light text-dark antialiased;
     font-size: 16px;
+    /* Momentum scrolling sur iOS */
+    -webkit-overflow-scrolling: touch;
   }
 
-  /* Fat Finger Friendly buttons */
-  button:not(.day), a:not(.day) {
-    @apply min-h-[44px] min-w-[44px] flex items-center justify-center;
+  /* Empêche le double-tap zoom sur tous les éléments interactifs */
+  button, a, [role="button"] {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Touch targets ≥ 44px pour tous les boutons/liens */
+  button:not(.day):not(.no-min-h),
+  a:not(.no-min-h) {
+    @apply min-h-[44px];
+  }
+
+  /* Focus visible uniquement au clavier (pas au clic/touch) */
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-primary;
+  }
+  :focus:not(:focus-visible) {
+    outline: none;
   }
 }
 
@@ -19,23 +46,39 @@
     @apply sticky top-0 z-10 bg-light/95 backdrop-blur-sm py-2 px-4 border-b border-border font-bold text-primary;
   }
 
-  .sticky-bottom-bar {
-    @apply fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-border p-4 md:relative md:bg-transparent md:border-0 md:p-0;
+  /* BottomNav spacer — remplace pb-24 dans Layout */
+  .pb-bottom-nav {
+    padding-bottom: calc(4.5rem + var(--sab));
   }
 
-  .event-card-mobile {
-    @apply flex flex-col w-full border-b border-border py-4 last:border-0;
+  /* Safe area utilities */
+  .pt-safe  { padding-top:    var(--sat); }
+  .pr-safe  { padding-right:  var(--sar); }
+  .pb-safe  { padding-bottom: var(--sab); }
+  .pl-safe  { padding-left:   var(--sal); }
+  .mt-safe  { margin-top:     var(--sat); }
+
+  /* Barre fixe en bas avec safe area */
+  .fixed-bottom-safe {
+    @apply fixed bottom-0 left-0 right-0;
+    padding-bottom: var(--sab);
+    padding-left:   var(--sal);
+    padding-right:  var(--sar);
   }
 }
 
-/* Custom Scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
+/* Custom Scrollbar — invisible sur mobile, discret sur desktop */
+@media (pointer: fine) {
+  ::-webkit-scrollbar         { width: 6px; }
+  ::-webkit-scrollbar-track   { background: transparent; }
+  ::-webkit-scrollbar-thumb   { background: #E67E22; border-radius: 10px; min-height: 40px; }
 }
-::-webkit-scrollbar-track {
-  background: transparent;
+@media (pointer: coarse) {
+  ::-webkit-scrollbar         { display: none; }
 }
-::-webkit-scrollbar-thumb {
-  background: #E67E22;
-  border-radius: 10px;
+
+/* Overscroll contenu dans les sheets / modaux */
+.overscroll-contain {
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }

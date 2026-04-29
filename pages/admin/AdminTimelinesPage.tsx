@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AdminLayout } from '../../components/admin/AdminLayout';
 import { adminApi } from '../../services/adminApi';
-import type { TimelineNarrative } from '../../types';
+import type { TimelineNarrative, Event } from '../../types';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { AdminDataTable } from '../../components/admin/AdminDataTable';
@@ -14,12 +14,25 @@ interface AdminTimelinesPageProps {
 
 export const AdminTimelinesPage: React.FC<AdminTimelinesPageProps> = ({ navigateTo }) => {
     const [timelines, setTimelines] = useState<TimelineNarrative[]>([]);
+    const [linkedEventCounts, setLinkedEventCounts] = useState<Record<string, number>>({});
     const [isLoading, setIsLoading] = useState(true);
 
     const loadTimelines = async () => {
         setIsLoading(true);
-        const result = await adminApi.listTimelines();
+        const [result, evRes] = await Promise.all([
+            adminApi.listTimelines(),
+            adminApi.listEvents(),
+        ]);
+        const allEvents = evRes.items ?? [];
         setTimelines(result.items);
+        // Compte les événements liés à chaque timeline
+        const counts: Record<string, number> = {};
+        for (const tl of result.items) {
+            counts[tl.id] = allEvents.filter(
+                (e: Event) => e.timelineId === tl.id || e.timelineSlug === tl.slug
+            ).length;
+        }
+        setLinkedEventCounts(counts);
         setIsLoading(false);
     }
 
@@ -85,8 +98,33 @@ export const AdminTimelinesPage: React.FC<AdminTimelinesPageProps> = ({ navigate
                         },
                         {
                             header: "Moments",
-                            accessor: (t) => <span className="text-sm font-bold text-primary">{t.eventCount}</span>,
+                            accessor: (t) => (
+                                <span className="text-sm font-bold text-primary">{t.eventCount ?? 0}</span>
+                            ),
                             className: "text-center w-20"
+                        },
+                        {
+                            header: "Évén. liés",
+                            accessor: (t) => {
+                                const count = linkedEventCounts[t.id] ?? 0;
+                                return (
+                                    <span className={`text-sm font-bold ${count > 0 ? 'text-green-600' : 'text-muted-foreground'}`}>
+                                        {count > 0 ? `+${count}` : '—'}
+                                    </span>
+                                );
+                            },
+                            className: "text-center w-24"
+                        },
+                        {
+                            header: "Source",
+                            accessor: (t) => {
+                                const src = t.source;
+                                if (!src) return <span className="text-[9px] text-muted-foreground">—</span>;
+                                if (src.type === 'central') return <span className="text-[9px] font-bold text-blue-600 bg-blue-50 border border-blue-200 rounded px-1.5 py-0.5">🏛️ Central</span>;
+                                if (src.type === 'imported_csv') return <span className="text-[9px] font-bold text-violet-600 bg-violet-50 border border-violet-200 rounded px-1.5 py-0.5">⬆️ Importé</span>;
+                                return <span className="text-[9px] font-bold text-green-600 bg-green-50 border border-green-200 rounded px-1.5 py-0.5">📍 Local</span>;
+                            },
+                            className: "w-24"
                         }
                     ]}
                 />

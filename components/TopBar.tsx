@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
+import { useLayerDepth } from '../core/navigation';
 import { ParrotIcon } from './icons/ParrotIcon';
-import { GoogleIcon } from './icons/GoogleIcon';
 import { LogOutIcon } from './icons/LogOutIcon';
 import { useAuth } from '../hooks/useAuth';
 import { DashboardIcon } from './icons/DashboardIcon';
@@ -44,6 +44,8 @@ const navItems = [
 ] as const;
 
 export const TopBar: React.FC<TopBarProps> = ({ currentView, navigateTo }) => {
+  // Tous les hooks d'abord (règle React)
+  const layerDepth    = useLayerDepth();
   const { session, status, signOut } = useAuth();
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
@@ -62,6 +64,9 @@ export const TopBar: React.FC<TopBarProps> = ({ currentView, navigateTo }) => {
   const user = session?.user;
   const isAuthenticated = status === 'authenticated';
   const isAuthorizedAdmin = user?.role === 'SUPERADMIN' || user?.role === 'EDITOR';
+
+  // Ne pas rendre dans les couches en arrière-plan (évite les doublons de chrome)
+  if (layerDepth > 0) return null;
 
   return (
     <header className="bg-light/80 backdrop-blur-sm sticky top-0 z-50 border-b border-border shadow-soft">
@@ -94,7 +99,7 @@ export const TopBar: React.FC<TopBarProps> = ({ currentView, navigateTo }) => {
             <div className="flex items-center md:ml-6">
               {isAuthenticated && user ? (
                 <div className="relative" ref={userMenuRef}>
-                  <button onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}>
+                  <button onClick={() => setIsUserMenuOpen(!isUserMenuOpen)} className="p-1.5 rounded-full active:scale-95 transition-transform">
                     <img src={user.image ?? `https://api.dicebear.com/8.x/initials/svg?seed=${user.email}`} alt={user.name!} className="h-9 w-9 rounded-full" />
                   </button>
                   {isUserMenuOpen && (
@@ -118,7 +123,7 @@ export const TopBar: React.FC<TopBarProps> = ({ currentView, navigateTo }) => {
                   <button onClick={() => navigateTo('adminLogin')} className="hidden md:flex items-center gap-2 px-3 py-2 border rounded-md text-sm font-medium hover:bg-muted transition-colors">
                     Sign in / Admin
                   </button>
-                  <button onClick={() => navigateTo('adminLogin')} className="md:hidden p-2 rounded-full hover:bg-muted transition-colors" aria-label="Sign in">
+                  <button onClick={() => navigateTo('adminLogin')} className="md:hidden p-3 rounded-full hover:bg-muted active:bg-muted/80 transition-colors" aria-label="Sign in">
                     <UserIcon className="h-6 w-6 text-dark/80" />
                   </button>
                 </>
