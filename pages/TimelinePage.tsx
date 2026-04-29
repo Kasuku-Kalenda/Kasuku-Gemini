@@ -276,7 +276,10 @@ export const TimelinePage: React.FC<TimelinePageProps> = ({
             />
 
             {/* Barre de navigation */}
-            <header className="relative z-10 px-8 pt-10 pb-4 flex items-center justify-between">
+            <header
+              className="relative z-10 px-6 pb-4 flex items-center justify-between flex-shrink-0"
+              style={{ paddingTop: 'max(2.5rem, var(--sat, 0px))' }}
+            >
                 <button
                     onClick={onBack}
                     className="p-4 bg-white/50 backdrop-blur-2xl border border-white/40 rounded-full shadow-lg hover:bg-white/80 transition-all active:scale-90 flex items-center justify-center group"
@@ -311,19 +314,19 @@ export const TimelinePage: React.FC<TimelinePageProps> = ({
                 <button
                     onClick={goPrev}
                     disabled={activeIndex === 0}
-                    className="absolute left-10 z-40 p-6 rounded-full bg-white/40 backdrop-blur-3xl border border-white/50 shadow-2xl disabled:opacity-0 transition-all hover:bg-white/60 active:scale-90 hidden lg:flex items-center justify-center"
+                    className="absolute left-2 sm:left-10 z-40 p-3 sm:p-6 rounded-full bg-white/50 backdrop-blur-3xl border border-white/50 shadow-xl disabled:opacity-0 disabled:pointer-events-none transition-all hover:bg-white/70 active:scale-90 flex items-center justify-center"
                 >
-                    <ChevronLeftIcon className="h-8 w-8 text-secondary" />
+                    <ChevronLeftIcon className="h-5 w-5 sm:h-8 sm:w-8 text-secondary" />
                 </button>
                 <button
                     onClick={goNext}
                     disabled={activeIndex === slides.length - 1}
-                    className="absolute right-10 z-40 p-6 rounded-full bg-white/40 backdrop-blur-3xl border border-white/50 shadow-2xl disabled:opacity-0 transition-all hover:bg-white/60 active:scale-90 hidden lg:flex items-center justify-center"
+                    className="absolute right-2 sm:right-10 z-40 p-3 sm:p-6 rounded-full bg-white/50 backdrop-blur-3xl border border-white/50 shadow-xl disabled:opacity-0 disabled:pointer-events-none transition-all hover:bg-white/70 active:scale-90 flex items-center justify-center"
                 >
-                    <ChevronRightIcon className="h-8 w-8 text-secondary" />
+                    <ChevronRightIcon className="h-5 w-5 sm:h-8 sm:w-8 text-secondary" />
                 </button>
 
-                <div className="relative w-full max-w-5xl h-[620px] flex items-center justify-center">
+                <div className="relative w-full max-w-5xl flex items-center justify-center" style={{ height: 'min(620px, calc(100svh - 260px))' }}>
                     {slides.map((slide, idx) => {
                         const offset = idx - activeIndex;
                         const isFocused = offset === 0;
@@ -371,12 +374,6 @@ export const TimelinePage: React.FC<TimelinePageProps> = ({
                                         )
                                     )}
 
-                                    {/* Badge "Événement lié" */}
-                                    {slide.originalType === 'event' && isFocused && (
-                                        <div className="absolute top-8 right-8 px-3 py-1.5 bg-primary/80 backdrop-blur-xl rounded-xl text-white text-[9px] font-black tracking-widest uppercase shadow-lg border border-white/20">
-                                            📅 Événement lié
-                                        </div>
-                                    )}
 
                                     {/* Période sur la slide intro */}
                                     {isSlideIntro && slide.dateLabel && (
@@ -389,13 +386,13 @@ export const TimelinePage: React.FC<TimelinePageProps> = ({
                                 </div>
 
                                 {/* Contenu textuel */}
-                                <div className={`p-10 sm:p-12 flex flex-col bg-white/10 ${isSlideIntro ? 'min-h-[200px]' : 'h-full'}`}>
+                                <div className={`p-6 sm:p-10 flex flex-col bg-white/10 ${isSlideIntro ? 'min-h-[160px]' : 'h-full'}`}>
                                     {isSlideIntro && timeline.subtitle && (
                                         <p className="text-[10px] font-black uppercase tracking-widest text-primary mb-3">
                                             {timeline.subtitle}
                                         </p>
                                     )}
-                                    <h3 className={`font-black text-secondary leading-tight mb-5 tracking-tight group-hover/card:text-primary transition-colors ${isSlideIntro ? 'text-3xl sm:text-4xl' : 'text-2xl sm:text-3xl'}`}>
+                                    <h3 className={`font-black text-secondary leading-tight mb-3 sm:mb-5 tracking-tight group-hover/card:text-primary transition-colors ${isSlideIntro ? 'text-2xl sm:text-4xl' : 'text-xl sm:text-3xl'}`}>
                                         {slide.title}
                                     </h3>
                                     <p className={`text-dark/80 text-sm sm:text-base leading-relaxed font-medium mb-4 ${isFocused && slide.resources.length > 0 ? 'line-clamp-3' : 'line-clamp-4 mb-6'}`}>
@@ -451,8 +448,11 @@ export const TimelinePage: React.FC<TimelinePageProps> = ({
             </div>
 
             {/* Barre de navigation chronologique */}
-            <div className="p-10 sm:p-16 relative z-10 bg-gradient-to-t from-[#FAF8F5] via-[#FAF8F5]/90 to-transparent">
-                <div className="max-w-4xl mx-auto space-y-10">
+            <div
+              className="px-6 pt-6 sm:pt-10 relative z-10 bg-gradient-to-t from-[#FAF8F5] via-[#FAF8F5]/90 to-transparent flex-shrink-0"
+              style={{ paddingBottom: 'max(1.5rem, var(--sab, 0px))' }}
+            >
+                <div className="max-w-4xl mx-auto space-y-6 sm:space-y-10">
                     <div className="relative h-1.5 w-full bg-black/5 rounded-full overflow-visible">
                         <div
                             className="absolute h-full bg-primary transition-all duration-1000 rounded-full shadow-[0_0_30px_rgba(230,126,34,0.6)]"
@@ -464,9 +464,9 @@ export const TimelinePage: React.FC<TimelinePageProps> = ({
                                     key={s.id}
                                     type="button"
                                     onClick={() => setActiveIndex(i)}
-                                    className={`relative flex items-center justify-center transition-all duration-700 ${i === activeIndex ? 'scale-150' : 'scale-100'}`}
+                                    className={`no-min-h relative flex items-center justify-center p-2 transition-all duration-700 ${i === activeIndex ? 'scale-150' : 'scale-100'}`}
                                 >
-                                    <div className={`h-4 w-4 rounded-full border-4 border-[#FAF8F5] shadow-xl transition-all duration-500 ${i <= activeIndex ? 'bg-primary' : 'bg-black/10'}`} />
+                                    <div className={`h-3.5 w-3.5 rounded-full border-4 border-[#FAF8F5] shadow-xl transition-all duration-500 ${i <= activeIndex ? 'bg-primary' : 'bg-black/10'}`} />
                                     {(i === 0 || i === slides.length - 1 || i === activeIndex) && (
                                         <span className={`absolute -top-10 text-[10px] font-black whitespace-nowrap uppercase tracking-tighter transition-colors duration-500 ${i === activeIndex ? 'text-primary' : 'text-secondary/40'}`}>
                                             {s.originalType === 'intro' ? 'Intro' : (s.year || '…')}

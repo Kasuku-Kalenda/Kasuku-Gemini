@@ -99,7 +99,7 @@ export const TopBar: React.FC<TopBarProps> = ({ currentView, navigateTo }) => {
             <div className="flex items-center md:ml-6">
               {isAuthenticated && user ? (
                 <div className="relative" ref={userMenuRef}>
-                  <button onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}>
+                  <button onClick={() => setIsUserMenuOpen(!isUserMenuOpen)} className="p-1.5 rounded-full active:scale-95 transition-transform">
                     <img src={user.image ?? `https://api.dicebear.com/8.x/initials/svg?seed=${user.email}`} alt={user.name!} className="h-9 w-9 rounded-full" />
                   </button>
                   {isUserMenuOpen && (
@@ -123,7 +123,7 @@ export const TopBar: React.FC<TopBarProps> = ({ currentView, navigateTo }) => {
                   <button onClick={() => navigateTo('adminLogin')} className="hidden md:flex items-center gap-2 px-3 py-2 border rounded-md text-sm font-medium hover:bg-muted transition-colors">
                     Sign in / Admin
                   </button>
-                  <button onClick={() => navigateTo('adminLogin')} className="md:hidden p-2 rounded-full hover:bg-muted transition-colors" aria-label="Sign in">
+                  <button onClick={() => navigateTo('adminLogin')} className="md:hidden p-3 rounded-full hover:bg-muted active:bg-muted/80 transition-colors" aria-label="Sign in">
                     <UserIcon className="h-6 w-6 text-dark/80" />
                   </button>
                 </>

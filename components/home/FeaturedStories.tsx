@@ -167,7 +167,10 @@ export function FeaturedStories({
           aria-label="Story à la une"
         >
           {/* Progress bars */}
-          <div className="absolute left-0 right-0 top-0 flex gap-1 px-3 pt-safe-top pt-3 z-20 pointer-events-none">
+          <div
+            className="absolute left-0 right-0 top-0 flex gap-1 px-3 z-20 pointer-events-none"
+            style={{ paddingTop: 'max(0.75rem, var(--sat, 0px))' }}
+          >
             {items.map((_, i) => (
               <div key={i} className="h-[3px] flex-1 rounded-full bg-white/25 overflow-hidden">
                 <div
@@ -186,7 +189,8 @@ export function FeaturedStories({
 
           {/* Close button */}
           <button
-            className="absolute top-10 right-4 sm:top-10 sm:right-6 rounded-full bg-white/15 backdrop-blur-md hover:bg-white/25 p-2.5 sm:p-3 focus-visible:ring-2 z-40 transition-colors"
+            className="absolute right-4 sm:right-6 rounded-full bg-white/15 backdrop-blur-md hover:bg-white/25 active:scale-90 p-2.5 sm:p-3 focus-visible:ring-2 z-40 transition-all"
+            style={{ top: 'max(2.5rem, calc(var(--sat, 0px) + 0.75rem))' }}
             aria-label="Fermer"
             onClick={() => setOpen(false)}
           >
@@ -228,7 +232,10 @@ export function FeaturedStories({
                 <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/30 to-black/10" />
 
                 {/* Content */}
-                <div className="absolute inset-x-0 bottom-0 p-6 sm:p-8 lg:p-12 flex flex-col z-30">
+                <div
+                  className="absolute inset-x-0 bottom-0 p-6 sm:p-8 lg:p-12 flex flex-col z-30"
+                  style={{ paddingBottom: 'max(1.5rem, var(--sab, 0px))' }}
+                >
                   {/* Badges row */}
                   <div className="flex flex-wrap items-center gap-2 mb-4">
                     <CtaBadge ctaType={cur.ctaType} />
@@ -280,7 +287,9 @@ export function FeaturedStories({
 
                 {/* Story counter */}
                 {items.length > 1 && (
-                  <div className="absolute top-10 left-4 sm:left-6 z-30 flex items-center gap-2 bg-black/30 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/15">
+                  <div className="absolute left-4 sm:left-6 z-30 flex items-center gap-2 bg-black/30 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/15"
+                    style={{ top: 'max(2.5rem, calc(var(--sat, 0px) + 0.75rem))' }}
+                  >
                     <span className="text-[10px] font-black text-white/70 uppercase tracking-widest">
                       {active + 1} / {items.length}
                     </span>
