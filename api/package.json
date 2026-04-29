@@ -1,7 +1,7 @@
 {
   "name": "kasuku-api",
-  "version": "1.0.0",
-  "description": "Kasuku REST API — Fastify + Mongoose + MongoDB",
+  "version": "2.0.0",
+  "description": "Kasuku REST API — Fastify + PostgreSQL + Redis + MinIO",
   "private": true,
   "type": "commonjs",
   "main": "dist/index.js",
@@ -18,10 +18,9 @@
     "@fastify/rate-limit": "^9.1.0",
     "bcryptjs": "^2.4.3",
     "fastify": "^4.28.1",
+    "postgres": "^3.4.4",
     "redis": "^4.7.0",
     "minio": "^7.1.3",
-    "mongoose": "^8.5.1",
-    "nanoid": "^3.3.7",
     "slugify": "^1.6.6",
     "zod": "^3.23.8"
   },

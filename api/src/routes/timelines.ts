@@ -1,158 +1,221 @@
 /**
- * api/src/routes/timelines.ts
+ * /api/v1/timelines — Récits (Stories)
+ * Nom de route maintenu pour compatibilité avec le frontend existant.
  *
- * GET  /api/v1/timelines             — liste (publiées)
- * GET  /api/v1/timelines/all         — liste complète [admin]
- * GET  /api/v1/timelines/:id         — détail par ID
- * GET  /api/v1/timelines/slug/:slug  — détail par slug
- * POST /api/v1/timelines             — créer [admin]
- * PUT  /api/v1/timelines/:id         — modifier [admin]
- * DELETE /api/v1/timelines/:id       — supprimer [admin]
+ * GET  /timelines           — liste publique paginée
+ * GET  /timelines/all       — liste admin
+ * GET  /timelines/slug/:slug — détail par slug
+ * GET  /timelines/:id       — détail par ID
+ * POST /timelines           — créer [admin]
+ * PUT  /timelines/:id       — modifier [admin]
+ * DELETE /timelines/:id     — soft delete [admin]
  */
 
 import type { FastifyInstance } from 'fastify';
-import { Timeline }     from '../models';
+import sql from '../db';
 import { requireAdmin } from '../middleware/auth';
-import slugify from 'slugify';
+import { parsePagination, paginate } from '../utils/pagination';
+import { uniqueSlug } from '../utils/slug';
 import { findBase64Fields } from '../utils/validation';
-
-function toSlug(title: string) {
-  return slugify(title, { lower: true, strict: true, locale: 'fr' });
-}
-
-
-function sortMoments(moments: Array<Record<string, unknown>>) {
-  return [...moments].sort((a, b) => {
-    const ta = momentTs(a);
-    const tb = momentTs(b);
-    if (ta !== tb) return ta - tb;
-    return ((a.position as number) ?? 0) - ((b.position as number) ?? 0);
-  }).map((m, i) => ({ ...m, position: i }));
-}
-
-function momentTs(m: Record<string, unknown>): number {
-  if (m.dateExact) {
-    const ts = new Date(`${m.dateExact as string}T12:00:00Z`).getTime();
-    if (!isNaN(ts)) return ts;
-  }
-  if (m.periodText) {
-    const match = (m.periodText as string).match(/\b(\d{3,4})\b/);
-    if (match) {
-      const y = parseInt(match[1], 10);
-      if (y >= 100 && y <= 2200) return new Date(`${y}-07-01T12:00:00Z`).getTime();
-    }
-  }
-  return Infinity;
-}
 
 export async function timelinesRoutes(app: FastifyInstance) {
 
-  // GET / — timelines publiées (public), paginées
-  app.get<{ Querystring: { page?: string; limit?: string; q?: string } }>('/', async (req, reply) => {
-    const pageNum  = Math.max(1, parseInt(req.query.page  ?? '1',  10));
-    const limitNum = Math.min(100, Math.max(1, parseInt(req.query.limit ?? '50', 10)));
-    const skip     = (pageNum - 1) * limitNum;
+  // ── GET / — liste publique ────────────────────────────────────────────────
+  app.get('/', async (req, reply) => {
+    const q      = req.query as Record<string, string>;
+    const pg     = parsePagination(q);
+    const search = q.q?.trim() ?? '';
+    const lang   = q.lang?.trim() ?? '';
 
-    const filter: Record<string, unknown> = { status: 'published' };
-    if (req.query.q?.trim()) {
-      const re = new RegExp(req.query.q.trim(), 'i');
-      filter.$or = [{ title: re }, { shortDescription: re }];
+    const [{ count }] = await sql`
+      SELECT COUNT(*)::int AS count FROM stories s
+      WHERE s.status = 'published' AND s.deleted_at IS NULL
+        AND (${search} = '' OR s.search_vector @@ plainto_tsquery('french', unaccent(${search})))
+        AND (${lang}   = '' OR s.lang = ${lang})
+    `;
+
+    const items = await sql`
+      SELECT s.id, s.slug, s.lang, s.title, s.summary, s.cover_url,
+             s.contributors, s.computed_start_date, s.computed_end_date,
+             s.published_at, s.created_at,
+             COUNT(se.event_id)::int AS moment_count
+      FROM stories s
+      LEFT JOIN story_events se ON se.story_id = s.id
+      WHERE s.status = 'published' AND s.deleted_at IS NULL
+        AND (${search} = '' OR s.search_vector @@ plainto_tsquery('french', unaccent(${search})))
+        AND (${lang}   = '' OR s.lang = ${lang})
+      GROUP BY s.id
+      ORDER BY s.computed_start_date DESC NULLS LAST
+      LIMIT ${pg.limit} OFFSET ${pg.offset}
+    `;
+
+    return reply.send(paginate(items, count, pg));
+  });
+
+  // ── GET /all — liste admin ────────────────────────────────────────────────
+  app.get('/all', { preHandler: requireAdmin }, async (req, reply) => {
+    const q      = req.query as Record<string, string>;
+    const pg     = parsePagination(q);
+    const search = q.q?.trim() ?? '';
+    const status = q.status?.trim() ?? '';
+
+    const [{ count }] = await sql`
+      SELECT COUNT(*)::int AS count FROM stories s
+      WHERE s.deleted_at IS NULL
+        AND (${search} = '' OR s.search_vector @@ plainto_tsquery('french', unaccent(${search})))
+        AND (${status} = '' OR s.status::text = ${status})
+    `;
+
+    const items = await sql`
+      SELECT s.id, s.slug, s.lang, s.title, s.status,
+             s.computed_start_date, s.computed_end_date,
+             s.published_at, s.created_at, s.updated_at,
+             COUNT(se.event_id)::int AS moment_count
+      FROM stories s
+      LEFT JOIN story_events se ON se.story_id = s.id
+      WHERE s.deleted_at IS NULL
+        AND (${search} = '' OR s.search_vector @@ plainto_tsquery('french', unaccent(${search})))
+        AND (${status} = '' OR s.status::text = ${status})
+      GROUP BY s.id
+      ORDER BY s.updated_at DESC
+      LIMIT ${pg.limit} OFFSET ${pg.offset}
+    `;
+
+    return reply.send(paginate(items, count, pg));
+  });
+
+  // ── GET /slug/:slug — détail par slug ─────────────────────────────────────
+  app.get('/slug/:slug', async (req: any, reply) => {
+    const [story] = await sql`
+      SELECT s.*,
+        COALESCE(JSON_AGG(
+          JSONB_BUILD_OBJECT(
+            'id',               e.id,
+            'slug',             e.slug,
+            'title',            e.title,
+            'summary',          e.summary,
+            'startDate',        e.start_date,
+            'primaryCountryCode', e.primary_country_code,
+            'position',         se.position,
+            'narrativeText',    se.narrative_text,
+            'narrativeAudioUrl',se.narrative_audio_url,
+            'narrativeVideoUrl',se.narrative_video_url,
+            'quote',            se.quote,
+            'quoteAuthor',      se.quote_author,
+            'cta',              se.cta
+          ) ORDER BY se.position ASC
+        ) FILTER (WHERE e.id IS NOT NULL), '[]') AS moments
+      FROM stories s
+      LEFT JOIN story_events se ON se.story_id = s.id
+      LEFT JOIN events e        ON e.id = se.event_id AND e.status = 'published'
+      WHERE s.slug = ${req.params.slug}
+        AND s.status = 'published' AND s.deleted_at IS NULL
+      GROUP BY s.id
+    `;
+
+    if (!story) return reply.status(404).send({ error: 'Récit introuvable' });
+    return reply.send(story);
+  });
+
+  // ── GET /:id — détail par ID ──────────────────────────────────────────────
+  app.get('/:id', async (req: any, reply) => {
+    const [story] = await sql`
+      SELECT s.* FROM stories s
+      WHERE s.id = ${req.params.id} AND s.deleted_at IS NULL
+    `;
+    if (!story) return reply.status(404).send({ error: 'Récit introuvable' });
+    return reply.send(story);
+  });
+
+  // ── POST / — créer ────────────────────────────────────────────────────────
+  app.post('/', { preHandler: requireAdmin }, async (req, reply) => {
+    const body = req.body as Record<string, any>;
+    const b64  = findBase64Fields(body);
+    if (b64.length > 0) {
+      return reply.status(400).send({ error: `Données base64 non autorisées : ${b64.join(', ')}` });
     }
 
-    const [items, total] = await Promise.all([
-      Timeline.find(filter).select('-moments').sort({ createdAt: -1 }).skip(skip).limit(limitNum).lean(),
-      Timeline.countDocuments(filter),
-    ]);
+    const slug = await uniqueSlug('stories', String(body.title ?? ''));
 
-    return reply.send({
-      items:      items.map(t => ({ ...t, id: t._id.toString() })),
-      page:       pageNum,
-      totalPages: Math.ceil(total / limitNum),
-      totalItems: total,
-    });
-  });
+    const [story] = await sql`
+      INSERT INTO stories (slug, lang, title, summary, cover_url, contributors, status, created_by, updated_by)
+      VALUES (
+        ${slug}, ${body.lang ?? 'fr'}, ${body.title},
+        ${body.summary ?? null}, ${body.coverUrl ?? null},
+        ${JSON.stringify(body.contributors ?? [])},
+        ${body.status ?? 'draft'},
+        ${req.authUser!.id}, ${req.authUser!.id}
+      )
+      RETURNING *
+    `;
 
-  // GET /all — toutes [admin]
-  app.get('/all', { preHandler: requireAdmin }, async (_req, reply) => {
-    const items = await Timeline.find().select('-moments').sort({ createdAt: -1 }).lean();
-    return reply.send({ items: items.map(t => ({ ...t, id: t._id.toString() })) });
-  });
-
-  // GET /slug/:slug
-  app.get<{ Params: { slug: string } }>('/slug/:slug', async (req, reply) => {
-    const timeline = await Timeline.findOne({ slug: req.params.slug }).lean();
-    if (!timeline) return reply.status(404).send({ error: 'Timeline introuvable' });
-    return reply.send({ ...timeline, id: timeline._id.toString() });
-  });
-
-  // GET /:id
-  app.get<{ Params: { id: string } }>('/:id', async (req, reply) => {
-    const timeline = await Timeline.findById(req.params.id).lean();
-    if (!timeline) return reply.status(404).send({ error: 'Timeline introuvable' });
-    return reply.send({ ...timeline, id: timeline._id.toString() });
-  });
-
-  // POST / [admin]
-  app.post<{ Body: Record<string, unknown> }>('/', { preHandler: requireAdmin }, async (req, reply) => {
-    const base64Fields = findBase64Fields(req.body);
-    if (base64Fields.length > 0) {
-      return reply.status(400).send({
-        error: `Fichiers base64 dans : ${base64Fields.join(', ')}. Supprimez ces ressources et ré-uploadez-les (bouton 📁).`,
-        fields: base64Fields,
-      });
+    // Moments (story_events)
+    if (Array.isArray(body.moments) && body.moments.length > 0) {
+      for (const [i, m] of body.moments.entries()) {
+        await sql`
+          INSERT INTO story_events (story_id, event_id, position, narrative_text, quote, quote_author, cta)
+          VALUES (${story.id}, ${m.eventId}, ${m.position ?? i}, ${m.narrativeText ?? null},
+                  ${m.quote ?? null}, ${m.quoteAuthor ?? null}, ${m.cta ? JSON.stringify(m.cta) : null})
+          ON CONFLICT (story_id, event_id) DO NOTHING
+        `;
+      }
     }
 
-    const body    = req.body;
-    const slug    = (body.slug as string) || toSlug(body.title as string);
-    const moments = sortMoments((body.moments as Array<Record<string, unknown>>) ?? []);
-
-    const existing = await Timeline.findOne({ slug });
-    if (existing) return reply.status(409).send({ error: `Slug "${slug}" déjà utilisé` });
-
-    const timeline = await Timeline.create({
-      ...body,
-      slug,
-      moments,
-      eventCount: moments.length,
-      source: { type: 'local', id: 'local_admin' },
-    });
-
-    // Invalide le cache timeline_map pour que resolveTimelineSlugs reflète le nouveau récit
-    try { await app.redis.del('kasuku:timeline_map'); } catch { /* ignoré */ }
-    return reply.status(201).send({ ...timeline.toObject(), id: timeline._id.toString() });
+    return reply.status(201).send(story);
   });
 
-  // PUT /:id [admin]
-  app.put<{ Params: { id: string }; Body: Record<string, unknown> }>('/:id', {
-    preHandler: requireAdmin,
-  }, async (req, reply) => {
-    const base64Fields = findBase64Fields(req.body);
-    if (base64Fields.length > 0) {
-      return reply.status(400).send({
-        error: `Fichiers base64 dans : ${base64Fields.join(', ')}. Supprimez ces ressources et ré-uploadez-les (bouton 📁).`,
-        fields: base64Fields,
-      });
+  // ── PUT /:id — modifier ───────────────────────────────────────────────────
+  app.put('/:id', { preHandler: requireAdmin }, async (req: any, reply) => {
+    const body = req.body as Record<string, any>;
+    const { id } = req.params;
+
+    const b64 = findBase64Fields(body);
+    if (b64.length > 0) {
+      return reply.status(400).send({ error: `Données base64 non autorisées : ${b64.join(', ')}` });
     }
 
-    const body    = req.body;
-    const moments = sortMoments((body.moments as Array<Record<string, unknown>>) ?? []);
+    const [existing] = await sql`SELECT id FROM stories WHERE id = ${id} AND deleted_at IS NULL`;
+    if (!existing) return reply.status(404).send({ error: 'Récit introuvable' });
 
-    const timeline = await Timeline.findByIdAndUpdate(
-      req.params.id,
-      { ...body, moments, eventCount: moments.length, updatedAt: new Date() },
-      { new: true, runValidators: true },
-    ).lean();
+    const slug = body.title ? await uniqueSlug('stories', String(body.title), id) : undefined;
 
-    if (!timeline) return reply.status(404).send({ error: 'Timeline introuvable' });
-    try { await app.redis.del('kasuku:timeline_map'); } catch { /* ignoré */ }
-    return reply.send({ ...timeline, id: timeline._id.toString() });
+    const [story] = await sql`
+      UPDATE stories SET
+        ${slug ? sql`slug = ${slug},` : sql``}
+        lang         = ${body.lang ?? 'fr'},
+        title        = ${body.title},
+        summary      = ${body.summary ?? null},
+        cover_url    = ${body.coverUrl ?? null},
+        contributors = ${JSON.stringify(body.contributors ?? [])},
+        status       = ${body.status ?? 'draft'},
+        updated_by   = ${req.authUser!.id}
+      WHERE id = ${id}
+      RETURNING *
+    `;
+
+    // Remplacer les moments
+    if (Array.isArray(body.moments)) {
+      await sql`DELETE FROM story_events WHERE story_id = ${id}`;
+      for (const [i, m] of body.moments.entries()) {
+        await sql`
+          INSERT INTO story_events (story_id, event_id, position, narrative_text, quote, quote_author, cta)
+          VALUES (${id}, ${m.eventId}, ${m.position ?? i}, ${m.narrativeText ?? null},
+                  ${m.quote ?? null}, ${m.quoteAuthor ?? null}, ${m.cta ? JSON.stringify(m.cta) : null})
+        `;
+      }
+    }
+
+    return reply.send(story);
   });
 
-  // DELETE /:id [admin]
-  app.delete<{ Params: { id: string } }>('/:id', { preHandler: requireAdmin }, async (req, reply) => {
-    const result = await Timeline.findByIdAndDelete(req.params.id);
-    if (!result) return reply.status(404).send({ error: 'Timeline introuvable' });
-    try { await app.redis.del('kasuku:timeline_map'); } catch { /* ignoré */ }
-    return reply.status(204).send();
+  // ── DELETE /:id — soft delete ─────────────────────────────────────────────
+  app.delete('/:id', { preHandler: requireAdmin }, async (req: any, reply) => {
+    const [story] = await sql`
+      UPDATE stories SET deleted_at = now(), updated_by = ${req.authUser!.id}
+      WHERE id = ${req.params.id} AND deleted_at IS NULL
+      RETURNING id
+    `;
+    if (!story) return reply.status(404).send({ error: 'Récit introuvable' });
+    return reply.send({ success: true });
   });
 }

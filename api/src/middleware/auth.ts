@@ -1,72 +1,66 @@
 /**
  * api/src/middleware/auth.ts
- *
- * Middleware Fastify pour l'authentification JWT.
- * Décorateur `requireAuth`  → vérifie le token, injecte req.user
- * Décorateur `requireAdmin` → vérifie que le rôle est SUPERADMIN ou EDITOR
+ * Middleware Fastify pour l'authentification JWT + PostgreSQL.
  */
 
 import type { FastifyRequest, FastifyReply } from 'fastify';
-import { User } from '../models';
+import sql from '../db';
 
-// ─── Augmentation du type FastifyRequest ──────────────────────────────────────
+// ─── Augmentation du type FastifyRequest ─────────────────────────────────────
 
 declare module 'fastify' {
   interface FastifyRequest {
     authUser?: {
-      id: string;
+      id:    string;
       email: string;
-      role: 'SUPERADMIN' | 'EDITOR' | 'VIEWER';
+      role:  'admin' | 'editor' | 'contributor' | 'viewer';
     };
   }
 }
 
-// ─── requireAuth ──────────────────────────────────────────────────────────────
+// ─── requireAuth ─────────────────────────────────────────────────────────────
 
 export async function requireAuth(req: FastifyRequest, reply: FastifyReply): Promise<void> {
   try {
     await req.jwtVerify();
-
-    // jwtVerify décode et stocke le payload dans req.user (Fastify JWT convention)
     const payload = req.user as { sub: string; email: string; role: string };
     if (!payload?.sub) {
       return reply.status(401).send({ error: 'Token invalide' });
     }
 
-    // Vérifier que l'utilisateur existe toujours en base
-    const user = await User.findById(payload.sub).lean();
-    if (!user) {
-      return reply.status(401).send({ error: 'Utilisateur introuvable' });
+    const [user] = await sql`
+      SELECT id, email, role, is_active
+      FROM users
+      WHERE id = ${payload.sub}
+      LIMIT 1
+    `;
+
+    if (!user || !user.isActive) {
+      return reply.status(401).send({ error: 'Utilisateur introuvable ou désactivé' });
     }
 
-    req.authUser = {
-      id:    user._id.toString(),
-      email: user.email,
-      role:  user.role as 'SUPERADMIN' | 'EDITOR' | 'VIEWER',
-    };
+    req.authUser = { id: user.id, email: user.email, role: user.role };
   } catch {
     return reply.status(401).send({ error: 'Non authentifié' });
   }
 }
 
-// ─── requireAdmin ─────────────────────────────────────────────────────────────
+// ─── requireAdmin (admin ou editor) ──────────────────────────────────────────
 
 export async function requireAdmin(req: FastifyRequest, reply: FastifyReply): Promise<void> {
   await requireAuth(req, reply);
   if (reply.sent) return;
-
-  if (!req.authUser || !['SUPERADMIN', 'EDITOR'].includes(req.authUser.role)) {
-    return reply.status(403).send({ error: 'Accès réservé aux administrateurs' });
+  if (!req.authUser || !['admin', 'editor'].includes(req.authUser.role)) {
+    return reply.status(403).send({ error: 'Accès réservé aux éditeurs' });
   }
 }
 
-// ─── requireSuperAdmin ────────────────────────────────────────────────────────
+// ─── requireSuperAdmin (admin uniquement) ────────────────────────────────────
 
 export async function requireSuperAdmin(req: FastifyRequest, reply: FastifyReply): Promise<void> {
   await requireAuth(req, reply);
   if (reply.sent) return;
-
-  if (!req.authUser || req.authUser.role !== 'SUPERADMIN') {
-    return reply.status(403).send({ error: 'Accès réservé aux super-administrateurs' });
+  if (!req.authUser || req.authUser.role !== 'admin') {
+    return reply.status(403).send({ error: 'Accès réservé aux administrateurs' });
   }
 }

@@ -1,16 +1,15 @@
 /**
  * api/src/seed.ts
- *
- * Crée l'administrateur initial si aucun SUPERADMIN n'existe en base.
+ * Crée l'administrateur initial si aucun admin n'existe en base.
  * Appelé au démarrage de l'API.
  */
 
 import bcrypt from 'bcryptjs';
-import { User } from './models';
+import sql from './db';
 
 export async function seedAdmin(): Promise<void> {
-  const adminExists = await User.exists({ role: 'SUPERADMIN' });
-  if (adminExists) return;
+  const [existing] = await sql`SELECT id FROM users WHERE role = 'admin' LIMIT 1`;
+  if (existing) return;
 
   const email    = process.env.INITIAL_ADMIN_EMAIL    ?? 'admin@kasuku.app';
   const password = process.env.INITIAL_ADMIN_PASSWORD ?? 'kasuku_admin_2024';
@@ -22,7 +21,10 @@ export async function seedAdmin(): Promise<void> {
 
   const passwordHash = await bcrypt.hash(password, 12);
 
-  await User.create({ email, name, passwordHash, role: 'SUPERADMIN' });
+  await sql`
+    INSERT INTO users (email, name, role, password_hash)
+    VALUES (${email.toLowerCase()}, ${name}, 'admin', ${passwordHash})
+  `;
 
-  console.info(`[SEED] ✅ Admin créé: ${email}`);
+  console.info(`[SEED] ✅ Admin créé : ${email}`);
 }
