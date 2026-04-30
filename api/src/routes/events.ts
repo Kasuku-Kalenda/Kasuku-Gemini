@@ -16,6 +16,50 @@ import { parsePagination, paginate } from '../utils/pagination';
 import { uniqueSlug } from '../utils/slug';
 import { findBase64Fields } from '../utils/validation';
 
+// ─── Helper : synchronise les médias d'un événement ──────────────────────────
+// Supprime les liens event_media existants, réinsère dans media + event_media.
+
+interface MediaItem {
+  type?: string;
+  url: string;
+  caption?: string | null;
+  credit?: string  | null;
+}
+
+async function syncEventMedia(
+  eventId: string,
+  items: MediaItem[],
+  userId: string,
+): Promise<void> {
+  // Supprime les anciens liens (les enregistrements media restent dans la bibliothèque)
+  await sql`DELETE FROM event_media WHERE event_id = ${eventId}`;
+
+  for (let i = 0; i < items.length; i++) {
+    const item    = items[i];
+    const mType   = item.type === 'video' ? 'video' : 'image';
+    const caption = item.caption ?? null;
+    const credit  = item.credit  ?? null;
+
+    const [media] = await sql`
+      INSERT INTO media (type, url, title, alt_text, credit, created_by)
+      VALUES (
+        ${mType}::media_type,
+        ${item.url},
+        ${caption ?? item.url},
+        ${caption},
+        ${credit},
+        ${userId}::uuid
+      )
+      RETURNING id
+    `;
+
+    await sql`
+      INSERT INTO event_media (event_id, media_id, position, is_cover)
+      VALUES (${eventId}, ${media.id}, ${i}, ${i === 0})
+    `;
+  }
+}
+
 export async function eventsRoutes(app: FastifyInstance) {
 
   // ── GET / — liste publique ────────────────────────────────────────────────
@@ -137,10 +181,21 @@ export async function eventsRoutes(app: FastifyInstance) {
     const [event] = await sql`
       SELECT e.*,
         p.name AS primary_place_name,
-        (SELECT m.url FROM event_media em2
-           JOIN media m ON m.id = em2.media_id
-           WHERE em2.event_id = e.id AND em2.is_cover = true
+        -- Image de couverture (pour les cartes)
+        (SELECT mx.url FROM event_media emx
+           JOIN media mx ON mx.id = emx.media_id
+           WHERE emx.event_id = e.id AND emx.is_cover = true
            LIMIT 1) AS thumbnail_url,
+        -- Tous les médias ordonnés (pour la galerie + formulaire admin)
+        (SELECT COALESCE(JSON_AGG(
+           JSONB_BUILD_OBJECT(
+             'id', mx.id, 'type', mx.type, 'url', mx.url,
+             'caption', mx.alt_text, 'credit', mx.credit,
+             'isCover', emx.is_cover, 'position', emx.position
+           ) ORDER BY emx.position
+         ), '[]')
+         FROM event_media emx JOIN media mx ON mx.id = emx.media_id
+         WHERE emx.event_id = e.id) AS media_items,
         -- Premier récit (story/timeline) lié à cet événement
         MIN(s.slug)       AS timeline_slug,
         MIN(s.title)      AS timeline_title,
@@ -152,9 +207,9 @@ export async function eventsRoutes(app: FastifyInstance) {
           'id', pe.id, 'slug', pe.slug, 'name', pe.name, 'photoUrl', pe.photo_url, 'role', ep.role
         )) FILTER (WHERE pe.id IS NOT NULL), '[]') AS people,
         COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
-          'id', m.id, 'slug', m.slug, 'title', m.title, 'level', m.level,
-          'durationMin', m.duration_minutes, 'summary', m.summary
-        )) FILTER (WHERE m.id IS NOT NULL), '[]') AS modules
+          'id', mo.id, 'slug', mo.slug, 'title', mo.title, 'level', mo.level,
+          'durationMin', mo.duration_minutes, 'summary', mo.summary
+        )) FILTER (WHERE mo.id IS NOT NULL), '[]') AS modules
       FROM events e
       LEFT JOIN places        p  ON p.id  = e.primary_place_id
       LEFT JOIN story_events  se ON se.event_id = e.id
@@ -164,7 +219,7 @@ export async function eventsRoutes(app: FastifyInstance) {
       LEFT JOIN event_people  ep ON ep.event_id = e.id
       LEFT JOIN people        pe ON pe.id = ep.person_id
       LEFT JOIN event_modules em ON em.event_id = e.id
-      LEFT JOIN modules       m  ON m.id = em.module_id AND m.status = 'published'
+      LEFT JOIN modules       mo ON mo.id = em.module_id AND mo.status = 'published'
       WHERE e.slug = ${req.params.slug}
         AND e.status = 'published' AND e.deleted_at IS NULL
       GROUP BY e.id, p.name
@@ -231,6 +286,10 @@ export async function eventsRoutes(app: FastifyInstance) {
       `;
     }
 
+    if (Array.isArray(body.media) && body.media.length > 0) {
+      await syncEventMedia(event.id, body.media as MediaItem[], req.authUser!.id);
+    }
+
     return reply.status(201).send(event);
   });
 
@@ -288,6 +347,10 @@ export async function eventsRoutes(app: FastifyInstance) {
           ON CONFLICT DO NOTHING
         `;
       }
+    }
+
+    if (Array.isArray(body.media)) {
+      await syncEventMedia(id, body.media as MediaItem[], req.authUser!.id);
     }
 
     return reply.send(event);

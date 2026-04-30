@@ -16,11 +16,24 @@ export function mapApiEvent(raw: Record<string, unknown>): Event {
   const dateISO  = startRaw ? startRaw.substring(0, 10) : ((raw.dateISO as string | undefined) ?? undefined);
   const year     = dateISO ? parseInt(dateISO.substring(0, 4), 10) : ((raw.year as number | undefined) ?? undefined);
 
-  // Media : construit depuis thumbnailUrl (les events n'ont plus de tableau media inline)
-  const thumbnailUrl = raw.thumbnailUrl as string | null | undefined;
-  const media: Media[] = thumbnailUrl
-    ? [{ type: 'image', url: thumbnailUrl }]
-    : (Array.isArray(raw.media) ? (raw.media as Media[]) : []);
+  // Media : priorité à mediaItems (détail complet), sinon thumbnailUrl (liste)
+  const thumbnailUrl  = raw.thumbnailUrl  as string | null | undefined;
+  const rawMediaItems = raw.mediaItems    as Array<{
+    id?: string; type?: string; url: string;
+    caption?: string | null; credit?: string | null; isCover?: boolean;
+  }> | null | undefined;
+
+  const media: Media[] = Array.isArray(rawMediaItems) && rawMediaItems.length > 0
+    ? rawMediaItems.map(m => ({
+        id:      m.id,
+        type:    (m.type === 'video' ? 'video' : 'image') as 'image' | 'video',
+        url:     m.url,
+        caption: m.caption  ?? undefined,
+        credit:  m.credit   ?? undefined,
+      }))
+    : thumbnailUrl
+      ? [{ type: 'image' as const, url: thumbnailUrl }]
+      : [];
 
   // Sources : construit depuis sourceLabel / sourceUrl (source unique sur les events)
   const sourceLabel = raw.sourceLabel as string | null | undefined;
@@ -116,7 +129,8 @@ export function serializeEventForApi(data: Record<string, unknown>): Record<stri
     // countryCode (legacy) ou primaryCountryCode (nouveau)
     primaryCountryCode:  data.primaryCountryCode ?? data.countryCode ?? null,
     primaryPlaceId:      data.primaryPlaceId ?? null,
-    thumbnailUrl:        data.thumbnailUrl ?? (data.media as Media[] | undefined)?.[0]?.url ?? null,
+    // media[] → transmis tel quel ; l'API extrait thumbnailUrl + event_media en interne
+    media:               (data.media as Media[] | undefined) ?? [],
     sourceLabel:         data.sourceLabel ?? (data.sources as Source[] | undefined)?.[0]?.label ?? null,
     sourceUrl:           data.sourceUrl   ?? (data.sources as Source[] | undefined)?.[0]?.url  ?? null,
     reliability:         data.reliability ?? 'confirmed',
