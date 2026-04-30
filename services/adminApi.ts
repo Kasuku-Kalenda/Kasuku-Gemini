@@ -44,6 +44,35 @@ const updateEvent = async (id: string, data: EventFormData): Promise<Event> => {
 
 const deleteEvent = async (id: string): Promise<boolean> => { await api.delete(`/events/${id}`); return true; };
 
+// ─── StoryEvents d'un événement (pour clone picker) ───────────────────────────
+
+export interface EventStoryEventItem {
+  id: string;
+  storyId: string;
+  storyTitle: string;
+  storySlug: string;
+  storyType: string;
+  storyStatus: string;
+  position: number;
+  narrativeText: string | null;
+  quote: string | null;
+  quoteAuthor: string | null;
+  narrativeAudioUrl: string | null;
+  narrativeVideoUrl: string | null;
+  sourceStoryEventId: string | null;
+  authorName: string | null;
+  createdAt: string;
+}
+
+const getEventStoryEvents = async (eventId: string): Promise<EventStoryEventItem[]> => {
+  try {
+    const res = await api.get<{ items: EventStoryEventItem[] }>(`/events/${eventId}/story-events`);
+    return res.items;
+  } catch {
+    return [];
+  }
+};
+
 // ─── Themes ────────────────────────────────────────────────────────────────────
 
 const listThemes  = async (): Promise<ListResponse<Theme>> => ({ items: await api.get<Theme[]>('/themes') });
@@ -122,7 +151,7 @@ const updateMoodleMap = async (id: string, data: MoodleMapFormData) => api.put<M
 const deleteMoodleMap = async (id: string) => { await api.delete(`/moodle/maps/${id}`); return true; };
 
 export const adminApi = {
-    listEvents, getEvent, createEvent, updateEvent, deleteEvent,
+    listEvents, getEvent, createEvent, updateEvent, deleteEvent, getEventStoryEvents,
     listThemes, getTheme, createTheme, updateTheme, deleteTheme,
     listModules, getModule, createModule, updateModule, deleteModule,
     listFeatured, getFeatured, createFeatured, updateFeatured, deleteFeatured,

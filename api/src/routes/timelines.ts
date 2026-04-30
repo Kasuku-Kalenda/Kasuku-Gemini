@@ -67,7 +67,7 @@ export async function timelinesRoutes(app: FastifyInstance) {
     `;
 
     const items = await sql`
-      SELECT s.id, s.slug, s.lang, s.title, s.status,
+      SELECT s.id, s.slug, s.lang, s.title, s.type, s.status, s.cover_url,
              s.computed_start_date, s.computed_end_date,
              s.published_at, s.created_at, s.updated_at,
              COUNT(se.event_id)::int AS moment_count
@@ -117,11 +117,37 @@ export async function timelinesRoutes(app: FastifyInstance) {
     return reply.send(story);
   });
 
-  // ── GET /:id — détail par ID ──────────────────────────────────────────────
+  // ── GET /:id — détail par ID (admin, inclut les moments) ─────────────────
   app.get('/:id', async (req: any, reply) => {
     const [story] = await sql`
-      SELECT s.* FROM stories s
+      SELECT s.*,
+        COALESCE(JSON_AGG(
+          JSONB_BUILD_OBJECT(
+            'id',                 se.id,
+            'eventId',            se.event_id,
+            'position',           se.position,
+            'title',              e.title,
+            'narrativeText',      se.narrative_text,
+            'narrativeAudioUrl',  se.narrative_audio_url,
+            'narrativeVideoUrl',  se.narrative_video_url,
+            'quote',              se.quote,
+            'quoteAuthor',        se.quote_author,
+            'cta',                se.cta,
+            'sourceStoryEventId', se.source_story_event_id,
+            'dateExact',          TO_CHAR(e.start_date, 'YYYY-MM-DD'),
+            'periodText',         e.display_date,
+            'media',              COALESCE((
+              SELECT JSON_AGG(JSONB_BUILD_OBJECT('type', m.type, 'url', m.url, 'caption', m.alt_text))
+              FROM event_media em JOIN media m ON m.id = em.media_id
+              WHERE em.event_id = e.id ORDER BY em.position LIMIT 1
+            ), '[]'::json)
+          ) ORDER BY se.position ASC
+        ) FILTER (WHERE se.id IS NOT NULL), '[]') AS moments
+      FROM stories s
+      LEFT JOIN story_events se ON se.story_id = s.id
+      LEFT JOIN events e        ON e.id = se.event_id
       WHERE s.id = ${req.params.id} AND s.deleted_at IS NULL
+      GROUP BY s.id
     `;
     if (!story) return reply.status(404).send({ error: 'Récit introuvable' });
     return reply.send(story);
@@ -138,11 +164,12 @@ export async function timelinesRoutes(app: FastifyInstance) {
     const slug = await uniqueSlug('stories', String(body.title ?? ''));
 
     const [story] = await sql`
-      INSERT INTO stories (slug, lang, title, summary, cover_url, contributors, status, created_by, updated_by)
+      INSERT INTO stories (slug, lang, title, summary, cover_url, contributors, type, status, created_by, updated_by)
       VALUES (
         ${slug}, ${body.lang ?? 'fr'}, ${body.title},
         ${body.summary ?? null}, ${body.coverUrl ?? null},
         ${JSON.stringify(body.contributors ?? [])},
+        ${body.type ?? 'evenement'},
         ${body.status ?? 'draft'},
         ${req.authUser!.id}, ${req.authUser!.id}
       )
@@ -152,10 +179,19 @@ export async function timelinesRoutes(app: FastifyInstance) {
     // Moments (story_events)
     if (Array.isArray(body.moments) && body.moments.length > 0) {
       for (const [i, m] of body.moments.entries()) {
+        if (!m.eventId) continue;
         await sql`
-          INSERT INTO story_events (story_id, event_id, position, narrative_text, quote, quote_author, cta)
-          VALUES (${story.id}, ${m.eventId}, ${m.position ?? i}, ${m.narrativeText ?? null},
-                  ${m.quote ?? null}, ${m.quoteAuthor ?? null}, ${m.cta ? JSON.stringify(m.cta) : null})
+          INSERT INTO story_events (
+            story_id, event_id, position,
+            narrative_text, narrative_audio_url, narrative_video_url,
+            quote, quote_author, cta, source_story_event_id
+          ) VALUES (
+            ${story.id}, ${m.eventId}, ${m.position ?? i},
+            ${m.narrativeText ?? null}, ${m.narrativeAudioUrl ?? null}, ${m.narrativeVideoUrl ?? null},
+            ${m.quote ?? null}, ${m.quoteAuthor ?? null},
+            ${m.cta ? JSON.stringify(m.cta) : null},
+            ${m.sourceStoryEventId ?? null}
+          )
           ON CONFLICT (story_id, event_id) DO NOTHING
         `;
       }
@@ -187,6 +223,7 @@ export async function timelinesRoutes(app: FastifyInstance) {
         summary      = ${body.summary ?? null},
         cover_url    = ${body.coverUrl ?? null},
         contributors = ${JSON.stringify(body.contributors ?? [])},
+        type         = ${body.type ?? 'evenement'},
         status       = ${body.status ?? 'draft'},
         updated_by   = ${req.authUser!.id}
       WHERE id = ${id}
@@ -197,10 +234,19 @@ export async function timelinesRoutes(app: FastifyInstance) {
     if (Array.isArray(body.moments)) {
       await sql`DELETE FROM story_events WHERE story_id = ${id}`;
       for (const [i, m] of body.moments.entries()) {
+        if (!m.eventId) continue;
         await sql`
-          INSERT INTO story_events (story_id, event_id, position, narrative_text, quote, quote_author, cta)
-          VALUES (${id}, ${m.eventId}, ${m.position ?? i}, ${m.narrativeText ?? null},
-                  ${m.quote ?? null}, ${m.quoteAuthor ?? null}, ${m.cta ? JSON.stringify(m.cta) : null})
+          INSERT INTO story_events (
+            story_id, event_id, position,
+            narrative_text, narrative_audio_url, narrative_video_url,
+            quote, quote_author, cta, source_story_event_id
+          ) VALUES (
+            ${id}, ${m.eventId}, ${m.position ?? i},
+            ${m.narrativeText ?? null}, ${m.narrativeAudioUrl ?? null}, ${m.narrativeVideoUrl ?? null},
+            ${m.quote ?? null}, ${m.quoteAuthor ?? null},
+            ${m.cta ? JSON.stringify(m.cta) : null},
+            ${m.sourceStoryEventId ?? null}
+          )
         `;
       }
     }

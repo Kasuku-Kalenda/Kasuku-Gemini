@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { timelineFormSchema, TimelineFormData } from '../../schemas/admin';
-import { adminApi } from '../../services/adminApi';
+import { adminApi, type EventStoryEventItem } from '../../services/adminApi';
 import { uploadFile } from '../../services/apiClient';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -205,22 +205,35 @@ const MomentResources: React.FC<MomentResourcesProps> = ({ momentIndex, form }) 
 };
 
 // ─── Event Picker (inline dans MomentCard) ────────────────────────────────────
+
+type PickerStep = 'list' | 'clone' | 'create';
+
+interface CloneSelection {
+  storyEvent: EventStoryEventItem;
+  event: any;
+}
+
 interface EventPickerProps {
   allEvents: any[];
-  onSelect: (ev: any) => void;
+  onSelect: (ev: any, cloneFrom?: EventStoryEventItem) => void;
   onClose: () => void;
-  onCreateEvent: (ev: { title: string; dateISO: string; summary: string }) => Promise<void>;
+  onCreateEvent: (ev: { title: string; dateISO: string; summary: string; countryCode?: string }) => Promise<void>;
 }
 
 const EventPicker: React.FC<EventPickerProps> = ({ allEvents, onSelect, onClose, onCreateEvent }) => {
-  const [search, setSearch] = useState('');
-  const [country, setCountry] = useState('');
-  const [theme, setTheme] = useState('');
-  const [showCreate, setShowCreate] = useState(false);
-  const [newTitle, setNewTitle] = useState('');
-  const [newDate, setNewDate] = useState('');
-  const [newSummary, setNewSummary] = useState('');
-  const [creating, setCreating] = useState(false);
+  const [step, setStep]               = useState<PickerStep>('list');
+  const [search, setSearch]           = useState('');
+  const [country, setCountry]         = useState('');
+  const [theme, setTheme]             = useState('');
+  const [pendingEvent, setPendingEv]  = useState<any>(null);
+  const [storyEvents, setStoryEvents] = useState<EventStoryEventItem[]>([]);
+  const [loadingSE, setLoadingSE]     = useState(false);
+  // Create form state
+  const [newTitle, setNewTitle]       = useState('');
+  const [newDate, setNewDate]         = useState('');
+  const [newSummary, setNewSummary]   = useState('');
+  const [newCountry, setNewCountry]   = useState('');
+  const [creating, setCreating]       = useState(false);
 
   const countries = useMemo(() => [...new Set(allEvents.map((e: any) => e.countryCode).filter(Boolean))].sort() as string[], [allEvents]);
   const themes = useMemo(() => [...new Set(allEvents.flatMap((e: any) => (e.themes ?? []).map((t: any) => t.name)).filter(Boolean))].sort() as string[], [allEvents]);
@@ -235,110 +248,218 @@ const EventPicker: React.FC<EventPickerProps> = ({ allEvents, onSelect, onClose,
     });
   }, [allEvents, search, country, theme]);
 
+  // When user clicks an event in the list: check for existing story-events
+  const handleEventClick = useCallback(async (ev: any) => {
+    setPendingEv(ev);
+    setLoadingSE(true);
+    try {
+      const items = await adminApi.getEventStoryEvents(ev.id);
+      if (items.length > 0) {
+        setStoryEvents(items);
+        setStep('clone');
+      } else {
+        // No existing narrations — select directly
+        onSelect(ev);
+      }
+    } catch {
+      onSelect(ev);
+    } finally {
+      setLoadingSE(false);
+    }
+  }, [onSelect]);
+
   const handleCreate = async () => {
     if (!newTitle.trim() || !newSummary.trim()) return;
     setCreating(true);
-    try { await onCreateEvent({ title: newTitle.trim(), dateISO: newDate, summary: newSummary.trim() }); }
-    finally { setCreating(false); }
+    try {
+      await onCreateEvent({
+        title: newTitle.trim(),
+        dateISO: newDate,
+        summary: newSummary.trim(),
+        countryCode: newCountry.toUpperCase() || undefined,
+      });
+    } finally { setCreating(false); }
   };
 
+  // ── Step: clone picker ───────────────────────────────────────────────────────
+  if (step === 'clone' && pendingEvent) {
+    return (
+      <div className="border-2 border-blue-200 rounded-2xl bg-white shadow-lg p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="font-bold text-sm text-secondary">🔗 Narration existante disponible</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              « {pendingEvent.title} » est déjà utilisé dans {storyEvents.length} récit{storyEvents.length > 1 ? 's' : ''}.
+              Clonez une narration ou commencez à zéro.
+            </p>
+          </div>
+          <button type="button" onClick={onClose} className="text-xs text-muted-foreground hover:text-secondary">✕</button>
+        </div>
+
+        <div className="space-y-2 max-h-64 overflow-y-auto">
+          {storyEvents.map(se => (
+            <div key={se.id} className="border rounded-xl p-3 bg-card space-y-1.5 hover:border-blue-300 transition-colors">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="font-semibold text-sm leading-tight truncate">{se.storyTitle}</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    Pos. {se.position + 1} · {se.storyType}
+                    {se.authorName && ` · ${se.authorName}`}
+                  </p>
+                </div>
+                <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold shrink-0 ${
+                  se.storyStatus === 'published' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+                }`}>{se.storyStatus}</span>
+              </div>
+
+              {se.narrativeText && (
+                <p className="text-xs text-muted-foreground line-clamp-2 italic border-l-2 border-blue-200 pl-2">
+                  {se.narrativeText}
+                </p>
+              )}
+              {se.quote && (
+                <p className="text-xs font-medium text-secondary line-clamp-1">
+                  « {se.quote} »
+                  {se.quoteAuthor && <span className="text-muted-foreground font-normal"> — {se.quoteAuthor}</span>}
+                </p>
+              )}
+
+              <div className="flex gap-2 pt-1">
+                {se.narrativeAudioUrl && <span className="text-[10px] text-muted-foreground">🎙 Audio</span>}
+                {se.narrativeVideoUrl && <span className="text-[10px] text-muted-foreground">🎬 Vidéo</span>}
+                {se.sourceStoryEventId && <span className="text-[10px] text-blue-500">🔗 Déjà cloné</span>}
+              </div>
+
+              <Button
+                type="button" size="sm"
+                className="w-full mt-1 text-xs h-8 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200"
+                onClick={() => onSelect(pendingEvent, se)}
+              >
+                ↪ Cloner cette narration
+              </Button>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex gap-2 pt-1 border-t">
+          <Button type="button" size="sm" variant="outline" className="flex-1"
+            onClick={() => onSelect(pendingEvent)}>
+            ✦ Commencer à zéro
+          </Button>
+          <Button type="button" size="sm" variant="outline"
+            onClick={() => { setPendingEv(null); setStoryEvents([]); setStep('list'); }}>
+            ← Retour
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Step: create form ────────────────────────────────────────────────────────
+  if (step === 'create') {
+    return (
+      <div className="border-2 border-primary/20 rounded-2xl bg-white shadow-lg p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <p className="font-bold text-sm text-secondary">✨ Créer un événement dans le calendrier</p>
+          <button type="button" onClick={() => setStep('list')} className="text-xs text-muted-foreground hover:text-secondary">← Retour</button>
+        </div>
+        <div className="grid sm:grid-cols-2 gap-2">
+          <div>
+            <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">Titre *</Label>
+            <Input value={newTitle} onChange={e => setNewTitle(e.target.value)} placeholder="Titre de l'événement" className="h-9 mt-1" />
+          </div>
+          <div>
+            <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">Date (optionnel)</Label>
+            <input type="date" value={newDate} onChange={e => setNewDate(e.target.value)}
+              className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm mt-1 focus:outline-none focus:ring-2 focus:ring-ring" />
+          </div>
+          <div>
+            <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">Pays (optionnel)</Label>
+            <Input value={newCountry} onChange={e => setNewCountry(e.target.value)} placeholder="ex: SN" maxLength={2} className="h-9 mt-1 uppercase" />
+          </div>
+        </div>
+        <div>
+          <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">
+            Résumé * <span className="normal-case text-muted-foreground">(min 40 car.)</span>
+          </Label>
+          <Textarea value={newSummary} onChange={e => setNewSummary(e.target.value)}
+            rows={3} placeholder="Résumé de l'événement — sera utilisé comme narration du moment." className="mt-1 text-sm" />
+          <p className="text-xs text-muted-foreground mt-0.5">{newSummary.length} / 40 min</p>
+        </div>
+        <div className="flex gap-2 pt-1">
+          <Button type="button" size="sm" disabled={creating || !newTitle.trim() || newSummary.trim().length < 40}
+            onClick={handleCreate} className="flex-1">
+            {creating ? '⏳ Création…' : '✓ Créer et lier cet événement'}
+          </Button>
+          <Button type="button" size="sm" variant="outline" onClick={() => setStep('list')}>Annuler</Button>
+        </div>
+        {newSummary.trim().length > 0 && newSummary.trim().length < 40 && (
+          <p className="text-xs text-amber-600">Encore {40 - newSummary.trim().length} caractères minimum.</p>
+        )}
+      </div>
+    );
+  }
+
+  // ── Step: list (default) ─────────────────────────────────────────────────────
   return (
     <div className="border-2 border-primary/20 rounded-2xl bg-white shadow-lg p-4 space-y-3">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <p className="font-bold text-sm text-secondary">📅 Sélectionner un événement du calendrier</p>
         <button type="button" onClick={onClose} className="text-xs text-muted-foreground hover:text-secondary">✕ Fermer</button>
       </div>
 
-      {!showCreate ? (
-        <>
-          {/* Filters */}
-          <div className="flex flex-wrap gap-2">
-            <div className="relative flex-1 min-w-[130px]">
-              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">🔍</span>
-              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Titre, date, période…"
-                className="w-full pl-7 pr-3 h-8 rounded-lg border border-input bg-background text-xs focus:outline-none focus:ring-2 focus:ring-primary/30" />
-            </div>
-            {countries.length > 0 && (
-              <select value={country} onChange={e => setCountry(e.target.value)}
-                className="h-8 rounded-lg border border-input bg-background px-2 text-xs">
-                <option value="">🌍 Tous pays</option>
-                {countries.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-            )}
-            {themes.length > 0 && (
-              <select value={theme} onChange={e => setTheme(e.target.value)}
-                className="h-8 rounded-lg border border-input bg-background px-2 text-xs">
-                <option value="">🏷️ Tous thèmes</option>
-                {themes.map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
-            )}
-          </div>
-
-          {/* Event list */}
-          <div className="max-h-52 overflow-y-auto border border-input rounded-xl divide-y divide-muted">
-            {filtered.length === 0 ? (
-              <p className="text-center text-xs text-muted-foreground py-6 italic">Aucun événement trouvé.</p>
-            ) : filtered.map((ev: any) => (
-              <button key={ev.id} type="button" onClick={() => onSelect(ev)}
-                className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-primary/5 text-left transition-colors group">
-                <span className="text-base shrink-0">📅</span>
-                <span className="flex-1 text-sm font-medium text-secondary line-clamp-1 group-hover:text-primary transition-colors">{ev.title}</span>
-                <span className="flex items-center gap-1.5 shrink-0">
-                  {ev.countryCode && <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded font-mono">{ev.countryCode}</span>}
-                  {(ev.dateISO || ev.year) && <span className="text-xs text-muted-foreground">{ev.dateISO ?? ev.year}</span>}
-                </span>
-                <span className="text-[10px] text-primary font-bold opacity-0 group-hover:opacity-100 transition-opacity shrink-0">← Lier</span>
-              </button>
-            ))}
-          </div>
-
-          <div className="flex items-center justify-between pt-1">
-            <p className="text-xs text-muted-foreground">{filtered.length} sur {allEvents.length} événements</p>
-            <button type="button" onClick={() => setShowCreate(true)}
-              className="text-xs font-bold text-primary hover:underline flex items-center gap-1">
-              + Créer un nouvel événement
-            </button>
-          </div>
-        </>
-      ) : (
-        /* Quick event creation form */
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <p className="font-bold text-sm text-secondary">✨ Créer un événement dans le calendrier</p>
-            <button type="button" onClick={() => setShowCreate(false)} className="text-xs text-muted-foreground hover:text-secondary">← Retour</button>
-          </div>
-          <div className="grid sm:grid-cols-2 gap-2">
-            <div>
-              <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">Titre *</Label>
-              <Input value={newTitle} onChange={e => setNewTitle(e.target.value)} placeholder="Titre de l'événement" className="h-9 mt-1" />
-            </div>
-            <div>
-              <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">Date (optionnel)</Label>
-              <input type="date" value={newDate} onChange={e => setNewDate(e.target.value)}
-                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm mt-1 focus:outline-none focus:ring-2 focus:ring-ring" />
-            </div>
-          </div>
-          <div>
-            <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">
-              Résumé / Description * <span className="text-muted-foreground normal-case">(min 40 caractères)</span>
-            </Label>
-            <Textarea value={newSummary} onChange={e => setNewSummary(e.target.value)}
-              rows={3} placeholder="Résumé de l'événement — sera utilisé comme narration du moment." className="mt-1 text-sm" />
-            <p className="text-xs text-muted-foreground mt-0.5">{newSummary.length} / 40 min</p>
-          </div>
-          <div className="flex gap-2 pt-1">
-            <Button type="button" size="sm" disabled={creating || !newTitle.trim() || newSummary.trim().length < 40}
-              onClick={handleCreate} className="flex-1">
-              {creating ? '⏳ Création…' : '✓ Créer et lier cet événement'}
-            </Button>
-            <Button type="button" size="sm" variant="outline" onClick={() => setShowCreate(false)}>Annuler</Button>
-          </div>
-          {newSummary.trim().length > 0 && newSummary.trim().length < 40 && (
-            <p className="text-xs text-amber-600">Encore {40 - newSummary.trim().length} caractères minimum pour le résumé.</p>
-          )}
+      {/* Filters */}
+      <div className="flex flex-wrap gap-2">
+        <div className="relative flex-1 min-w-[130px]">
+          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">🔍</span>
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Titre, date, période…"
+            className="w-full pl-7 pr-3 h-8 rounded-lg border border-input bg-background text-xs focus:outline-none focus:ring-2 focus:ring-primary/30" />
         </div>
-      )}
+        {countries.length > 0 && (
+          <select value={country} onChange={e => setCountry(e.target.value)}
+            className="h-8 rounded-lg border border-input bg-background px-2 text-xs">
+            <option value="">🌍 Tous pays</option>
+            {countries.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        )}
+        {themes.length > 0 && (
+          <select value={theme} onChange={e => setTheme(e.target.value)}
+            className="h-8 rounded-lg border border-input bg-background px-2 text-xs">
+            <option value="">🏷️ Tous thèmes</option>
+            {themes.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+        )}
+      </div>
+
+      {/* Event list */}
+      <div className="max-h-52 overflow-y-auto border border-input rounded-xl divide-y divide-muted">
+        {loadingSE && (
+          <p className="text-center text-xs text-muted-foreground py-6 animate-pulse">Vérification des narrations existantes…</p>
+        )}
+        {!loadingSE && filtered.length === 0 && (
+          <p className="text-center text-xs text-muted-foreground py-6 italic">Aucun événement trouvé.</p>
+        )}
+        {!loadingSE && filtered.map((ev: any) => (
+          <button key={ev.id} type="button" onClick={() => handleEventClick(ev)}
+            className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-primary/5 text-left transition-colors group">
+            <span className="text-base shrink-0">📅</span>
+            <span className="flex-1 text-sm font-medium text-secondary line-clamp-1 group-hover:text-primary transition-colors">{ev.title}</span>
+            <span className="flex items-center gap-1.5 shrink-0">
+              {ev.countryCode && <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded font-mono">{ev.countryCode}</span>}
+              {(ev.dateISO || ev.year) && <span className="text-xs text-muted-foreground">{ev.dateISO ?? ev.year}</span>}
+            </span>
+            <span className="text-[10px] text-primary font-bold opacity-0 group-hover:opacity-100 transition-opacity shrink-0">← Lier</span>
+          </button>
+        ))}
+      </div>
+
+      <div className="flex items-center justify-between pt-1">
+        <p className="text-xs text-muted-foreground">{filtered.length} sur {allEvents.length} événements</p>
+        <button type="button" onClick={() => setStep('create')}
+          className="text-xs font-bold text-primary hover:underline flex items-center gap-1">
+          + Créer un nouvel événement
+        </button>
+      </div>
     </div>
   );
 };
@@ -376,8 +497,8 @@ const MomentCard: React.FC<MomentCardProps> = ({
   const narrativeErr: string | undefined = undefined;
   const dateErr: string | undefined = undefined;
 
-  // Select an event → auto-fill moment fields
-  const handleSelectEvent = useCallback((ev: any) => {
+  // Select an event (optionally cloning from an existing StoryEvent)
+  const handleSelectEvent = useCallback((ev: any, cloneFrom?: EventStoryEventItem) => {
     form.setValue(`moments.${index}.eventId` as any, ev.id);
     form.setValue(`moments.${index}.title`, ev.title);
     // Date
@@ -388,11 +509,21 @@ const MomentCard: React.FC<MomentCardProps> = ({
       form.setValue(`moments.${index}.timeType`, 'period');
       form.setValue(`moments.${index}.periodText`, ev.period ?? String(ev.year ?? ''));
     }
-    // Narrative: pre-fill with event summary if narrative is empty
-    const currentNarrative = form.getValues(`moments.${index}.narrative`);
-    if ((!currentNarrative || currentNarrative.trim() === '') && ev.summary) {
-      form.setValue(`moments.${index}.narrative`, ev.summary);
+
+    if (cloneFrom) {
+      // Clone narration fields from the selected StoryEvent
+      form.setValue(`moments.${index}.narrative`, cloneFrom.narrativeText ?? ev.summary ?? '');
+      form.setValue(`moments.${index}.quote` as any, cloneFrom.quote ?? null);
+      form.setValue(`moments.${index}.quoteAuthor` as any, cloneFrom.quoteAuthor ?? null);
+      form.setValue(`moments.${index}.sourceStoryEventId` as any, cloneFrom.id);
+    } else {
+      // Fresh start: pre-fill narrative with event summary if narrative is empty
+      const currentNarrative = form.getValues(`moments.${index}.narrative`);
+      if ((!currentNarrative || currentNarrative.trim() === '') && ev.summary) {
+        form.setValue(`moments.${index}.narrative`, ev.summary);
+      }
     }
+
     // Image: pre-fill with event's first image if no image set
     const currentImg = form.getValues(`moments.${index}.media.0.url`);
     if (!currentImg && ev.media?.[0]?.url) {
@@ -408,13 +539,14 @@ const MomentCard: React.FC<MomentCardProps> = ({
   }, [form, index]);
 
   // Create event inline then link it
-  const handleCreateEvent = useCallback(async (data: { title: string; dateISO: string; summary: string }) => {
+  const handleCreateEvent = useCallback(async (data: { title: string; dateISO: string; summary: string; countryCode?: string }) => {
     try {
       const newEvent = await adminApi.createEvent({
         title: data.title,
         slug: slugify(data.title) + '-' + Date.now(),
         summary: data.summary,
         dateISO: data.dateISO || undefined,
+        countryCode: data.countryCode || undefined,
         themeIds: [], media: [], sources: [],
       } as any);
       onEventCreated(newEvent);
@@ -489,7 +621,7 @@ const MomentCard: React.FC<MomentCardProps> = ({
         <div className="px-5 py-4 border-b border-muted bg-white">
           <EventPicker
             allEvents={allEvents}
-            onSelect={handleSelectEvent}
+            onSelect={(ev, cloneFrom) => handleSelectEvent(ev, cloneFrom)}
             onClose={() => setPickerOpen(false)}
             onCreateEvent={handleCreateEvent}
           />
@@ -577,6 +709,21 @@ const MomentCard: React.FC<MomentCardProps> = ({
           </div>
         </div>
 
+        {/* Citation d'époque (optionnel) */}
+        <div className="pt-2 border-t border-muted space-y-2">
+          <Label className="text-[10px] uppercase font-black tracking-widest text-muted-foreground">
+            Citation d'époque <span className="normal-case font-normal text-muted-foreground/70">(optionnel)</span>
+          </Label>
+          <div className="grid sm:grid-cols-3 gap-2">
+            <div className="sm:col-span-2">
+              <Input {...form.register(`moments.${index}.quote` as any)} placeholder="« Texte de la citation… »" className="text-xs h-8" />
+            </div>
+            <div>
+              <Input {...form.register(`moments.${index}.quoteAuthor` as any)} placeholder="Auteur / source" className="text-xs h-8" />
+            </div>
+          </div>
+        </div>
+
         {/* Resources section */}
         <div className="pt-2 border-t border-muted">
           <MomentResources momentIndex={index} form={form} />
@@ -627,11 +774,16 @@ export function TimelineForm({ mode, initialData, onSave }: TimelineFormProps) {
     moments: (initialData.moments ?? []).map((m: any) => ({
       ...buildDefaultMoment(),
       ...m,
+      // API returns narrativeText; form uses narrative
+      narrative: m.narrative ?? m.narrativeText ?? '',
       dateExact: m.dateExact ?? null,
-      periodText: m.periodText ?? null,
+      periodText: m.periodText ?? m.periodLabel ?? null,
       media: m.media ?? [],
       resources: m.resources ?? [],
       eventId: m.eventId ?? null,
+      quote: m.quote ?? null,
+      quoteAuthor: m.quoteAuthor ?? null,
+      sourceStoryEventId: m.sourceStoryEventId ?? null,
     })),
   } : {
     title: '', subtitle: '', slug: '', type: 'evenement',
@@ -749,9 +901,19 @@ export function TimelineForm({ mode, initialData, onSave }: TimelineFormProps) {
     }
 
     // ── Sauvegarde ────────────────────────────────────────────────────────────
+    // Mapper narrative → narrativeText pour correspondre aux colonnes story_events
+    const apiPayload = {
+      ...result.data,
+      moments: result.data.moments.map((m: any) => ({
+        ...m,
+        narrativeText: m.narrative ?? null,
+        // sourceStoryEventId est déjà dans le schéma
+      })),
+    };
+
     try {
-      if (mode === 'create') await adminApi.createTimeline(result.data);
-      else await adminApi.updateTimeline(initialData.id, result.data);
+      if (mode === 'create') await adminApi.createTimeline(apiPayload as any);
+      else await adminApi.updateTimeline(initialData.id, apiPayload as any);
       onSave();
     } catch (err) {
       setGlobalError(`Erreur lors de l'enregistrement : ${err instanceof Error ? err.message : 'Erreur inconnue'}`);

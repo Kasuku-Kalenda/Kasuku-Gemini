@@ -146,34 +146,98 @@ export async function eventsRoutes(app: FastifyInstance) {
     return reply.send({ items, month, day });
   });
 
-  // ── GET /all — liste admin ────────────────────────────────────────────────
+  // ── GET /all — liste admin enrichie (counts relationnels) ────────────────
   app.get('/all', { preHandler: requireAdmin }, async (req, reply) => {
-    const q      = req.query as Record<string, string>;
-    const pg     = parsePagination(q);
-    const search = q.q?.trim() ?? '';
-    const status = q.status?.trim() ?? '';
+    const q        = req.query as Record<string, string>;
+    const pg       = parsePagination(q);
+    const search   = q.q?.trim()      ?? '';
+    const status   = q.status?.trim() ?? '';
+    const theme    = q.theme?.trim()  ?? '';
+    const country  = q.country?.trim() ?? '';
+    // Filtres relationnels
+    const orphan   = q.orphan   === 'true';   // sans aucun story
+    const noModule = q.noModule === 'true';   // sans aucun module
+    const featured = q.featured === 'true';
+
+    const baseWhere = sql`
+      e.deleted_at IS NULL
+      AND (${search}  = '' OR e.search_vector @@ plainto_tsquery('french', unaccent(${search})))
+      AND (${status}  = '' OR e.status::text = ${status})
+      AND (${country} = '' OR e.primary_country_code = ${country})
+      AND (${theme}   = '' OR EXISTS (
+        SELECT 1 FROM event_themes et2 JOIN themes t2 ON t2.id = et2.theme_id
+        WHERE et2.event_id = e.id AND t2.slug = ${theme}
+      ))
+      AND (NOT ${orphan}   OR NOT EXISTS (SELECT 1 FROM story_events se2 WHERE se2.event_id = e.id))
+      AND (NOT ${noModule} OR NOT EXISTS (SELECT 1 FROM event_modules em2 WHERE em2.event_id = e.id))
+      AND (NOT ${featured} OR e.featured = true)
+    `;
 
     const [{ count }] = await sql`
-      SELECT COUNT(*)::int AS count FROM events e
-      WHERE e.deleted_at IS NULL
-        AND (${search} = '' OR e.search_vector @@ plainto_tsquery('french', unaccent(${search})))
-        AND (${status} = '' OR e.status::text = ${status})
+      SELECT COUNT(*)::int AS count FROM events e WHERE ${baseWhere}
     `;
 
     const items = await sql`
-      SELECT e.id, e.slug, e.lang, e.title, e.status,
-             e.temporal_type, e.start_date, e.reliability,
-             e.primary_country_code, e.featured, e.published_at,
-             e.created_at, e.updated_at
+      SELECT
+        e.id, e.slug, e.lang, e.title, e.status,
+        e.temporal_type, e.start_date, e.display_date,
+        e.reliability, e.primary_country_code, e.featured,
+        e.published_at, e.created_at, e.updated_at,
+        p.name AS primary_place_name,
+        -- Counts relationnels (sous-requêtes pour éviter le N+1)
+        (SELECT COUNT(*)::int FROM story_events  se WHERE se.event_id = e.id)                     AS stories_count,
+        (SELECT COUNT(*)::int FROM event_modules em WHERE em.event_id = e.id)                     AS modules_count,
+        (SELECT COUNT(*)::int FROM event_themes  et WHERE et.event_id = e.id)                     AS themes_count,
+        (SELECT COUNT(*)::int FROM event_people  ep WHERE ep.event_id = e.id)                     AS people_count,
+        (SELECT COUNT(*)::int FROM event_media   emd WHERE emd.event_id = e.id)                   AS media_count,
+        (SELECT COUNT(*)::int FROM taggables     tb WHERE tb.entity_type = 'event' AND tb.entity_id = e.id) AS tags_count,
+        -- Couverture image
+        (SELECT mx.url FROM event_media emx JOIN media mx ON mx.id = emx.media_id
+         WHERE emx.event_id = e.id AND emx.is_cover = true LIMIT 1)                              AS thumbnail_url,
+        -- Thèmes (pour affichage badges)
+        COALESCE((
+          SELECT JSON_AGG(JSONB_BUILD_OBJECT('id', t.id, 'name', t.name, 'color', t.color))
+          FROM event_themes et JOIN themes t ON t.id = et.theme_id
+          WHERE et.event_id = e.id
+        ), '[]') AS themes
       FROM events e
-      WHERE e.deleted_at IS NULL
-        AND (${search} = '' OR e.search_vector @@ plainto_tsquery('french', unaccent(${search})))
-        AND (${status} = '' OR e.status::text = ${status})
+      LEFT JOIN places p ON p.id = e.primary_place_id
+      WHERE ${baseWhere}
       ORDER BY e.updated_at DESC
       LIMIT ${pg.limit} OFFSET ${pg.offset}
     `;
 
     return reply.send(paginate(items, count, pg));
+  });
+
+  // ── GET /:id/story-events — StoryEvents existants pour clone picker ───────
+  // Retourne tous les StoryEvents liés à un Event, avec les infos de leur Story.
+  // Utilisé dans TimelineForm quand l'utilisateur ajoute un Event existant.
+  app.get('/:id/story-events', { preHandler: requireAdmin }, async (req: any, reply) => {
+    const { id } = req.params;
+
+    const storyEvents = await sql`
+      SELECT
+        se.id, se.story_id, se.position,
+        se.narrative_text, se.quote, se.quote_author,
+        se.narrative_audio_url, se.narrative_video_url,
+        se.cta, se.source_story_event_id,
+        se.created_at, se.updated_at,
+        s.title    AS story_title,
+        s.slug     AS story_slug,
+        s.type     AS story_type,
+        s.cover_url AS story_cover,
+        s.status   AS story_status,
+        u.name     AS author_name
+      FROM story_events se
+      JOIN  stories s ON s.id  = se.story_id
+      LEFT JOIN users u ON u.id = s.created_by
+      WHERE se.event_id = ${id}
+        AND s.deleted_at IS NULL
+      ORDER BY s.title, se.position
+    `;
+
+    return reply.send({ items: storyEvents, total: storyEvents.length });
   });
 
   // ── GET /slug/:slug — détail par slug ─────────────────────────────────────

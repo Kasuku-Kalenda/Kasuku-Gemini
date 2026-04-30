@@ -163,13 +163,17 @@ export const timelineMomentSchema = z.object({
   id: z.string().optional(),
   eventId: z.string().optional().nullable(),           // ← lien vers un événement existant
   title: z.string().min(3),
-  narrative: z.string().min(10),                       // relaxed: 10 chars min
+  narrative: z.string().min(10),                       // relaxed: 10 chars min (mapped to narrativeText before API call)
   timeType: z.enum(['date', 'period']),
   dateExact: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
   periodText: z.string().optional().nullable(),
   position: z.coerce.number().int().min(0),
   media: z.array(mediaSchema).default([]),             // illustration principale
   resources: z.array(momentResourceSchema).default([]), // ressources complémentaires
+  // ── Champs story_events narratifs ──────────────────────────────────────────
+  quote: z.string().optional().nullable(),             // citation d'époque
+  quoteAuthor: z.string().optional().nullable(),       // auteur de la citation
+  sourceStoryEventId: z.string().optional().nullable(), // ID du StoryEvent source (clonage)
 });
 
 export const timelineFormSchema = z.object({
