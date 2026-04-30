@@ -536,56 +536,86 @@ const MomentCard: React.FC<MomentCardProps> = ({
 
   return (
     <div className="border rounded-2xl overflow-hidden bg-card shadow-sm">
-      {/* Header row */}
-      <div className="flex items-center gap-3 px-5 py-3 bg-muted/20 border-b border-muted">
-        {/* Move buttons */}
-        <div className="flex flex-col gap-0.5">
-          <button type="button" onClick={onMoveUp} disabled={index === 0 || !canMoveUp}
-            title={!canMoveUp ? 'Impossible : ordre chronologique' : 'Monter'}
-            className={`w-6 h-5 text-[10px] border rounded flex items-center justify-center transition-colors
-              ${!canMoveUp ? 'bg-destructive/10 border-destructive/30 text-destructive/50 cursor-not-allowed' : 'bg-muted hover:bg-primary hover:text-white'}
-              disabled:opacity-30`}>▲</button>
-          <button type="button" onClick={onMoveDown} disabled={index === total - 1 || !canMoveDown}
-            title={!canMoveDown ? 'Impossible : ordre chronologique' : 'Descendre'}
-            className={`w-6 h-5 text-[10px] border rounded flex items-center justify-center transition-colors
-              ${!canMoveDown ? 'bg-destructive/10 border-destructive/30 text-destructive/50 cursor-not-allowed' : 'bg-muted hover:bg-primary hover:text-white'}
-              disabled:opacity-30`}>▼</button>
-        </div>
-        <span className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center font-bold text-sm shrink-0">{index + 1}</span>
 
-        {/* Event link badge or title input */}
+      {/* ── Header : numéro + info événement lié ──────────────────────────── */}
+      <div className="flex items-center gap-3 px-4 py-3 bg-muted/20 border-b">
+        {/* Réordonnement */}
+        <div className="flex flex-col gap-0.5 shrink-0">
+          <button type="button" onClick={onMoveUp} disabled={index === 0 || !canMoveUp}
+            title={!canMoveUp ? 'Ordre chronologique bloqué' : 'Monter'}
+            className={`w-6 h-5 text-[10px] border rounded flex items-center justify-center transition-colors
+              ${!canMoveUp ? 'opacity-30 cursor-not-allowed bg-muted' : 'bg-muted hover:bg-primary hover:text-white'}`}>▲</button>
+          <button type="button" onClick={onMoveDown} disabled={index === total - 1 || !canMoveDown}
+            title={!canMoveDown ? 'Ordre chronologique bloqué' : 'Descendre'}
+            className={`w-6 h-5 text-[10px] border rounded flex items-center justify-center transition-colors
+              ${!canMoveDown ? 'opacity-30 cursor-not-allowed bg-muted' : 'bg-muted hover:bg-primary hover:text-white'}`}>▼</button>
+        </div>
+
+        {/* Badge numéro */}
+        <span className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center font-bold text-sm shrink-0">
+          {index + 1}
+        </span>
+
+        {/* Événement lié ou placeholder */}
         {linkedEvent ? (
           <div className="flex-1 flex items-center gap-2 min-w-0">
-            <span className="inline-flex items-center gap-1.5 bg-primary/10 text-primary text-xs font-bold px-3 py-1.5 rounded-full border border-primary/20 truncate max-w-[240px]">
-              📅 {linkedEvent.title}
-            </span>
+            {/* Thumbnail de l'événement si dispo */}
+            {linkedEvent.media?.[0]?.url && (
+              <img src={linkedEvent.media[0].url} alt="" className="w-8 h-8 rounded-lg object-cover shrink-0 border" />
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="font-semibold text-sm text-secondary truncate leading-tight">{linkedEvent.title}</p>
+              <p className="text-[10px] text-muted-foreground">
+                {linkedEvent.dateISO ?? linkedEvent.year ?? linkedEvent.period ?? ''}
+                {linkedEvent.countryCode && ` · ${linkedEvent.countryCode}`}
+                {linkedEvent.themes?.slice(0,2).map((t: any) => (
+                  <span key={t.id} className="ml-1 text-white rounded-full px-1.5 py-px text-[9px]"
+                    style={{ backgroundColor: t.color ?? '#6B7280' }}>{t.name}</span>
+                ))}
+              </p>
+            </div>
             <button type="button" onClick={() => setPickerOpen(p => !p)}
               className="text-[11px] text-muted-foreground hover:text-primary underline shrink-0">
               Changer
             </button>
             <button type="button" onClick={handleUnlink}
-              className="text-[11px] text-muted-foreground hover:text-red-500 shrink-0">
+              className="text-[11px] text-muted-foreground hover:text-destructive shrink-0">
               Délier
             </button>
           </div>
         ) : (
-          <div className="flex-1 flex items-center gap-2 min-w-0">
-            <button type="button" onClick={() => setPickerOpen(p => !p)}
-              className={`text-xs font-bold px-3 py-1.5 rounded-full border transition-all shrink-0 ${
-                pickerOpen ? 'bg-primary text-white border-primary' : 'border-primary/30 text-primary hover:bg-primary/5'
-              }`}>
-              {pickerOpen ? '▲ Fermer le sélecteur' : '📅 Lier un événement existant'}
-            </button>
-            <span className="text-[11px] text-muted-foreground">ou saisie libre ci-dessous</span>
-          </div>
+          <p className="flex-1 text-xs text-muted-foreground italic">
+            Aucun événement lié — sélectionnez ou créez un événement ci-dessous.
+          </p>
         )}
 
-        <button type="button" onClick={onRemove} className="text-xs text-destructive hover:underline shrink-0">Supprimer</button>
+        <button type="button" onClick={onRemove}
+          className="text-xs text-destructive hover:underline shrink-0 ml-2">
+          Supprimer
+        </button>
       </div>
+
+      {/* ── Sélection d'événement (obligatoire) ────────────────────────────── */}
+      {!linkedEvent && !pickerOpen && (
+        <div className="px-5 py-6 flex flex-col items-center gap-3 bg-primary/[0.02] border-b">
+          <p className="text-sm text-muted-foreground text-center">
+            Chaque moment doit être lié à un événement du calendrier.
+          </p>
+          <div className="flex gap-3 flex-wrap justify-center">
+            <Button type="button" onClick={() => setPickerOpen(true)}
+              className="gap-2">
+              📅 Sélectionner un événement existant
+            </Button>
+            <Button type="button" variant="outline" onClick={() => setPickerOpen(true)}>
+              ✨ Créer un nouvel événement
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Event Picker (inline, visible when open) */}
       {pickerOpen && (
-        <div className="px-5 py-4 border-b border-muted bg-white">
+        <div className="px-5 py-4 border-b bg-white">
           <EventPicker
             allEvents={allEvents}
             onSelect={(ev, cloneFrom) => handleSelectEvent(ev, cloneFrom)}
@@ -595,107 +625,82 @@ const MomentCard: React.FC<MomentCardProps> = ({
         </div>
       )}
 
-      {/* Body */}
-      <div className="px-5 py-4 space-y-4">
+      {/* ── Corps : champs narratifs (visibles seulement si événement lié) ── */}
+      {linkedEvent && (
+        <div className="px-5 py-4 space-y-4">
 
-        {/* Title (always editable — even if auto-filled from event) */}
-        <div className="space-y-1">
-          <Label className="text-[10px] uppercase font-black tracking-widest text-muted-foreground">
-            Titre du moment {linkedEvent && <span className="text-primary/60 ml-1 normal-case text-[9px]">(pré-rempli depuis l'événement)</span>}
-          </Label>
-          <Input {...form.register(`moments.${index}.title`)} placeholder="Titre du moment…" className="font-semibold" />
-          {titleErr && <p className="text-xs text-destructive mt-0.5" data-error="true">{titleErr}</p>}
-        </div>
+          {/* Titre narratif */}
+          <div className="space-y-1">
+            <Label className="text-[10px] uppercase font-black tracking-widest text-muted-foreground">
+              Titre du moment
+              <span className="ml-1 normal-case font-normal text-muted-foreground/70">(optionnel — pré-rempli depuis l'événement)</span>
+            </Label>
+            <Input {...form.register(`moments.${index}.title`)} placeholder={linkedEvent.title} className="font-semibold" />
+          </div>
 
-        <div className="grid md:grid-cols-3 gap-4">
-          {/* Left: Narrative + Date */}
-          <div className="md:col-span-2 space-y-3">
-            <div>
-              <div className="flex items-center justify-between mb-1">
+          {/* Récit + Illustration */}
+          <div className="grid md:grid-cols-3 gap-4">
+            <div className="md:col-span-2 space-y-2">
+              <div className="flex items-center justify-between">
                 <Label className="text-[10px] uppercase font-black tracking-widest text-muted-foreground">
                   Récit <span className="text-destructive">*</span>
                 </Label>
-                {linkedEvent?.summary && (
+                {linkedEvent.summary && (
                   <button type="button"
                     onClick={() => form.setValue(`moments.${index}.narrative`, linkedEvent.summary)}
                     className="text-[10px] text-primary hover:underline font-medium">
-                    ↩ Utiliser la description de l'événement
+                    ↩ Copier le résumé de l'événement
                   </button>
                 )}
               </div>
-              <Textarea {...form.register(`moments.${index}.narrative`)}
-                placeholder={linkedEvent ? 'Narration de ce moment — modifiez ou utilisez la description de l\'événement…' : 'Racontez ce moment du parcours…'}
-                rows={4} />
-              {narrativeErr && <p className="text-xs text-destructive mt-0.5" data-error="true">{narrativeErr}</p>}
+              <Textarea
+                {...form.register(`moments.${index}.narrative`)}
+                placeholder="Narration de ce moment dans le récit…"
+                rows={5}
+              />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label className="text-[10px] uppercase font-black tracking-widest text-muted-foreground">Type de date</Label>
-                <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm mt-1"
-                  {...form.register(`moments.${index}.timeType`)}>
-                  <option value="date">📅 Date précise</option>
-                  <option value="period">🕰 Période / Époque</option>
-                </select>
+            {/* Illustration */}
+            <div className="space-y-2">
+              <Label className="text-[10px] uppercase font-black tracking-widest text-muted-foreground">Illustration</Label>
+              <input type="hidden" {...form.register(`moments.${index}.media.0.type`)} defaultValue="image" />
+              <div className="flex gap-1">
+                <Input {...form.register(`moments.${index}.media.0.url`)} placeholder="https://…" className="h-8 text-xs" />
+                <button type="button" className="h-8 px-2 text-xs border border-muted rounded-md hover:border-primary/40 shrink-0"
+                  onClick={() => mediaFileRef.current?.click()}>📁</button>
+                <input ref={mediaFileRef} type="file" accept="image/*" className="hidden" onChange={handleMediaFile} />
+              </div>
+              {mediaUrl && (
+                <div className="rounded-xl overflow-hidden border bg-muted h-28">
+                  <img src={mediaUrl} alt="" className="h-full w-full object-cover"
+                    onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                </div>
+              )}
+              <Input {...form.register(`moments.${index}.media.0.caption`)} placeholder="Légende (optionnel)" className="text-xs h-8" />
+            </div>
+          </div>
+
+          {/* Citation d'époque */}
+          <div className="pt-2 border-t border-muted space-y-2">
+            <Label className="text-[10px] uppercase font-black tracking-widest text-muted-foreground">
+              Citation d'époque <span className="normal-case font-normal text-muted-foreground/70">(optionnel)</span>
+            </Label>
+            <div className="grid sm:grid-cols-3 gap-2">
+              <div className="sm:col-span-2">
+                <Input {...form.register(`moments.${index}.quote` as any)} placeholder="« Texte de la citation… »" className="text-xs h-8" />
               </div>
               <div>
-                <Label className="text-[10px] uppercase font-black tracking-widest text-muted-foreground">
-                  {timeType === 'date' ? 'Date' : 'Période'}
-                  {linkedEvent && <span className="text-primary/60 ml-1 normal-case text-[9px]">(auto)</span>}
-                </Label>
-                {timeType === 'date' ? (
-                  <input type="date"
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm mt-1 focus:outline-none focus:ring-2 focus:ring-ring"
-                    {...form.register(`moments.${index}.dateExact`)} />
-                ) : (
-                  <Input {...form.register(`moments.${index}.periodText`)} placeholder="ex: Été 1944, XIXe siècle…" className="mt-1" />
-                )}
-                {dateErr && <p className="text-xs text-destructive mt-0.5" data-error="true">{dateErr}</p>}
+                <Input {...form.register(`moments.${index}.quoteAuthor` as any)} placeholder="Auteur / source" className="text-xs h-8" />
               </div>
             </div>
           </div>
 
-          {/* Right: Main illustration */}
-          <div className="space-y-2">
-            <Label className="text-[10px] uppercase font-black tracking-widest text-muted-foreground">Illustration principale</Label>
-            {/* type enregistré en hidden pour que Zod reçoive toujours 'image'|'video' */}
-            <input type="hidden" {...form.register(`moments.${index}.media.0.type`)} defaultValue="image" />
-            <div className="flex gap-1 p-1 bg-muted rounded-lg w-fit">
-              <Input {...form.register(`moments.${index}.media.0.url`)} placeholder="https://…" className="h-8 text-xs flex-1" />
-              <button type="button" className="h-8 px-2 text-xs border border-muted rounded-md hover:border-primary/40"
-                onClick={() => mediaFileRef.current?.click()}>📁</button>
-              <input ref={mediaFileRef} type="file" accept="image/*" className="hidden" onChange={handleMediaFile} />
-            </div>
-            {mediaUrl && (
-              <div className="rounded-xl overflow-hidden border bg-muted h-28">
-                <img src={mediaUrl} alt="" className="h-full w-full object-cover"
-                  onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-              </div>
-            )}
-            <Input {...form.register(`moments.${index}.media.0.caption`)} placeholder="Légende (optionnel)" className="text-xs h-8" />
+          {/* Ressources */}
+          <div className="pt-2 border-t border-muted">
+            <MomentResources momentIndex={index} form={form} />
           </div>
         </div>
-
-        {/* Citation d'époque (optionnel) */}
-        <div className="pt-2 border-t border-muted space-y-2">
-          <Label className="text-[10px] uppercase font-black tracking-widest text-muted-foreground">
-            Citation d'époque <span className="normal-case font-normal text-muted-foreground/70">(optionnel)</span>
-          </Label>
-          <div className="grid sm:grid-cols-3 gap-2">
-            <div className="sm:col-span-2">
-              <Input {...form.register(`moments.${index}.quote` as any)} placeholder="« Texte de la citation… »" className="text-xs h-8" />
-            </div>
-            <div>
-              <Input {...form.register(`moments.${index}.quoteAuthor` as any)} placeholder="Auteur / source" className="text-xs h-8" />
-            </div>
-          </div>
-        </div>
-
-        {/* Resources section */}
-        <div className="pt-2 border-t border-muted">
-          <MomentResources momentIndex={index} form={form} />
-        </div>
-      </div>
+      )}
     </div>
   );
 };
