@@ -124,24 +124,14 @@ services:
   postgres-migrate:
     image: postgres:16-alpine
     environment:
+      PGHOST:     postgres
+      PGUSER:     ${POSTGRES_USER:-kasuku}
+      PGDATABASE: ${POSTGRES_DB:-kasuku_db}
       PGPASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - ./database/migrations:/migrations:ro
-    entrypoint: >
-      /bin/sh -c "
-        echo '⏳  Attente de PostgreSQL...' &&
-        until pg_isready -h postgres -U ${POSTGRES_USER:-kasuku} -d ${POSTGRES_DB:-kasuku_db} -q; do
-          sleep 2;
-        done &&
-        echo '✅  PostgreSQL prêt. Application des migrations...' &&
-        for f in /migrations/*.sql; do
-          echo \"▶️   $$(basename $$f)\" &&
-          psql -h postgres -U ${POSTGRES_USER:-kasuku} -d ${POSTGRES_DB:-kasuku_db} \
-               -f \"$$f\" --single-transaction -q ||
-          { echo \"❌  Échec sur $$(basename $$f)\"; exit 1; };
-        done &&
-        echo '🎉  Migrations terminées.'
-      "
+      - ./docker/postgres/migrate.sh:/migrate.sh:ro
+    entrypoint: ["/bin/sh", "/migrate.sh"]
     depends_on:
       postgres:
         condition: service_healthy

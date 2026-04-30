@@ -3,6 +3,7 @@
  * Toutes les opérations CRUD admin passent par l'API REST (/api/v1).
  */
 import { api, uploadFile as uploadToMinio } from './apiClient';
+import { mapApiEvent, serializeEventForApi } from './mappers';
 import type { Event, TrainingModule, Theme, FeaturedItem, Kalenda, MoodleInstance, MoodleCourse, MoodleOfflinePackage, MoodleCourseMap, TimelineNarrative } from '../types';
 import type { EventFormData, ModuleFormData, ThemeFormData, FeaturedFormData, TimelineFormData } from '../schemas/admin';
 import type { MoodleInstanceFormData, MoodleCourseFormData, MoodlePackageFormData, MoodleMapFormData } from '../schemas/moodle';
@@ -19,10 +20,28 @@ const deleteTimeline = async (id: string): Promise<boolean> => { await api.delet
 
 // ─── Events ────────────────────────────────────────────────────────────────────
 
-const listEvents  = async (): Promise<ListResponse<Event>> => api.get('/events?limit=200');
-const getEvent    = async (id: string): Promise<Event | null> => { try { return await api.get<Event>(`/events/${id}`); } catch { return null; } };
-const createEvent = async (data: EventFormData): Promise<Event> => api.post('/events', data);
-const updateEvent = async (id: string, data: EventFormData): Promise<Event> => api.put(`/events/${id}`, data);
+const listEvents = async (): Promise<ListResponse<Event>> => {
+  const res = await api.get<ListResponse<Record<string, unknown>>>('/events/all?limit=500');
+  return { items: res.items.map(mapApiEvent) };
+};
+
+const getEvent = async (id: string): Promise<Event | null> => {
+  try {
+    const raw = await api.get<Record<string, unknown>>(`/events/${id}`);
+    return mapApiEvent(raw);
+  } catch { return null; }
+};
+
+const createEvent = async (data: EventFormData): Promise<Event> => {
+  const raw = await api.post<Record<string, unknown>>('/events', serializeEventForApi(data as Record<string, unknown>));
+  return mapApiEvent(raw);
+};
+
+const updateEvent = async (id: string, data: EventFormData): Promise<Event> => {
+  const raw = await api.put<Record<string, unknown>>(`/events/${id}`, serializeEventForApi(data as Record<string, unknown>));
+  return mapApiEvent(raw);
+};
+
 const deleteEvent = async (id: string): Promise<boolean> => { await api.delete(`/events/${id}`); return true; };
 
 // ─── Themes ────────────────────────────────────────────────────────────────────

@@ -39,7 +39,7 @@ export const AdminApp: React.FC = () => {
   const { session } = useAuth();
 
   const userRole = session?.user?.role;
-  const isAuthorized = userRole === 'SUPERADMIN' || userRole === 'EDITOR';
+  const isAuthorized = userRole === 'admin' || userRole === 'editor';
 
   // Convenience: adapter for pages that use the old (view, id?) signature
   const legacyNavigateTo = (v: string, id?: string) => {

@@ -63,7 +63,7 @@ export const TopBar: React.FC<TopBarProps> = ({ currentView, navigateTo }) => {
 
   const user = session?.user;
   const isAuthenticated = status === 'authenticated';
-  const isAuthorizedAdmin = user?.role === 'SUPERADMIN' || user?.role === 'EDITOR';
+  const isAuthorizedAdmin = user?.role === 'admin' || user?.role === 'editor';
 
   // Ne pas rendre dans les couches en arrière-plan (évite les doublons de chrome)
   if (layerDepth > 0) return null;

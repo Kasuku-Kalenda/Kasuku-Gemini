@@ -101,7 +101,7 @@ async function bootstrap() {
 
   // ── Health check ──────────────────────────────────────────────────────────
 
-  app.get('/health', async () => {
+  const healthHandler = async () => {
     const [pgRow] = await sql`SELECT 1 AS ok`.catch(() => [null]);
     return {
       status:    'ok',
@@ -109,7 +109,11 @@ async function bootstrap() {
       postgres:  pgRow ? 'connected' : 'error',
       redis:     redis.isReady ? 'connected' : 'error',
     };
-  });
+  };
+
+  // Accessible depuis le container (docker healthcheck) ET depuis nginx (/api/v1/health)
+  app.get('/health',            healthHandler);
+  app.get(`${PREFIX}/health`,   healthHandler);
 
   // ── Routes ────────────────────────────────────────────────────────────────
 

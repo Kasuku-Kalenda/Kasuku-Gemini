@@ -20,8 +20,10 @@ export const sql = postgres(DATABASE_URL, {
   connect_timeout: 10,  // timeout de connexion initiale
   transform: {
     // Convertit les colonnes snake_case en camelCase dans les résultats
+    // ex: start_date → startDate, created_at → createdAt
     column: {
-      from: postgres.toCamelCase,
+      from: (col: string) =>
+        col.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase()),
     },
   },
 });

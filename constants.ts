@@ -8,7 +8,7 @@ export const USERS: User[] = [
     name: 'Curiositus',
     email: 'curiositus@kasuku.com',
     image: null,
-    role: 'SUPERADMIN',
+    role: 'admin',
     passwordHash: 'SetAStrongPasswordHere',
   },
   {
@@ -16,7 +16,7 @@ export const USERS: User[] = [
     name: 'Alex Doe',
     email: 'alex.doe@example.com',
     image: `https://api.dicebear.com/8.x/initials/svg?seed=Alex Doe`,
-    role: 'VIEWER',
+    role: 'viewer',
   }
 ];
 

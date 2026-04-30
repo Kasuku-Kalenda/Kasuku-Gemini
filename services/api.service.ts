@@ -3,6 +3,7 @@
  * Chaque méthode appelle l'API REST Kasuku (/api/v1).
  */
 import { api } from './apiClient';
+import { mapApiEvent, serializeEventForApi } from './mappers';
 import type { Event, TrainingModule, TimelineNarrative, Theme } from '../types';
 
 interface PaginatedResponse<T> { items: T[]; page: number; totalPages: number; totalItems: number; }
@@ -19,24 +20,32 @@ export const apiService = {
     if (filters.date)    params.set('date',    filters.date);
     if (filters.year)    params.set('year',    String(filters.year));
     const qs = params.toString();
-    const res = await api.get<PaginatedResponse<Event>>(`/events${qs ? `?${qs}` : ''}`);
-    return res.items;
+    const res = await api.get<PaginatedResponse<Record<string, unknown>>>(`/events${qs ? `?${qs}` : ''}`);
+    return res.items.map(mapApiEvent);
   },
 
   async getEventById(id: string): Promise<Event | null> {
-    try { return await api.get<Event>(`/events/${id}`); } catch { return null; }
+    try {
+      const raw = await api.get<Record<string, unknown>>(`/events/${id}`);
+      return mapApiEvent(raw);
+    } catch { return null; }
   },
 
   async getEventBySlug(slug: string): Promise<Event | null> {
-    try { return await api.get<Event>(`/events/slug/${slug}`); } catch { return null; }
+    try {
+      const raw = await api.get<Record<string, unknown>>(`/events/slug/${slug}`);
+      return mapApiEvent(raw);
+    } catch { return null; }
   },
 
   async createEvent(data: Omit<Event, 'id'>): Promise<Event> {
-    return api.post<Event>('/events', data);
+    const raw = await api.post<Record<string, unknown>>('/events', serializeEventForApi(data as Record<string, unknown>));
+    return mapApiEvent(raw);
   },
 
   async updateEvent(id: string, data: Partial<Event>): Promise<Event> {
-    return api.put<Event>(`/events/${id}`, data);
+    const raw = await api.put<Record<string, unknown>>(`/events/${id}`, serializeEventForApi(data as Record<string, unknown>));
+    return mapApiEvent(raw);
   },
 
   async deleteEvent(id: string): Promise<void> {

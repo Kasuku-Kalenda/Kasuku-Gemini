@@ -162,27 +162,60 @@ export interface TrainingModule {
   source?: ContentSource;
 }
 
-// MODÈLE CALENDRIER CORRIGÉ
+// ─── Champs natifs PostgreSQL (retournés par l'API après transform camelCase) ─
+export type TemporalType = 'exact_date' | 'year_only' | 'period' | 'century' | 'decade';
+export type ReliabilityType = 'confirmed' | 'probable' | 'uncertain' | 'legendary';
+export type ContentStatus = 'draft' | 'published' | 'archived';
+
+// MODÈLE CALENDRIER
 export interface Event {
   id: string;
   title: string;
   slug: string;
   summary: string;
-  dateISO?: string; // "YYYY-MM-DD"
-  year?: number;
-  period?: string;
-  countryCode?: string;
+  lang?: string;
+
+  // ── Champs natifs API (PostgreSQL) ────────────────────────────────────────
+  startDate?: string;                  // ISO string "YYYY-MM-DDT..."
+  endDate?: string;
+  displayDate?: string;                // Affichage libre ex: "XVe siècle"
+  temporalType?: TemporalType;
+  approxCentury?: number | null;
+  approxDecade?: number | null;
+  annualRecurrence?: boolean;
+  primaryCountryCode?: string;         // code ISO 2 lettres
+  primaryPlaceName?: string;
+  thumbnailUrl?: string;               // image de couverture (MinIO)
+  sourceLabel?: string;
+  sourceUrl?: string;
+  reliability?: ReliabilityType;
+  contributors?: Array<{ name: string; role?: string }>;
+  featured?: boolean;
+  status?: ContentStatus;
+  publishedAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
+
+  // ── Aliases legacy (compatibilité composants existants) ───────────────────
+  dateISO?: string;                    // = startDate.substring(0, 10)
+  year?: number;                       // = parseInt(startDate, 10)
+  period?: string;                     // = displayDate
+  countryCode?: string;                // = primaryCountryCode
+
+  // ── Relations (normalisées par le mapper) ─────────────────────────────────
   themes: Theme[];
-  media: Media[];
-  sources: Source[];
-  trainingModules?: TrainingModule[];
-  // Liens vers le parcours
-  timelineId?: string;
-  timelineMomentId?: string;
-  timelineSlug?: string;     // résolu automatiquement depuis timelineId si absent
-  timelineTitle?: string;    // titre du parcours associé (résolu par l'API)
-  timelineThumbnail?: string; // thumbnail du parcours associé (résolu par l'API)
-  source?: ContentSource; // provenance du contenu
+  media: Media[];                      // construit depuis thumbnailUrl
+  sources: Source[];                   // construit depuis sourceLabel/sourceUrl
+  trainingModules?: TrainingModule[];  // construit depuis modules[]
+
+  // ── Liens vers parcours (résolu sur /events/slug/:slug) ───────────────────
+  timelineId?: string | null;          // legacy — conservé pour compatibilité
+  timelineMomentId?: string | null;    // legacy — conservé pour compatibilité
+  timelineSlug?: string | null;
+  timelineTitle?: string | null;
+  timelineThumbnail?: string | null;
+
+  source?: ContentSource;
 }
 
 // MODÈLE NARRATIF COMPLET
@@ -238,7 +271,7 @@ export interface FavItem {
   thumbnail?: string;
 }
 
-export type AuthRole = "SUPERADMIN" | "EDITOR" | "VIEWER";
+export type AuthRole = "admin" | "editor" | "contributor" | "viewer";
 
 export interface User {
   id: string;

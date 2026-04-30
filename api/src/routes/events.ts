@@ -51,6 +51,10 @@ export async function eventsRoutes(app: FastifyInstance) {
         e.approx_century, e.approx_decade, e.annual_recurrence,
         e.primary_country_code, e.featured, e.featured_position,
         e.reliability, e.contributors, e.published_at, e.created_at,
+        (SELECT m.url FROM event_media em2
+           JOIN media m ON m.id = em2.media_id
+           WHERE em2.event_id = e.id AND em2.is_cover = true
+           LIMIT 1) AS thumbnail_url,
         p.name AS primary_place_name,
         COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
           'id', t.id, 'slug', t.slug, 'name', t.name, 'color', t.color
@@ -133,6 +137,14 @@ export async function eventsRoutes(app: FastifyInstance) {
     const [event] = await sql`
       SELECT e.*,
         p.name AS primary_place_name,
+        (SELECT m.url FROM event_media em2
+           JOIN media m ON m.id = em2.media_id
+           WHERE em2.event_id = e.id AND em2.is_cover = true
+           LIMIT 1) AS thumbnail_url,
+        -- Premier récit (story/timeline) lié à cet événement
+        MIN(s.slug)       AS timeline_slug,
+        MIN(s.title)      AS timeline_title,
+        MIN(s.cover_url)  AS timeline_thumbnail,
         COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
           'id', t.id, 'slug', t.slug, 'name', t.name, 'color', t.color
         )) FILTER (WHERE t.id IS NOT NULL), '[]') AS themes,
@@ -140,14 +152,17 @@ export async function eventsRoutes(app: FastifyInstance) {
           'id', pe.id, 'slug', pe.slug, 'name', pe.name, 'photoUrl', pe.photo_url, 'role', ep.role
         )) FILTER (WHERE pe.id IS NOT NULL), '[]') AS people,
         COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
-          'id', m.id, 'slug', m.slug, 'title', m.title, 'level', m.level
+          'id', m.id, 'slug', m.slug, 'title', m.title, 'level', m.level,
+          'durationMin', m.duration_minutes, 'summary', m.summary
         )) FILTER (WHERE m.id IS NOT NULL), '[]') AS modules
       FROM events e
-      LEFT JOIN places       p  ON p.id  = e.primary_place_id
-      LEFT JOIN event_themes et ON et.event_id = e.id
-      LEFT JOIN themes       t  ON t.id  = et.theme_id
-      LEFT JOIN event_people ep ON ep.event_id = e.id
-      LEFT JOIN people       pe ON pe.id = ep.person_id
+      LEFT JOIN places        p  ON p.id  = e.primary_place_id
+      LEFT JOIN story_events  se ON se.event_id = e.id
+      LEFT JOIN stories       s  ON s.id  = se.story_id AND s.status = 'published'
+      LEFT JOIN event_themes  et ON et.event_id = e.id
+      LEFT JOIN themes        t  ON t.id  = et.theme_id
+      LEFT JOIN event_people  ep ON ep.event_id = e.id
+      LEFT JOIN people        pe ON pe.id = ep.person_id
       LEFT JOIN event_modules em ON em.event_id = e.id
       LEFT JOIN modules       m  ON m.id = em.module_id AND m.status = 'published'
       WHERE e.slug = ${req.params.slug}

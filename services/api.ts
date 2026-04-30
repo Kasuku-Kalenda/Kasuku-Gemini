@@ -7,6 +7,7 @@
  */
 
 import { api } from './apiClient';
+import { mapApiEvent } from './mappers';
 import type { Event, Theme, TrainingModule, FeaturedStory, TimelineNarrative } from '../types';
 
 interface PaginatedResponse<T> { items: T[]; page: number; totalPages: number; totalItems: number; }
@@ -43,12 +44,15 @@ export const getEvents = async (filters: EventFilterOptions = {}): Promise<Event
   if (filters.date)    params.set('date',    filters.date);
   if (filters.year)    params.set('year',    String(filters.year));
   const qs = params.toString();
-  const res = await api.get<PaginatedResponse<Event>>(`/events${qs ? `?${qs}` : ''}`);
-  return res.items;
+  const res = await api.get<PaginatedResponse<Record<string, unknown>>>(`/events${qs ? `?${qs}` : ''}`);
+  return res.items.map(mapApiEvent);
 };
 
 export const getEventBySlug = async (slug: string): Promise<Event | null> => {
-  try { return await api.get<Event>(`/events/slug/${slug}`); } catch { return null; }
+  try {
+    const raw = await api.get<Record<string, unknown>>(`/events/slug/${slug}`);
+    return mapApiEvent(raw);
+  } catch { return null; }
 };
 
 // ─── Modules ──────────────────────────────────────────────────────────────────
