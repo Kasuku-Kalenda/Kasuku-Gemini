@@ -3,12 +3,14 @@ import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { timelineFormSchema, TimelineFormData } from '../../schemas/admin';
 import { adminApi, type EventStoryEventItem } from '../../services/adminApi';
 import { uploadFile } from '../../services/apiClient';
+import { EventForm } from './EventForm';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Label } from '../ui/Label';
 import { Textarea } from '../ui/Textarea';
 import { XIcon } from '../icons/XIcon';
 import type { UseFormReturn } from 'react-hook-form';
+import type { Event } from '../../types';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const slugify = (str: string) =>
@@ -217,10 +219,10 @@ interface EventPickerProps {
   allEvents: any[];
   onSelect: (ev: any, cloneFrom?: EventStoryEventItem) => void;
   onClose: () => void;
-  onCreateEvent: (ev: { title: string; dateISO: string; summary: string; countryCode?: string }) => Promise<void>;
+  onEventCreated: (ev: Event) => void;
 }
 
-const EventPicker: React.FC<EventPickerProps> = ({ allEvents, onSelect, onClose, onCreateEvent }) => {
+const EventPicker: React.FC<EventPickerProps> = ({ allEvents, onSelect, onClose, onEventCreated }) => {
   const [step, setStep]               = useState<PickerStep>('list');
   const [search, setSearch]           = useState('');
   const [country, setCountry]         = useState('');
@@ -228,12 +230,6 @@ const EventPicker: React.FC<EventPickerProps> = ({ allEvents, onSelect, onClose,
   const [pendingEvent, setPendingEv]  = useState<any>(null);
   const [storyEvents, setStoryEvents] = useState<EventStoryEventItem[]>([]);
   const [loadingSE, setLoadingSE]     = useState(false);
-  // Create form state
-  const [newTitle, setNewTitle]       = useState('');
-  const [newDate, setNewDate]         = useState('');
-  const [newSummary, setNewSummary]   = useState('');
-  const [newCountry, setNewCountry]   = useState('');
-  const [creating, setCreating]       = useState(false);
 
   const countries = useMemo(() => [...new Set(allEvents.map((e: any) => e.countryCode).filter(Boolean))].sort() as string[], [allEvents]);
   const themes = useMemo(() => [...new Set(allEvents.flatMap((e: any) => (e.themes ?? []).map((t: any) => t.name)).filter(Boolean))].sort() as string[], [allEvents]);
@@ -250,6 +246,7 @@ const EventPicker: React.FC<EventPickerProps> = ({ allEvents, onSelect, onClose,
 
   // When user clicks an event in the list: check for existing story-events
   const handleEventClick = useCallback(async (ev: any) => {
+
     setPendingEv(ev);
     setLoadingSE(true);
     try {
@@ -268,18 +265,6 @@ const EventPicker: React.FC<EventPickerProps> = ({ allEvents, onSelect, onClose,
     }
   }, [onSelect]);
 
-  const handleCreate = async () => {
-    if (!newTitle.trim() || !newSummary.trim()) return;
-    setCreating(true);
-    try {
-      await onCreateEvent({
-        title: newTitle.trim(),
-        dateISO: newDate,
-        summary: newSummary.trim(),
-        countryCode: newCountry.toUpperCase() || undefined,
-      });
-    } finally { setCreating(false); }
-  };
 
   // ── Step: clone picker ───────────────────────────────────────────────────────
   if (step === 'clone' && pendingEvent) {
@@ -355,47 +340,41 @@ const EventPicker: React.FC<EventPickerProps> = ({ allEvents, onSelect, onClose,
     );
   }
 
-  // ── Step: create form ────────────────────────────────────────────────────────
+  // ── Step: create — modale plein écran avec EventForm complet ────────────────
   if (step === 'create') {
     return (
-      <div className="border-2 border-primary/20 rounded-2xl bg-white shadow-lg p-4 space-y-3">
-        <div className="flex items-center justify-between">
-          <p className="font-bold text-sm text-secondary">✨ Créer un événement dans le calendrier</p>
-          <button type="button" onClick={() => setStep('list')} className="text-xs text-muted-foreground hover:text-secondary">← Retour</button>
-        </div>
-        <div className="grid sm:grid-cols-2 gap-2">
-          <div>
-            <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">Titre *</Label>
-            <Input value={newTitle} onChange={e => setNewTitle(e.target.value)} placeholder="Titre de l'événement" className="h-9 mt-1" />
+      <div className="fixed inset-0 z-[200] bg-black/60 flex items-start justify-center overflow-y-auto py-8 px-4">
+        <div className="bg-background w-full max-w-3xl rounded-2xl shadow-2xl relative">
+          {/* Header modale */}
+          <div className="flex items-center justify-between px-6 pt-5 pb-3 border-b">
+            <div>
+              <h2 className="text-lg font-bold text-secondary">✨ Créer un événement dans le calendrier</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">L'événement sera lié à ce moment une fois créé.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setStep('list')}
+              className="p-2 rounded-full hover:bg-muted text-muted-foreground"
+            >
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M18 6 6 18M6 6l12 12"/>
+              </svg>
+            </button>
           </div>
-          <div>
-            <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">Date (optionnel)</Label>
-            <input type="date" value={newDate} onChange={e => setNewDate(e.target.value)}
-              className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm mt-1 focus:outline-none focus:ring-2 focus:ring-ring" />
+
+          {/* Formulaire complet */}
+          <div className="px-6 pb-6">
+            <EventForm
+              mode="create"
+              compact
+              onSave={() => setStep('list')}
+              onCreated={(ev) => {
+                onEventCreated(ev);
+                setStep('list');
+              }}
+            />
           </div>
-          <div>
-            <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">Pays (optionnel)</Label>
-            <Input value={newCountry} onChange={e => setNewCountry(e.target.value)} placeholder="ex: SN" maxLength={2} className="h-9 mt-1 uppercase" />
-          </div>
         </div>
-        <div>
-          <Label className="text-[10px] uppercase tracking-widest text-muted-foreground">
-            Résumé * <span className="normal-case text-muted-foreground">(min 40 car.)</span>
-          </Label>
-          <Textarea value={newSummary} onChange={e => setNewSummary(e.target.value)}
-            rows={3} placeholder="Résumé de l'événement — sera utilisé comme narration du moment." className="mt-1 text-sm" />
-          <p className="text-xs text-muted-foreground mt-0.5">{newSummary.length} / 40 min</p>
-        </div>
-        <div className="flex gap-2 pt-1">
-          <Button type="button" size="sm" disabled={creating || !newTitle.trim() || newSummary.trim().length < 40}
-            onClick={handleCreate} className="flex-1">
-            {creating ? '⏳ Création…' : '✓ Créer et lier cet événement'}
-          </Button>
-          <Button type="button" size="sm" variant="outline" onClick={() => setStep('list')}>Annuler</Button>
-        </div>
-        {newSummary.trim().length > 0 && newSummary.trim().length < 40 && (
-          <p className="text-xs text-amber-600">Encore {40 - newSummary.trim().length} caractères minimum.</p>
-        )}
       </div>
     );
   }
@@ -538,22 +517,10 @@ const MomentCard: React.FC<MomentCardProps> = ({
     form.setValue(`moments.${index}.eventId` as any, null);
   }, [form, index]);
 
-  // Create event inline then link it
-  const handleCreateEvent = useCallback(async (data: { title: string; dateISO: string; summary: string; countryCode?: string }) => {
-    try {
-      const newEvent = await adminApi.createEvent({
-        title: data.title,
-        slug: slugify(data.title) + '-' + Date.now(),
-        summary: data.summary,
-        dateISO: data.dateISO || undefined,
-        countryCode: data.countryCode || undefined,
-        themeIds: [], media: [], sources: [],
-      } as any);
-      onEventCreated(newEvent);
-      handleSelectEvent(newEvent);
-    } catch (err) {
-      alert('Erreur lors de la création de l\'événement.');
-    }
+  // Appelé quand un événement vient d'être créé dans la modale EventForm
+  const handleEventCreatedInModal = useCallback((newEvent: Event) => {
+    onEventCreated(newEvent);
+    handleSelectEvent(newEvent);
   }, [handleSelectEvent, onEventCreated]);
 
   const handleMediaFile = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -623,7 +590,7 @@ const MomentCard: React.FC<MomentCardProps> = ({
             allEvents={allEvents}
             onSelect={(ev, cloneFrom) => handleSelectEvent(ev, cloneFrom)}
             onClose={() => setPickerOpen(false)}
-            onCreateEvent={handleCreateEvent}
+            onEventCreated={handleEventCreatedInModal}
           />
         </div>
       )}

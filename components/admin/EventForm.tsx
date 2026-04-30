@@ -7,7 +7,7 @@ import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Label } from '../ui/Label';
 import { Textarea } from '../ui/Textarea';
-import type { TimelineNarrative } from '../../types';
+import type { Event } from '../../types';
 
 // ─── Pays ─────────────────────────────────────────────────────────────────────
 
@@ -191,20 +191,23 @@ interface EventFormProps {
   mode: 'create' | 'edit';
   initialData?: any;
   onSave: () => void;
+  /** Appelé avec l'événement créé (pour usage en modale dans TimelineForm) */
+  onCreated?: (event: Event) => void;
+  /** Compact : masque le titre et réduit le padding (usage en modale) */
+  compact?: boolean;
 }
 
-export function EventForm({ mode, initialData, onSave }: EventFormProps) {
-  const [timelines, setTimelines] = useState<TimelineNarrative[]>([]);
+export function EventForm({ mode, initialData, onSave, onCreated, compact = false }: EventFormProps) {
   const [themes, setThemes] = useState<any[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [globalError, setGlobalError] = useState<string | null>(null);
-  const [showTimeline, setShowTimeline] = useState(false);
   const titleRef = useRef<boolean>(false);
 
   const defaultValues: Partial<EventFormData> = initialData ? {
     title: initialData.title ?? '',
     slug: initialData.slug ?? '',
     summary: initialData.summary ?? '',
+    status: initialData.status ?? 'draft',
     dateISO: initialData.dateISO ?? '',
     year: initialData.year ?? undefined,
     period: initialData.period ?? '',
@@ -212,13 +215,10 @@ export function EventForm({ mode, initialData, onSave }: EventFormProps) {
     themeIds: initialData.themes?.map((t: any) => t.id) ?? [],
     media: initialData.media ?? [],
     sources: initialData.sources ?? [],
-    timelineId: initialData.timelineId ?? '',
-    timelineMomentId: initialData.timelineMomentId ?? '',
   } : {
-    title: '', slug: '', summary: '',
+    title: '', slug: '', summary: '', status: 'draft',
     dateISO: '', year: undefined, period: '', countryCode: '',
     themeIds: [], media: [], sources: [],
-    timelineId: '', timelineMomentId: '',
   };
 
   const form = useForm<EventFormData>({ defaultValues: defaultValues as EventFormData });
@@ -229,7 +229,6 @@ export function EventForm({ mode, initialData, onSave }: EventFormProps) {
     useFieldArray({ control: form.control, name: 'sources' });
 
   useEffect(() => {
-    adminApi.listTimelines().then(res => setTimelines(res.items));
     adminApi.listThemes().then(res => setThemes(res.items));
   }, []);
 
@@ -241,8 +240,6 @@ export function EventForm({ mode, initialData, onSave }: EventFormProps) {
     }
   }, [titleValue, mode, form]);
 
-  const selectedTimelineId = form.watch('timelineId');
-  const selectedTimeline = timelines.find(t => t.id === selectedTimelineId);
   const selectedThemeIds = form.watch('themeIds') || [];
 
   const toggleTheme = (id: string) => {
@@ -262,8 +259,6 @@ export function EventForm({ mode, initialData, onSave }: EventFormProps) {
       dateISO: norm(rawValues.dateISO),
       countryCode: norm(rawValues.countryCode),
       period: norm(rawValues.period),
-      timelineId: norm(rawValues.timelineId),
-      timelineMomentId: norm(rawValues.timelineMomentId),
     };
 
     // Validation Zod manuelle — plus fiable qu'un resolver
@@ -298,11 +293,16 @@ export function EventForm({ mode, initialData, onSave }: EventFormProps) {
 
     try {
       if (mode === 'create') {
-        await adminApi.createEvent(result.data);
+        const created = await adminApi.createEvent(result.data);
+        if (onCreated) {
+          onCreated(created);
+        } else {
+          onSave();
+        }
       } else {
         await adminApi.updateEvent(initialData.id, result.data);
+        onSave();
       }
-      onSave();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Erreur inconnue';
       setGlobalError(`Erreur lors de l'enregistrement : ${msg}`);
@@ -329,24 +329,26 @@ export function EventForm({ mode, initialData, onSave }: EventFormProps) {
   };
 
   return (
-    <div className="max-w-3xl mx-auto py-6 space-y-8">
+    <div className={`max-w-3xl mx-auto space-y-8 ${compact ? 'py-2' : 'py-6'}`}>
 
-      {/* En-tête */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-secondary">
-            {mode === 'create' ? '+ Nouvel événement' : 'Modifier l\'événement'}
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            {mode === 'create' ? 'Créez un fait historique ou culturel.' : 'Mettez à jour les informations.'}
-          </p>
+      {/* En-tête (masqué en mode compact) */}
+      {!compact && (
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-secondary">
+              {mode === 'create' ? '+ Nouvel événement' : 'Modifier l\'événement'}
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              {mode === 'create' ? 'Créez un fait historique ou culturel.' : 'Mettez à jour les informations.'}
+            </p>
+          </div>
+          {mode === 'edit' && (
+            <Button type="button" variant="destructive" onClick={handleDelete} size="sm">
+              Supprimer
+            </Button>
+          )}
         </div>
-        {mode === 'edit' && (
-          <Button type="button" variant="destructive" onClick={handleDelete} size="sm">
-            Supprimer
-          </Button>
-        )}
-      </div>
+      )}
 
       {/* Erreur globale */}
       {globalError && (
@@ -389,6 +391,34 @@ export function EventForm({ mode, initialData, onSave }: EventFormProps) {
                 data-error={!!form.formState.errors.slug}
               />
               <E field="slug" />
+            </div>
+          </div>
+
+          {/* Statut */}
+          <div className="flex items-center gap-4">
+            <Label htmlFor="status" className="shrink-0">Statut</Label>
+            <div className="flex gap-2">
+              {([
+                { value: 'draft',     label: '📝 Brouillon',  cls: 'border-amber-300  text-amber-700  bg-amber-50'  },
+                { value: 'published', label: '✅ Publié',      cls: 'border-emerald-300 text-emerald-700 bg-emerald-50' },
+                { value: 'archived',  label: '🗄 Archivé',    cls: 'border-slate-300  text-slate-600  bg-slate-50'  },
+              ] as const).map(opt => {
+                const current = form.watch('status');
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => form.setValue('status', opt.value)}
+                    className={`px-3 py-1.5 text-xs rounded-full border font-semibold transition-all ${
+                      current === opt.value
+                        ? opt.cls + ' ring-2 ring-offset-1 ring-current'
+                        : 'border-border text-muted-foreground bg-background hover:border-primary/40'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -576,40 +606,8 @@ export function EventForm({ mode, initialData, onSave }: EventFormProps) {
           </div>
         </section>
 
-        {/* ── Section 6 : Timeline (optionnel, masquée par défaut) ─────── */}
-        <section className="space-y-4">
-          <button
-            type="button"
-            onClick={() => setShowTimeline(v => !v)}
-            className="flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-muted-foreground border-b pb-2 w-full text-left hover:text-primary transition-colors"
-          >
-            <span className="text-base">{showTimeline ? '▾' : '▸'}</span>
-            Lier à un Parcours (Timeline)
-            <span className="text-xs font-normal normal-case tracking-normal ml-1">— optionnel</span>
-          </button>
-
-          {showTimeline && (
-            <div className="grid md:grid-cols-2 gap-4 bg-primary/5 rounded-xl p-4 border border-primary/10">
-              <div>
-                <Label>Parcours associé</Label>
-                <select className="flex h-11 w-full rounded-md border border-input bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring mt-1" {...form.register('timelineId')}>
-                  <option value="">Aucun parcours</option>
-                  {timelines.map(t => <option key={t.id} value={t.id}>{t.title}</option>)}
-                </select>
-              </div>
-              <div>
-                <Label>Moment spécifique</Label>
-                <select className="flex h-11 w-full rounded-md border border-input bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring mt-1" {...form.register('timelineMomentId')} disabled={!selectedTimelineId}>
-                  <option value="">Début du parcours</option>
-                  {selectedTimeline?.moments?.map(m => <option key={m.id} value={m.id}>{m.title}</option>)}
-                </select>
-              </div>
-            </div>
-          )}
-        </section>
-
         {/* ── Boutons d'action ──────────────────────────────────────────── */}
-        <div className="flex items-center gap-4 pt-4 border-t sticky bottom-0 bg-background/95 backdrop-blur-sm py-4 -mx-6 px-6">
+        <div className={`flex items-center gap-4 pt-4 border-t ${compact ? '' : 'sticky bottom-0 bg-background/95 backdrop-blur-sm py-4 -mx-6 px-6'}`}>
           <Button
             type="submit"
             disabled={isSaving}
@@ -626,11 +624,13 @@ export function EventForm({ mode, initialData, onSave }: EventFormProps) {
               <>✓ {mode === 'create' ? 'Créer l\'événement' : 'Enregistrer les modifications'}</>
             )}
           </Button>
-          <span className="text-xs text-muted-foreground">
-            {mode === 'create'
-              ? 'Sera immédiatement visible dans le calendrier.'
-              : 'Les modifications sont instantanées.'}
-          </span>
+          {!compact && (
+            <span className="text-xs text-muted-foreground">
+              {mode === 'create'
+                ? 'Sera immédiatement visible dans le calendrier.'
+                : 'Les modifications sont instantanées.'}
+            </span>
+          )}
         </div>
 
       </form>

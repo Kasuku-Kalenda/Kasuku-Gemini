@@ -26,6 +26,7 @@ export const eventFormSchema = z.object({
   title: z.string().min(3, { message: "Le titre doit avoir au moins 3 caractères" }),
   slug: z.string().min(3, { message: "Le slug doit avoir au moins 3 caractères" }),
   summary: z.string().min(40, { message: "Le résumé doit avoir au moins 40 caractères" }),
+  status: z.enum(['draft', 'published', 'archived']).default('draft'),
   // Les champs optionnels acceptent "" (chaîne vide HTML) grâce à !v dans le refine
   dateISO: z.string()
     .refine(v => !v || /^\d{4}-\d{2}-\d{2}$/.test(v), { message: "Format requis : AAAA-MM-JJ (ex: 1960-04-04)" })
@@ -38,8 +39,6 @@ export const eventFormSchema = z.object({
   themeIds: z.array(z.string()).default([]),
   media: z.array(mediaSchema).default([]),
   sources: z.array(sourceSchema).default([]),
-  timelineId: z.string().nullable().optional(),
-  timelineMomentId: z.string().nullable().optional(),
 });
 
 export const themeFormSchema = z.object({
