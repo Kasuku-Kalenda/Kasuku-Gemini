@@ -462,6 +462,7 @@ const MomentCard: React.FC<MomentCardProps> = ({
   onRemove, onMoveUp, onMoveDown, canMoveUp, canMoveDown,
 }) => {
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [createModalOpen, setCreateModalOpen] = useState(false);
   const mediaFileRef = useRef<HTMLInputElement>(null);
 
   const timeType = form.watch(`moments.${index}.timeType`);
@@ -606,9 +607,41 @@ const MomentCard: React.FC<MomentCardProps> = ({
               className="gap-2">
               📅 Sélectionner un événement existant
             </Button>
-            <Button type="button" variant="outline" onClick={() => setPickerOpen(true)}>
+            <Button type="button" variant="outline" onClick={() => setCreateModalOpen(true)}>
               ✨ Créer un nouvel événement
             </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Modale de création d'événement (accès direct sans passer par le picker) */}
+      {createModalOpen && (
+        <div className="fixed inset-0 z-[200] bg-black/60 flex items-start justify-center overflow-y-auto py-8 px-4">
+          <div className="bg-background w-full max-w-3xl rounded-2xl shadow-2xl relative">
+            <div className="flex items-center justify-between px-6 pt-5 pb-3 border-b">
+              <div>
+                <h2 className="text-lg font-bold text-secondary">✨ Créer un événement dans le calendrier</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">L'événement sera lié à ce moment une fois créé.</p>
+              </div>
+              <button type="button" onClick={() => setCreateModalOpen(false)}
+                className="p-2 rounded-full hover:bg-muted text-muted-foreground">
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M18 6 6 18M6 6l12 12"/>
+                </svg>
+              </button>
+            </div>
+            <div className="px-6 pb-6">
+              <EventForm
+                mode="create"
+                compact
+                onSave={() => setCreateModalOpen(false)}
+                onCreated={(ev) => {
+                  onEventCreated(ev);
+                  handleSelectEvent(ev);
+                  setCreateModalOpen(false);
+                }}
+              />
+            </div>
           </div>
         </div>
       )}
