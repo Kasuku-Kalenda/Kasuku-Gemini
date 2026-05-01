@@ -7,6 +7,8 @@ import { CalendarIcon } from './icons/CalendarIcon';
 import { TimelineIcon } from './icons/TimelineIcon';
 import { ModulesIcon } from './icons/ModulesIcon';
 
+const IMMERSIVE_URL = '/immersive';
+
 type View = 'home' | 'calendar' | 'favorites' | 'event' | 'timelines' | 'timeline' | 'module' | 'modules' | 'adminLogin';
 
 interface BottomNavProps {
@@ -67,6 +69,23 @@ export const BottomNav: React.FC<BottomNavProps> = ({ currentView, navigateTo })
           onClick={() => navigateTo(item.view)}
         />
       ))}
+      {/* Kasuku Immersive */}
+      <a
+        href={IMMERSIVE_URL}
+        className="no-min-h flex flex-col items-center justify-center gap-0.5 flex-1 h-full py-2 transition-colors duration-200 active:scale-95 text-muted-foreground hover:text-primary"
+        aria-label="Immersive"
+      >
+        <span className="relative">
+          {/* Icône étoile / univers */}
+          <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"/>
+            <circle cx="12" cy="12" r="6" strokeDasharray="2 3"/>
+            <circle cx="12" cy="12" r="10" strokeDasharray="1 4"/>
+          </svg>
+          <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+        </span>
+        <span className="text-[11px] font-bold uppercase tracking-tighter leading-none">Univers</span>
+      </a>
     </footer>
   );
 };

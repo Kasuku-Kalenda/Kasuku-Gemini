@@ -38,10 +38,12 @@ const NavLink: React.FC<NavLinkProps> = ({ label, isActive, onClick, className =
 const navItems = [
   { view: 'home', label: 'Discover' },
   { view: 'calendar', label: 'Calendar' },
-  { view: 'timelines', label: 'Récits' }, // Changement de 'timeline' à 'timelines'
+  { view: 'timelines', label: 'Récits' },
   { view: 'modules', label: 'Modules' },
   { view: 'favorites', label: 'Favorites' },
 ] as const;
+
+const IMMERSIVE_URL = '/immersive';
 
 export const TopBar: React.FC<TopBarProps> = ({ currentView, navigateTo }) => {
   // Tous les hooks d'abord (règle React)
@@ -93,6 +95,15 @@ export const TopBar: React.FC<TopBarProps> = ({ currentView, navigateTo }) => {
                   onClick={() => navigateTo(item.view)}
                 />
               ))}
+              {/* Kasuku Immersive — lien externe */}
+              <a
+                href={IMMERSIVE_URL}
+                className="relative px-3 py-2 rounded-md text-sm font-medium transition-colors text-dark/80 hover:bg-primary/5 hover:text-primary flex items-center gap-1.5 group"
+                title="Kasuku Immersive — explorer l'univers"
+              >
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-primary/60 group-hover:bg-primary animate-pulse" />
+                Immersive
+              </a>
             </div>
 
             {/* Auth Actions */}

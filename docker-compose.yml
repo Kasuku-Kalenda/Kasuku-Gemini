@@ -6,7 +6,7 @@
 #   docker compose logs -f api    # suivre les logs de l'API
 #
 # Ordre de démarrage :
-#   postgres → postgres-migrate → api → frontend → nginx
+#   postgres → postgres-migrate → api → frontend + kasuku-immersive → nginx
 #
 # Services :
 #   nginx            → :80              reverse proxy (entrée unique)
@@ -22,6 +22,38 @@ name: kasuku
 
 services:
 
+  # ── Kasuku Immersive (Next.js) ────────────────────────────────────────────
+  kasuku-immersive:
+    build:
+      context: ../kasuku-immersive
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_BASE_PATH: /immersive
+    environment:
+      NODE_ENV:                production
+      NEXT_PUBLIC_BASE_PATH:   /immersive
+      NEXT_PUBLIC_BASE_URL:    http://kasuku-immersive:3001
+      PORT:                    3001
+      DB_HOST:                 postgres
+      DB_PORT:                 5432
+      DB_USER:                 ${POSTGRES_USER:-kasuku}
+      DB_PASSWORD:             ${POSTGRES_PASSWORD}
+      DB_NAME:                 ${POSTGRES_DB:-kasuku_db}
+    depends_on:
+      postgres-migrate:
+        condition: service_completed_successfully
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3001/immersive"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - kasuku-net
+
   # ── Reverse Proxy ─────────────────────────────────────────────────────────
   nginx:
     image: nginx:1.27-alpine
@@ -33,6 +65,8 @@ services:
       frontend:
         condition: service_healthy
       api:
+        condition: service_healthy
+      kasuku-immersive:
         condition: service_healthy
     restart: unless-stopped
     networks:
