@@ -91,19 +91,22 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ navigate
   const [isRecentLoading, setIsRecentLoading] = useState(true);
 
   useEffect(() => {
-    // Load counts + recent content via API
-    Promise.all([
+    // Load counts + recent content — use allSettled so one missing endpoint
+    // doesn't wipe out all stats
+    Promise.allSettled([
       adminApi.listEvents(),
       adminApi.listModules(),
       adminApi.listThemes(),
       adminApi.listTimelines(),
       adminApi.listFeatured(),
     ]).then(([evRes, modRes, thRes, tlRes, ftRes]) => {
-      const events    = evRes.items  ?? [];
-      const modules   = modRes.items ?? [];
-      const themes    = (thRes as unknown as { items: unknown[] })?.items ?? thRes ?? [];
-      const timelines = tlRes.items  ?? [];
-      const featured  = ftRes.items  ?? [];
+      const events    = evRes.status    === 'fulfilled' ? (evRes.value.items  ?? []) : [];
+      const modules   = modRes.status   === 'fulfilled' ? (modRes.value.items ?? []) : [];
+      const themesRaw = thRes.status    === 'fulfilled' ? thRes.value : [];
+      const timelines = tlRes.status    === 'fulfilled' ? (tlRes.value.items  ?? []) : [];
+      const featured  = ftRes.status    === 'fulfilled' ? (ftRes.value.items  ?? []) : [];
+
+      const themes = (themesRaw as unknown as { items: unknown[] })?.items ?? themesRaw ?? [];
 
       setCounts({
         events:    events.length,
@@ -115,7 +118,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ navigate
       setRecentEvents(events.slice(0, 5) as Event[]);
       setRecentModules(modules.slice(0, 5) as TrainingModule[]);
       setIsRecentLoading(false);
-    }).catch(() => setIsRecentLoading(false));
+    });
   }, []);
 
   const today = new Date().toLocaleDateString('fr-FR', {

@@ -25,6 +25,7 @@ import { placesRoutes }       from './routes/places';
 import { translationsRoutes } from './routes/translations';
 import { kalendaRoutes }      from './routes/kalenda';
 import { uploadRoutes }       from './routes/upload';
+import { featuredRoutes }     from './routes/featured';
 
 // ─── Décorateur Redis ─────────────────────────────────────────────────────────
 
@@ -128,6 +129,7 @@ async function bootstrap() {
   await app.register(translationsRoutes, { prefix: `${PREFIX}/translations` });
   await app.register(kalendaRoutes,      { prefix: `${PREFIX}/kalendas`     });
   await app.register(uploadRoutes,       { prefix: `${PREFIX}/upload`       });
+  await app.register(featuredRoutes,     { prefix: `${PREFIX}/featured`     });
 
   // ── Seed admin initial ────────────────────────────────────────────────────
 
