@@ -1,0 +1,3 @@
+[submodule "kasuku-immersive"]
+	path = kasuku-immersive
+	url = https://github.com/Kasuku-Kalenda/kasuku-immersive.git
