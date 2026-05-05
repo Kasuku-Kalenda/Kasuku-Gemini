@@ -93,6 +93,7 @@ export async function featuredRoutes(app: FastifyInstance) {
       WHERE fi.active = true
         AND CURRENT_DATE BETWEEN fi.start_date AND fi.end_date
       ORDER BY fi.display_order ASC, fi.created_at DESC
+      LIMIT 10
     `;
     return reply.send(items);
   });

@@ -62,9 +62,16 @@ const FilterPopover: React.FC<FilterPopoverProps> = ({ triggerLabel, icon, optio
 
   return (
     <div ref={popoverRef} className="relative">
-      <Button variant="ghost" className="gap-2 rounded-full" onClick={() => setIsOpen(!isOpen)}>
-        {icon}
-        <span className="truncate max-w-[100px]">{selectedLabel}</span>
+      <Button
+        variant="ghost"
+        className="gap-1 rounded-full px-2.5 py-1.5 h-auto text-xs no-min-h"
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <span className="shrink-0">{icon}</span>
+        <span className="truncate max-w-[52px]">{selectedLabel}</span>
+        {selectedValue && (
+          <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-primary ml-0.5" />
+        )}
       </Button>
       {isOpen && (
         <div className="absolute top-full mt-2 w-64 bg-card border rounded-md shadow-lg z-20 p-2">
@@ -231,7 +238,7 @@ export function UnifiedSearchBar({ themes, countries, allEvents, filters, onFilt
 
       <span className="h-6 w-px bg-border hidden sm:block" aria-hidden="true" />
 
-      <div className="hidden md:flex items-center gap-1">
+      <div className="hidden md:flex items-center gap-0.5">
         <FilterPopover 
           triggerLabel="Thème"
           icon={<TagIcon className="h-4 w-4" />}

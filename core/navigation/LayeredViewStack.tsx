@@ -52,10 +52,9 @@ LayerContent.displayName = 'LayerContent';
 export const LayeredViewStack: React.FC = () => {
   const { stack, direction } = useNavigation();
 
-  // Décalage directionnel léger pour donner le sens forward / backward.
-  // Pas de plein écran (évite tout chevauchement visible).
-  const enterX = direction === 'forward' ? 24 : -24;
-  const exitX  = direction === 'forward' ? -16 : 24;
+  // Forward → slide up from below (détail qui s'ouvre)
+  // Backward → slide back to the right
+  const isForward = direction === 'forward';
 
   return (
     <div
@@ -73,22 +72,23 @@ export const LayeredViewStack: React.FC = () => {
           return (
             <motion.div
               key={entry.id}
-              /*
-                initial  : état au premier rendu de cet entry (nouvelle navigation)
-                animate  : état cible selon la position dans la pile
-                exit     : état lors du retrait de la pile (goBack)
-              */
-              initial={{ opacity: 0, x: enterX }}
+              initial={isForward
+                ? { opacity: 0, y: 48, scale: 0.98 }
+                : { opacity: 0, x: -32 }
+              }
               animate={{
                 opacity: isTop ? 1 : 0,
                 x: 0,
-                // Légère réduction de scale pour la couche bg (optique de profondeur)
-                scale: isTop ? 1 : 0.99,
+                y: 0,
+                scale: isTop ? 1 : 0.98,
               }}
-              exit={{ opacity: 0, x: exitX }}
+              exit={isForward
+                ? { opacity: 0, y: -24, scale: 0.98 }
+                : { opacity: 0, x: 32 }
+              }
               transition={{
-                duration: 0.22,
-                ease: [0.25, 0.46, 0.45, 0.94],
+                duration: 0.32,
+                ease: [0.32, 0.72, 0, 1],
               }}
               style={{
                 position: 'absolute',
