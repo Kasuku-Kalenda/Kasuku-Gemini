@@ -284,16 +284,41 @@ export interface User {
 
 export interface FeaturedItem {
   id: string;
+  // Source
+  sourceType: 'event' | 'story' | 'module';
+  eventId?: string | null;
+  storyId?: string | null;
+  moduleId?: string | null;
+  // Overrides (null = valeur héritée de la source)
+  titleOverride?: string | null;
+  subtitleOverride?: string | null;
+  imageUrlOverride?: string | null;
+  // Champs fusionnés (override ?? source) — retournés par l'API
   title: string;
   subtitle: string;
   imageUrl: string;
-  eventId?: string | null;
+  // Source info (pour pré-remplir le formulaire)
+  eventSlug?: string | null;
+  eventTitle?: string | null;
+  eventSummary?: string | null;
+  eventImageUrl?: string | null;
+  storySlug?: string | null;
+  storyTitle?: string | null;
+  storySummary?: string | null;
+  storyImageUrl?: string | null;
+  moduleSlug?: string | null;
+  moduleTitle?: string | null;
+  moduleSummary?: string | null;
+  moduleImageUrl?: string | null;
+  // CTA & planification
+  ctaLabel: string;
+  ctaTo: string;
   active: boolean;
   startDate: string;
   endDate: string;
   order: number;
-  ctaLabel: string;
-  ctaTo: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface FeaturedStory {
@@ -301,7 +326,10 @@ export interface FeaturedStory {
   title: string;
   subtitle?: string;
   imageUrl?: string;
+  sourceType?: 'event' | 'story' | 'module';
   eventSlug?: string | null;
+  storySlug?: string | null;
+  moduleSlug?: string | null;
   dateISO?: string | null;
   ctaType?: 'module' | 'timeline' | null;
   ctaLabel: string;

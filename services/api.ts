@@ -123,5 +123,24 @@ export const getCountries = async (): Promise<{ code: string; name: string }[]> 
 
 // ─── Featured Stories ─────────────────────────────────────────────────────────
 
-export const getFeaturedItems = async (_limit = 12): Promise<FeaturedStory[]> =>
-  api.get<FeaturedStory[]>('/featured');
+export const getFeaturedItems = async (_limit = 12): Promise<FeaturedStory[]> => {
+  const raw = await api.get<any[]>('/featured');
+  return raw.map((item: any) => ({
+    id:          item.id,
+    title:       item.title,
+    subtitle:    item.subtitle,
+    imageUrl:    item.imageUrl,
+    sourceType:  item.sourceType,
+    eventSlug:   item.eventSlug  ?? null,
+    storySlug:   item.storySlug  ?? null,
+    moduleSlug:  item.moduleSlug ?? null,
+    dateISO:     null,
+    ctaType:     item.sourceType === 'module'
+                   ? 'module'
+                   : item.sourceType === 'story'
+                     ? 'timeline'
+                     : null,
+    ctaLabel:    item.ctaLabel,
+    ctaTo:       item.ctaTo,
+  }));
+};

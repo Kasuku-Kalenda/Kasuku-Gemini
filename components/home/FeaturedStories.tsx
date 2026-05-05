@@ -16,160 +16,283 @@ type Props = {
   onNavigateToEvent: (slug: string) => void;
 };
 
-// ─── Type badge ─────────────────────────────────────────────────────────────
-function CtaBadge({ ctaType }: { ctaType: FeaturedStory['ctaType'] }) {
-  if (ctaType === 'module') {
-    return (
-      <span className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest bg-white text-secondary rounded-full px-4 py-1.5 shadow-lg">
-        <GraduationCapIcon className="h-3.5 w-3.5" /> Module
-      </span>
-    );
-  }
-  if (ctaType === 'timeline') {
-    return (
-      <span className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest bg-primary text-white rounded-full px-4 py-1.5 shadow-lg">
-        <TimelineIcon className="h-3.5 w-3.5" /> Parcours
-      </span>
-    );
-  }
+// ─── Source type config ───────────────────────────────────────────────────────
+const TYPE_CONFIG = {
+  module:   { emoji: '🎓', label: 'Module',     color: 'bg-secondary text-white' },
+  timeline: { emoji: '📖', label: 'Récit',      color: 'bg-primary text-white' },
+  event:    { emoji: '📅', label: 'Événement',  color: 'bg-accent text-white' },
+} as const;
+
+function getTypeKey(item: FeaturedStory): keyof typeof TYPE_CONFIG {
+  if (item.sourceType === 'module' || item.ctaType === 'module')   return 'module';
+  if (item.sourceType === 'story'  || item.ctaType === 'timeline') return 'timeline';
+  return 'event';
+}
+
+// ─── Portrait card (YouTube Shorts / WhatsApp Status style) ──────────────────
+function PortraitCard({ item, onClick, index }: {
+  item: FeaturedStory;
+  onClick: () => void;
+  index: number;
+}) {
+  const typeKey = getTypeKey(item);
+  const cfg     = TYPE_CONFIG[typeKey];
+
   return (
-    <span className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest bg-accent/90 text-white rounded-full px-4 py-1.5 shadow-lg">
-      <CalendarDaysIcon className="h-3.5 w-3.5" /> Événement
-    </span>
+    <button
+      type="button"
+      onClick={onClick}
+      className="shrink-0 group relative flex flex-col outline-none focus-visible:ring-2 ring-primary ring-offset-2"
+      style={{ width: 'clamp(90px, 22vw, 130px)' }}
+      aria-label={`Ouvrir : ${item.title}`}
+    >
+      {/* Card — portrait 9:16 */}
+      <div
+        className="relative w-full rounded-2xl overflow-hidden bg-zinc-800 shadow-md group-hover:shadow-xl transition-all duration-300 group-hover:scale-[1.03] group-active:scale-95"
+        style={{ aspectRatio: '9 / 16' }}
+      >
+        {/* Background image */}
+        {item.imageUrl ? (
+          <img
+            src={item.imageUrl}
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover"
+            referrerPolicy="no-referrer"
+            loading={index < 3 ? 'eager' : 'lazy'}
+          />
+        ) : (
+          <div className="absolute inset-0 bg-gradient-to-br from-primary/80 via-accent/60 to-secondary/80" />
+        )}
+
+        {/* Bottom gradient */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
+
+        {/* Type badge — top left */}
+        <div className="absolute top-2 left-2 z-10">
+          <span className={`inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full shadow ${cfg.color}`}>
+            {cfg.emoji}
+          </span>
+        </div>
+
+        {/* Progress ring indicator (optional visual accent) */}
+        <div className="absolute top-2 right-2 z-10">
+          <div className="w-1 h-8 rounded-full bg-white/20 overflow-hidden">
+            <div className="w-full bg-white/60 rounded-full" style={{ height: '33%' }} />
+          </div>
+        </div>
+
+        {/* Title at bottom */}
+        <div className="absolute inset-x-0 bottom-0 p-2.5 z-10">
+          <p className="text-white text-[10px] sm:text-[11px] font-black leading-tight line-clamp-2 drop-shadow-lg">
+            {item.title}
+          </p>
+        </div>
+      </div>
+
+      {/* Label below card */}
+      <p className="mt-1.5 text-[9px] sm:text-[10px] font-bold text-secondary/60 text-center line-clamp-1 px-1 group-hover:text-primary transition-colors">
+        {cfg.label}
+      </p>
+    </button>
   );
 }
 
+// ─── Main component ───────────────────────────────────────────────────────────
 export function FeaturedStories({
   items,
-  autoplayMs = 6000,
+  autoplayMs = 7000,
   onNavigateToModule,
   onNavigateToEvent,
 }: Props) {
-  const [open, setOpen] = React.useState(false);
-  const [active, setActive] = React.useState(0);
+  const [open, setOpen]       = React.useState(false);
+  const [active, setActive]   = React.useState(0);
   const [progress, setProgress] = React.useState(0);
-  const rafRef = React.useRef<number>(0);
-  const startTimeRef = React.useRef<number>(0);
+  const [paused, setPaused]   = React.useState(false);
+  const rafRef                = React.useRef<number>(0);
+  const startTimeRef          = React.useRef<number>(0);
+  const pausedAtRef           = React.useRef<number>(0);
 
-  // ─── Keyboard navigation ─────────────────────────────────────────────────
+  // Keyboard navigation
   React.useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-      if (e.key === "ArrowRight") go(1);
-      if (e.key === "ArrowLeft") go(-1);
+      if (e.key === 'Escape')      { setOpen(false); }
+      if (e.key === 'ArrowRight')  go(1);
+      if (e.key === 'ArrowLeft')   go(-1);
+      if (e.key === ' ')           { e.preventDefault(); setPaused(p => !p); }
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, active, items.length]);
 
-  // ─── Autoplay ─────────────────────────────────────────────────────────────
+  // Autoplay with pause support
   React.useEffect(() => {
-    if (!open) return;
+    if (!open || paused) {
+      cancelAnimationFrame(rafRef.current);
+      if (paused) pausedAtRef.current = progress;
+      return;
+    }
+
     cancelAnimationFrame(rafRef.current);
-    startTimeRef.current = performance.now();
-    setProgress(0);
+    // Resume from where we paused
+    const already = (paused ? pausedAtRef.current : 0) * autoplayMs;
+    startTimeRef.current = performance.now() - already;
+    setProgress(already / autoplayMs);
 
     const loop = (now: number) => {
       const elapsed = now - startTimeRef.current;
       const p = Math.min(1, elapsed / autoplayMs);
       setProgress(p);
-      if (p >= 1) {
-        go(1);
-      } else {
-        rafRef.current = requestAnimationFrame(loop);
-      }
+      if (p >= 1) go(1);
+      else rafRef.current = requestAnimationFrame(loop);
     };
     rafRef.current = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(rafRef.current);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, active, autoplayMs]);
+  }, [open, active, autoplayMs, paused]);
 
   function go(delta: number) {
     setProgress(0);
+    setPaused(false);
+    pausedAtRef.current = 0;
     setActive(i => (i + delta + items.length) % items.length);
   }
 
-  // ─── Pointer swipe ────────────────────────────────────────────────────────
+  // Swipe / tap zones
   const startX = React.useRef<number | null>(null);
-  function onPointerDown(e: React.PointerEvent) { startX.current = e.clientX; }
+  const startY = React.useRef<number | null>(null);
+  function onPointerDown(e: React.PointerEvent) {
+    startX.current = e.clientX;
+    startY.current = e.clientY;
+  }
   function onPointerUp(e: React.PointerEvent) {
-    if (startX.current == null) return;
+    if (startX.current == null || startY.current == null) return;
     const dx = e.clientX - startX.current;
-    if (Math.abs(dx) > 40) go(dx > 0 ? -1 : 1);
+    const dy = Math.abs(e.clientY - startY.current);
+    // Only treat as swipe if horizontal movement dominates
+    if (Math.abs(dx) > 40 && dy < 60) go(dx > 0 ? -1 : 1);
     startX.current = null;
   }
 
-  // ─── Navigate helpers ─────────────────────────────────────────────────────
+  // Tap on left / right third of screen to navigate
+  function onTap(e: React.MouseEvent) {
+    // Ignore if on a button
+    if ((e.target as HTMLElement).closest('button, a')) return;
+    const { clientX, currentTarget } = e;
+    const w = (currentTarget as HTMLElement).offsetWidth;
+    if (clientX < w * 0.33) go(-1);
+    else if (clientX > w * 0.67) go(1);
+    else setPaused(p => !p);
+  }
+
+  // Navigation helpers
   const handleCta = (slug: string) => {
     setOpen(false);
-    onNavigateToModule(slug); // navigateToModule handles both modules AND timelines
+    onNavigateToModule(slug);
   };
   const handleViewEvent = (slug: string) => {
     setOpen(false);
     onNavigateToEvent(slug);
   };
 
+  const openAt = (idx: number) => {
+    setActive(idx);
+    setOpen(true);
+    setProgress(0);
+    setPaused(false);
+  };
+
   if (!items?.length) return null;
 
-  const openAt = (idx: number) => { setActive(idx); setOpen(true); setProgress(0); };
-  const cur = items[active];
+  const cur     = items[active];
+  const typeKey = getTypeKey(cur);
+  const cfg     = TYPE_CONFIG[typeKey];
 
   return (
     <div className="w-full">
-      {/* ─── Rings row ────────────────────────────────────────────────────── */}
-      <div
-        className="flex items-end gap-3 sm:gap-5 overflow-x-auto py-4 -mx-4 px-4 no-scrollbar"
-        aria-label="Stories en avant"
-      >
-        {items.map((it, i) => (
-          <button
-            key={it.id}
-            className="shrink-0 flex flex-col items-center gap-2 outline-none focus-visible:ring-2 ring-offset-2 rounded-full group transition-transform active:scale-95"
-            aria-label={`Ouvrir : ${it.title}`}
-            onClick={() => openAt(i)}
-          >
-            {/* Gradient ring */}
-            <div className="relative h-[62px] w-[62px] sm:h-[72px] sm:w-[72px] rounded-full p-[2.5px] bg-gradient-to-tr from-primary via-accent to-orange-300 group-hover:rotate-12 transition-transform duration-500 shadow-md">
-              <div className="h-full w-full rounded-full bg-white p-[2px]">
-                <img
-                  src={it.imageUrl ?? "https://i.postimg.cc/8cYFbspt/Kasuku-logo.png"}
-                  alt=""
-                  className="h-full w-full rounded-full object-cover"
-                  referrerPolicy="no-referrer"
-                />
-              </div>
-              {/* Mini type indicator */}
-              <div className="absolute -bottom-0.5 -right-0.5 rounded-full bg-white border border-white shadow-sm p-0.5">
-                {it.ctaType === 'module' ? (
-                  <GraduationCapIcon className="h-3 w-3 text-secondary" />
-                ) : it.ctaType === 'timeline' ? (
-                  <TimelineIcon className="h-3 w-3 text-primary" />
-                ) : (
-                  <CalendarDaysIcon className="h-3 w-3 text-accent" />
-                )}
-              </div>
-            </div>
-            <span className="w-[62px] sm:w-[72px] text-[9px] sm:text-[10px] font-black uppercase tracking-tighter text-center line-clamp-2 text-secondary/70 group-hover:text-primary transition-colors leading-tight">
-              {it.title}
-            </span>
-          </button>
-        ))}
+
+      {/* ── Section header ──────────────────────────────────────────────────── */}
+      <div className="flex items-center justify-between mb-3 px-1">
+        <div className="flex items-center gap-2">
+          <span className="text-base font-black text-secondary">À la une</span>
+          <span className="text-[10px] font-bold text-muted-foreground bg-muted/60 px-2 py-0.5 rounded-full">
+            {items.length}
+          </span>
+        </div>
+        <span className="text-[10px] text-muted-foreground italic">Appuyez pour découvrir →</span>
       </div>
 
-      {/* ─── Fullscreen overlay ───────────────────────────────────────────── */}
+      {/* ── Portrait cards row ───────────────────────────────────────────────── */}
+      <div
+        className="flex items-stretch gap-3 overflow-x-auto py-2 -mx-4 px-4 no-scrollbar"
+        aria-label="Contenus à la une"
+      >
+        {items.map((item, i) => {
+          const k = getTypeKey(item);
+          const c = TYPE_CONFIG[k];
+          return (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => openAt(i)}
+              className="shrink-0 group relative flex flex-col outline-none focus-visible:ring-2 ring-primary ring-offset-2"
+              style={{ width: 'clamp(90px, 22vw, 130px)' }}
+              aria-label={`Ouvrir : ${item.title}`}
+            >
+              <div
+                className="relative w-full rounded-2xl overflow-hidden bg-zinc-800 shadow-md group-hover:shadow-xl transition-all duration-300 group-hover:scale-[1.03] group-active:scale-95"
+                style={{ aspectRatio: '9 / 16' }}
+              >
+                {item.imageUrl ? (
+                  <img
+                    src={item.imageUrl}
+                    alt=""
+                    className="absolute inset-0 h-full w-full object-cover"
+                    referrerPolicy="no-referrer"
+                    loading={i < 3 ? 'eager' : 'lazy'}
+                  />
+                ) : (
+                  <div className="absolute inset-0 bg-gradient-to-br from-primary/80 via-accent/60 to-secondary/80" />
+                )}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
+                <div className="absolute top-2 left-2 z-10">
+                  <span className={`inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full shadow ${c.color}`}>
+                    {c.emoji}
+                  </span>
+                </div>
+                <div className="absolute inset-x-0 bottom-0 p-2.5 z-10">
+                  <p className="text-white text-[10px] sm:text-[11px] font-black leading-tight line-clamp-2 drop-shadow-lg">
+                    {item.title}
+                  </p>
+                </div>
+              </div>
+              <p className="mt-1.5 text-[9px] sm:text-[10px] font-bold text-secondary/60 text-center line-clamp-1 px-1 group-hover:text-primary transition-colors">
+                {c.label}
+              </p>
+            </button>
+          );
+        })}
+
+        {/* Fade-out hint on the right */}
+        <div className="shrink-0 w-4 pointer-events-none" />
+      </div>
+
+      {/* ── Fullscreen story viewer ──────────────────────────────────────────── */}
       {open && (
         <div
           className="fixed inset-0 z-[100] bg-black text-white"
           role="dialog"
           aria-modal="true"
           aria-label="Story à la une"
+          onClick={onTap}
+          onPointerDown={onPointerDown}
+          onPointerUp={onPointerUp}
         >
           {/* Progress bars */}
           <div
             className="absolute left-0 right-0 top-0 flex gap-1 px-3 z-20 pointer-events-none"
-            style={{ paddingTop: 'max(0.75rem, var(--sat, 0px))' }}
+            style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top, 0px))' }}
           >
             {items.map((_, i) => (
               <div key={i} className="h-[3px] flex-1 rounded-full bg-white/25 overflow-hidden">
@@ -187,65 +310,95 @@ export function FeaturedStories({
             ))}
           </div>
 
-          {/* Close button */}
-          <button
-            className="absolute right-4 sm:right-6 rounded-full bg-white/15 backdrop-blur-md hover:bg-white/25 active:scale-90 p-2.5 sm:p-3 focus-visible:ring-2 z-40 transition-all"
-            style={{ top: 'max(2.5rem, calc(var(--sat, 0px) + 0.75rem))' }}
-            aria-label="Fermer"
-            onClick={() => setOpen(false)}
-          >
-            <XIcon className="h-5 w-5 sm:h-6 sm:w-6" />
-          </button>
-
-          {/* Content */}
+          {/* Top bar: type badge + counter + close */}
           <div
-            className="h-full w-full flex items-center justify-center select-none overflow-hidden"
-            onPointerDown={onPointerDown}
-            onPointerUp={onPointerUp}
+            className="absolute inset-x-0 flex items-center justify-between px-4 z-30 pointer-events-none"
+            style={{ top: 'max(2.25rem, calc(env(safe-area-inset-top, 0px) + 0.5rem))' }}
           >
-            {/* Desktop nav arrows */}
-            <button
-              aria-label="Précédent"
-              className="absolute left-4 lg:left-6 top-1/2 -translate-y-1/2 rounded-full bg-white/15 backdrop-blur-md hover:bg-white/25 p-3 lg:p-4 focus-visible:ring-2 z-30 hidden lg:flex items-center justify-center transition-all"
-              onClick={(e) => { e.stopPropagation(); go(-1); }}
-            >
-              <ChevronLeftIcon className="h-7 w-7" />
-            </button>
+            {/* Type badge */}
+            <div className="pointer-events-none">
+              <span className={`inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full shadow ${cfg.color}`}>
+                {cfg.emoji} {cfg.label}
+              </span>
+            </div>
 
-            {/* Card */}
+            {/* Counter */}
+            {items.length > 1 && (
+              <span className="text-[10px] font-black text-white/70 bg-black/30 backdrop-blur-md px-3 py-1.5 rounded-full">
+                {active + 1} / {items.length}
+              </span>
+            )}
+
+            {/* Close */}
+            <button
+              className="pointer-events-auto rounded-full bg-white/15 backdrop-blur-md hover:bg-white/25 active:scale-90 p-2.5 focus-visible:ring-2 transition-all"
+              aria-label="Fermer"
+              onClick={(e) => { e.stopPropagation(); setOpen(false); }}
+            >
+              <XIcon className="h-5 w-5" />
+            </button>
+          </div>
+
+          {/* Card content */}
+          <div className="h-full w-full flex items-center justify-center select-none overflow-hidden">
+
+            {/* Desktop nav arrows */}
+            {items.length > 1 && (
+              <>
+                <button
+                  aria-label="Précédent"
+                  className="absolute left-4 lg:left-6 top-1/2 -translate-y-1/2 rounded-full bg-white/15 backdrop-blur-md hover:bg-white/25 p-3 lg:p-4 focus-visible:ring-2 z-30 hidden lg:flex items-center justify-center transition-all"
+                  onClick={(e) => { e.stopPropagation(); go(-1); }}
+                >
+                  <ChevronLeftIcon className="h-7 w-7" />
+                </button>
+                <button
+                  aria-label="Suivant"
+                  className="absolute right-4 lg:right-6 top-1/2 -translate-y-1/2 rounded-full bg-white/15 backdrop-blur-md hover:bg-white/25 p-3 lg:p-4 focus-visible:ring-2 z-30 hidden lg:flex items-center justify-center transition-all"
+                  onClick={(e) => { e.stopPropagation(); go(1); }}
+                >
+                  <ChevronRightIcon className="h-7 w-7" />
+                </button>
+              </>
+            )}
+
+            {/* Story card */}
             <div className="w-full h-full max-w-lg lg:max-w-3xl xl:max-w-4xl lg:h-[88vh] flex items-stretch justify-center lg:items-center lg:px-4">
               <div className="relative w-full h-full lg:rounded-[2.5rem] overflow-hidden bg-zinc-900 shadow-2xl">
 
-                {/* Background image */}
+                {/* Background image with crossfade effect */}
                 {cur.imageUrl ? (
                   <img
+                    key={cur.id}
                     src={cur.imageUrl}
                     alt=""
-                    className="absolute inset-0 h-full w-full object-cover"
+                    className="absolute inset-0 h-full w-full object-cover animate-[fadeIn_0.4s_ease]"
                     referrerPolicy="no-referrer"
                   />
                 ) : (
-                  <div className="absolute inset-0 bg-gradient-to-br from-[#0E6251] via-[#1a6b5c] to-black" />
+                  <div className="absolute inset-0 bg-gradient-to-br from-primary/80 via-accent/60 to-secondary/80" />
                 )}
 
-                {/* Dark gradient overlay */}
+                {/* Multi-layer gradient for readability */}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/30 to-black/10" />
 
-                {/* Content */}
-                <div
-                  className="absolute inset-x-0 bottom-0 p-6 sm:p-8 lg:p-12 flex flex-col z-30"
-                  style={{ paddingBottom: 'max(1.5rem, var(--sab, 0px))' }}
-                >
-                  {/* Badges row */}
-                  <div className="flex flex-wrap items-center gap-2 mb-4">
-                    <CtaBadge ctaType={cur.ctaType} />
-                    {cur.dateISO && (
-                      <span className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest bg-black/40 backdrop-blur-md text-white border border-white/20 rounded-full px-4 py-1.5">
-                        <CalendarDaysIcon className="h-3.5 w-3.5" /> {cur.dateISO}
-                      </span>
-                    )}
+                {/* Pause indicator */}
+                {paused && (
+                  <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
+                    <div className="bg-black/40 backdrop-blur-sm rounded-full p-5">
+                      <svg className="h-10 w-10 text-white" viewBox="0 0 24 24" fill="currentColor">
+                        <rect x="6" y="4" width="4" height="16" rx="1"/>
+                        <rect x="14" y="4" width="4" height="16" rx="1"/>
+                      </svg>
+                    </div>
                   </div>
+                )}
 
+                {/* Content — bottom overlay */}
+                <div
+                  className="absolute inset-x-0 bottom-0 p-6 sm:p-8 lg:p-12 flex flex-col z-30 pointer-events-none"
+                  style={{ paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom, 0px))' }}
+                >
                   <h2 className="text-2xl sm:text-4xl lg:text-5xl font-black mb-3 leading-[1.1] drop-shadow-xl">
                     {cur.title}
                   </h2>
@@ -258,24 +411,24 @@ export function FeaturedStories({
 
                   {/* CTA buttons */}
                   <div className="flex flex-col sm:flex-row gap-3 pointer-events-auto">
+                    {/* Primary CTA */}
                     <Button
                       size="lg"
-                      className="rounded-full px-8 sm:px-10 py-6 sm:py-8 h-auto font-black uppercase tracking-[0.15em] sm:tracking-[0.2em] text-[11px] bg-white text-black hover:bg-zinc-200 transition-transform active:scale-95 shadow-xl"
+                      className="rounded-full px-8 sm:px-10 py-6 sm:py-8 h-auto font-black uppercase tracking-[0.15em] text-[11px] bg-white text-black hover:bg-zinc-200 transition-transform active:scale-95 shadow-xl"
                       onClick={(e) => { e.stopPropagation(); handleCta(cur.ctaTo); }}
                     >
-                      {cur.ctaType === 'module' ? (
-                        <GraduationCapIcon className="h-4 w-4 mr-2 sm:mr-3" />
-                      ) : (
-                        <TimelineIcon className="h-4 w-4 mr-2 sm:mr-3" />
-                      )}
+                      {typeKey === 'module' && <GraduationCapIcon className="h-4 w-4 mr-2 sm:mr-3" />}
+                      {typeKey === 'timeline' && <TimelineIcon className="h-4 w-4 mr-2 sm:mr-3" />}
+                      {typeKey === 'event' && <CalendarDaysIcon className="h-4 w-4 mr-2 sm:mr-3" />}
                       {cur.ctaLabel}
                     </Button>
 
-                    {cur.eventSlug && (
+                    {/* Secondary: voir l'événement source (si story ou module liés à un event) */}
+                    {cur.eventSlug && typeKey !== 'event' && (
                       <Button
                         size="lg"
                         variant="outline"
-                        className="rounded-full px-8 sm:px-10 py-6 sm:py-8 h-auto font-black uppercase tracking-[0.15em] sm:tracking-[0.2em] text-[11px] border-white/40 text-white hover:bg-white/15 backdrop-blur-sm transition-transform active:scale-95"
+                        className="rounded-full px-8 sm:px-10 py-6 sm:py-8 h-auto font-black uppercase tracking-[0.15em] text-[11px] border-white/40 text-white hover:bg-white/15 backdrop-blur-sm transition-transform active:scale-95"
                         onClick={(e) => { e.stopPropagation(); handleViewEvent(cur.eventSlug!); }}
                       >
                         <CalendarDaysIcon className="h-4 w-4 mr-2" />
@@ -285,26 +438,15 @@ export function FeaturedStories({
                   </div>
                 </div>
 
-                {/* Story counter */}
-                {items.length > 1 && (
-                  <div className="absolute left-4 sm:left-6 z-30 flex items-center gap-2 bg-black/30 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/15"
-                    style={{ top: 'max(2.5rem, calc(var(--sat, 0px) + 0.75rem))' }}
-                  >
-                    <span className="text-[10px] font-black text-white/70 uppercase tracking-widest">
-                      {active + 1} / {items.length}
-                    </span>
-                  </div>
-                )}
+                {/* Mobile tap zones hints (invisible but semantically useful) */}
+                <div className="absolute inset-0 grid grid-cols-3 z-10 lg:hidden pointer-events-none">
+                  <div className="border-r border-transparent" aria-label="Précédent" />
+                  <div aria-label="Pause/Lecture" />
+                  <div className="border-l border-transparent" aria-label="Suivant" />
+                </div>
+
               </div>
             </div>
-
-            <button
-              aria-label="Suivant"
-              className="absolute right-4 lg:right-6 top-1/2 -translate-y-1/2 rounded-full bg-white/15 backdrop-blur-md hover:bg-white/25 p-3 lg:p-4 focus-visible:ring-2 z-30 hidden lg:flex items-center justify-center transition-all"
-              onClick={(e) => { e.stopPropagation(); go(1); }}
-            >
-              <ChevronRightIcon className="h-7 w-7" />
-            </button>
           </div>
         </div>
       )}

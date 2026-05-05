@@ -193,20 +193,30 @@ export const timelineFormSchema = z.object({
 });
 
 export const featuredFormSchema = z.object({
-  title: z.string().min(3, "Le titre doit avoir au moins 3 caractères"),
-  subtitle: z.string().min(10, "Le sous-titre doit avoir au moins 10 caractères"),
-  imageUrl: z.string().min(1, "Une image est requise").refine(
-    v => v.startsWith('data:') || v.startsWith('http://') || v.startsWith('https://') || v.startsWith('/'),
-    { message: "URL invalide — utilisez https:// ou chargez un fichier" }
+  // Source
+  sourceType: z.enum(['event', 'story', 'module']),
+  eventId:    z.string().uuid().nullable().optional(),
+  storyId:    z.string().uuid().nullable().optional(),
+  moduleId:   z.string().uuid().nullable().optional(),
+  // Overrides éditoriaux (facultatifs — hérite de la source si absent)
+  titleOverride:    z.string().min(3, "Titre trop court").nullable().optional().or(z.literal('')).transform(v => v || null),
+  subtitleOverride: z.string().nullable().optional().or(z.literal('')).transform(v => v || null),
+  imageUrlOverride: z.string().nullable().optional().refine(
+    v => !v || v.startsWith('data:') || v.startsWith('http://') || v.startsWith('https://') || v.startsWith('/'),
+    { message: "URL invalide" }
   ),
-  eventId: z.string().nullable().optional(),
-  ctaLabel: z.string().min(3, "Le texte du bouton doit avoir au moins 3 caractères"),
-  ctaTo: z.string().min(3, "La destination (module ou parcours) est requise"),
-  active: z.boolean().default(true),
+  // CTA & planification
+  ctaLabel:  z.string().min(2, "Le texte du bouton est requis"),
+  ctaTo:     z.string().min(2, "La destination est requise"),
+  active:    z.boolean().default(true),
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Format : AAAA-MM-JJ"),
-  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Format : AAAA-MM-JJ"),
-  order: z.coerce.number().int().min(0)
-}).refine(data => !data.startDate || !data.endDate || data.endDate >= data.startDate, {
+  endDate:   z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Format : AAAA-MM-JJ"),
+  order:     z.coerce.number().int().min(0),
+}).refine(data => {
+  const sources = [data.eventId, data.storyId, data.moduleId].filter(Boolean);
+  return sources.length === 1;
+}, { message: "Sélectionnez une source (événement, récit ou module)", path: ["sourceType"] })
+.refine(data => !data.startDate || !data.endDate || data.endDate >= data.startDate, {
   message: "La date de fin doit être après la date de début",
   path: ["endDate"],
 });
