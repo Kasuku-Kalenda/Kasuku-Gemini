@@ -16,7 +16,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentView, navigateT
   return (
     <div className="min-h-screen flex flex-col">
       <TopBar currentView={currentView} navigateTo={navigateTo} />
-      <main className="flex-grow container mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-bottom-nav md:pb-8">
+      <main className="flex-grow w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-bottom-nav md:pb-8">
         {children}
       </main>
       <Footer />

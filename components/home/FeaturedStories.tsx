@@ -187,9 +187,22 @@ export function FeaturedStories({
   }
 
   // Navigation helpers
-  const handleCta = (slug: string) => {
+  // Extrait le slug depuis un chemin type "/events/mon-slug" → "mon-slug"
+  const slugFromPath = (path: string) => path.split('/').filter(Boolean).pop() ?? path;
+
+  const handleCta = (item: FeaturedStory) => {
     setOpen(false);
-    onNavigateToModule(slug);
+    if (item.sourceType === 'event') {
+      // Événement → onNavigateToEvent avec juste le slug
+      const slug = item.eventSlug ?? slugFromPath(item.ctaTo);
+      onNavigateToEvent(slug);
+    } else {
+      // Module ou récit → onNavigateToModule avec le slug sans préfixe
+      const slug = item.sourceType === 'story'
+        ? (item.storySlug  ?? slugFromPath(item.ctaTo))
+        : (item.moduleSlug ?? slugFromPath(item.ctaTo));
+      onNavigateToModule(slug);
+    }
   };
   const handleViewEvent = (slug: string) => {
     setOpen(false);
@@ -220,10 +233,14 @@ export function FeaturedStories({
             {items.length}
           </span>
         </div>
-        <span className="text-[10px] text-muted-foreground italic">Appuyez pour découvrir →</span>
+        <span className="hidden sm:block text-[10px] text-muted-foreground italic">Cliquez pour découvrir →</span>
       </div>
 
       {/* ── Portrait cards row ───────────────────────────────────────────────── */}
+      <div className="relative">
+        {/* Fade-out à droite — signal "il y en a d'autres" */}
+        <div className="absolute right-0 top-0 bottom-0 w-16 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none" />
+
       <div
         className="flex items-stretch gap-3 overflow-x-auto py-2 -mx-4 px-4 no-scrollbar"
         aria-label="Contenus à la une"
@@ -237,7 +254,7 @@ export function FeaturedStories({
               type="button"
               onClick={() => openAt(i)}
               className="shrink-0 group relative flex flex-col outline-none focus-visible:ring-2 ring-primary ring-offset-2"
-              style={{ width: 'clamp(90px, 22vw, 130px)' }}
+              style={{ width: 'clamp(90px, 15vw, 160px)' }}
               aria-label={`Ouvrir : ${item.title}`}
             >
               <div
@@ -274,9 +291,10 @@ export function FeaturedStories({
           );
         })}
 
-        {/* Fade-out hint on the right */}
-        <div className="shrink-0 w-4 pointer-events-none" />
+        {/* Espace à droite pour que le fade soit visible */}
+        <div className="shrink-0 w-8 pointer-events-none" />
       </div>
+      </div>{/* fin .relative */}
 
       {/* ── Fullscreen story viewer ──────────────────────────────────────────── */}
       {open && (
@@ -415,7 +433,7 @@ export function FeaturedStories({
                     <Button
                       size="lg"
                       className="rounded-full px-8 sm:px-10 py-6 sm:py-8 h-auto font-black uppercase tracking-[0.15em] text-[11px] bg-white text-black hover:bg-zinc-200 transition-transform active:scale-95 shadow-xl"
-                      onClick={(e) => { e.stopPropagation(); handleCta(cur.ctaTo); }}
+                      onClick={(e) => { e.stopPropagation(); handleCta(cur); }}
                     >
                       {typeKey === 'module' && <GraduationCapIcon className="h-4 w-4 mr-2 sm:mr-3" />}
                       {typeKey === 'timeline' && <TimelineIcon className="h-4 w-4 mr-2 sm:mr-3" />}
