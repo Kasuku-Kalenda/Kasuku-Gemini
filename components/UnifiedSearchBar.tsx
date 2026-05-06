@@ -1,5 +1,5 @@
 
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback, useId } from 'react';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from './ui/Sheet';
@@ -25,7 +25,13 @@ interface UnifiedSearchBarProps {
   filters: Filters;
   onFiltersChange: (filters: Filters) => void;
   onSuggestionSelect: (event: Event) => void;
-};
+  /** Appelé quand l'utilisateur valide une année pour sauter le calendrier */
+  onNavigateToYear?: (year: number) => void;
+  /** Nombre d'événements dans les résultats filtrés (pour le compteur) */
+  resultCount?: number;
+}
+
+// ─── FilterPopover compact ────────────────────────────────────────────────────
 
 interface FilterPopoverProps {
   triggerLabel: string;
@@ -36,67 +42,113 @@ interface FilterPopoverProps {
   placeholder: string;
 }
 
-const FilterPopover: React.FC<FilterPopoverProps> = ({ triggerLabel, icon, options, selectedValue, onSelect, placeholder }) => {
-  const [isOpen, setIsOpen] = React.useState(false);
-  const [filter, setFilter] = React.useState('');
-  const popoverRef = React.useRef<HTMLDivElement>(null);
+const FilterPopover: React.FC<FilterPopoverProps> = ({
+  triggerLabel, icon, options, selectedValue, onSelect, placeholder,
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [filter, setFilter] = useState('');
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const inputRef   = useRef<HTMLInputElement>(null);
 
-  React.useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (popoverRef.current && !popoverRef.current.contains(event.target as Node)) {
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
         setIsOpen(false);
+        setFilter('');
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const filteredOptions = options.filter(opt => opt.label.toLowerCase().includes(filter.toLowerCase()));
+  useEffect(() => {
+    if (isOpen) setTimeout(() => inputRef.current?.focus(), 50);
+  }, [isOpen]);
+
+  const filteredOptions = options.filter(opt =>
+    opt.label.toLowerCase().includes(filter.toLowerCase())
+  );
 
   const handleSelect = (value: string) => {
     onSelect(value);
     setIsOpen(false);
+    setFilter('');
   };
 
-  const selectedLabel = selectedValue ? options.find(o => o.value === selectedValue)?.label : triggerLabel;
+  const selectedLabel = selectedValue
+    ? options.find(o => o.value === selectedValue)?.label ?? triggerLabel
+    : triggerLabel;
+
+  const isActive = !!selectedValue;
 
   return (
     <div ref={popoverRef} className="relative">
-      <Button
-        variant="ghost"
-        className="gap-1 rounded-full px-2.5 py-1.5 h-auto text-xs no-min-h"
-        onClick={() => setIsOpen(!isOpen)}
+      <button
+        type="button"
+        onClick={() => setIsOpen(v => !v)}
+        className={`no-min-h inline-flex items-center gap-1 rounded-full px-2.5 py-1.5 text-xs font-bold transition-all border ${
+          isActive
+            ? 'bg-primary text-white border-primary shadow-sm'
+            : 'bg-card text-muted-foreground border-border hover:border-primary/40 hover:text-secondary'
+        }`}
       >
         <span className="shrink-0">{icon}</span>
-        <span className="truncate max-w-[52px]">{selectedLabel}</span>
-        {selectedValue && (
-          <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-primary ml-0.5" />
+        <span className="truncate max-w-[56px]">{selectedLabel}</span>
+        {isActive && (
+          <span
+            className="shrink-0 w-3.5 h-3.5 rounded-full bg-white/25 flex items-center justify-center hover:bg-white/40 transition-colors"
+            onClick={e => { e.stopPropagation(); onSelect(''); }}
+            role="button"
+            aria-label="Supprimer le filtre"
+          >
+            <svg className="h-2 w-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+              <path d="M18 6 6 18M6 6l12 12" strokeLinecap="round"/>
+            </svg>
+          </span>
         )}
-      </Button>
+      </button>
+
       {isOpen && (
-        <div className="absolute top-full mt-2 w-64 bg-card border rounded-md shadow-lg z-20 p-2">
-          <Input 
-            placeholder={placeholder} 
-            value={filter} 
-            onChange={e => setFilter(e.target.value)} 
-            className="mb-2"
-          />
-          <ul className="max-h-60 overflow-y-auto text-sm">
-            <li 
-              className="px-2 py-1.5 rounded-md hover:bg-muted cursor-pointer"
+        <div className="absolute top-full left-0 mt-2 w-64 bg-card border border-border rounded-2xl shadow-xl z-30 overflow-hidden">
+          <div className="p-2 border-b border-border">
+            <Input
+              ref={inputRef}
+              placeholder={placeholder}
+              value={filter}
+              onChange={e => setFilter(e.target.value)}
+              className="h-8 text-sm"
+            />
+          </div>
+          <ul className="max-h-52 overflow-y-auto py-1">
+            <li
+              className="px-3 py-2 text-sm text-muted-foreground hover:bg-muted cursor-pointer rounded-lg mx-1 flex items-center gap-2"
               onClick={() => handleSelect('')}
             >
+              <span className="w-4 h-4 rounded-full border-2 border-border" />
               Tous
             </li>
             {filteredOptions.map(opt => (
-              <li 
-                key={opt.value} 
-                className="px-2 py-1.5 rounded-md hover:bg-muted cursor-pointer truncate"
+              <li
+                key={opt.value}
+                className={`px-3 py-2 text-sm cursor-pointer rounded-lg mx-1 flex items-center gap-2 ${
+                  opt.value === selectedValue
+                    ? 'bg-primary/10 text-primary font-bold'
+                    : 'hover:bg-muted'
+                }`}
                 onClick={() => handleSelect(opt.value)}
               >
-                {opt.label}
+                {opt.value === selectedValue
+                  ? <span className="w-4 h-4 rounded-full bg-primary flex items-center justify-center">
+                      <svg className="h-2.5 w-2.5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    </span>
+                  : <span className="w-4 h-4 rounded-full border-2 border-border" />
+                }
+                <span className="truncate">{opt.label}</span>
               </li>
             ))}
+            {filteredOptions.length === 0 && (
+              <li className="px-3 py-4 text-sm text-muted-foreground text-center">Aucun résultat</li>
+            )}
           </ul>
         </div>
       )}
@@ -104,49 +156,78 @@ const FilterPopover: React.FC<FilterPopoverProps> = ({ triggerLabel, icon, optio
   );
 };
 
-export function UnifiedSearchBar({ themes, countries, allEvents, filters, onFiltersChange, onSuggestionSelect }: UnifiedSearchBarProps) {
-  const [suggestions, setSuggestions] = useState<Event[]>([]);
+// ─── Chip filtre actif ─────────────────────────────────────────────────────────
+
+const FilterChip: React.FC<{ label: string; onRemove: () => void }> = ({ label, onRemove }) => (
+  <span className="inline-flex items-center gap-1 bg-primary/10 text-primary text-[11px] font-bold px-2.5 py-1 rounded-full">
+    {label}
+    <button
+      type="button"
+      onClick={onRemove}
+      className="no-min-h w-3.5 h-3.5 rounded-full bg-primary/20 hover:bg-primary/40 flex items-center justify-center transition-colors ml-0.5"
+      aria-label="Supprimer"
+    >
+      <svg className="h-2 w-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+        <path d="M18 6 6 18M6 6l12 12" strokeLinecap="round"/>
+      </svg>
+    </button>
+  </span>
+);
+
+// ─── Composant principal ──────────────────────────────────────────────────────
+
+export function UnifiedSearchBar({
+  themes, countries, allEvents, filters, onFiltersChange,
+  onSuggestionSelect, onNavigateToYear, resultCount,
+}: UnifiedSearchBarProps) {
+  const [suggestions, setSuggestions]           = useState<Event[]>([]);
   const [isSuggestionsVisible, setIsSuggestionsVisible] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const [isSheetOpen, setIsSheetOpen]           = useState(false);
+  const [yearInput, setYearInput]               = useState(filters.year);
+
   const searchContainerRef = useRef<HTMLDivElement>(null);
-  const [isSheetOpen, setIsSheetOpen] = useState(false);
-  
-  // Mobile filters use local state until applied
-  const [mobileFilters, setMobileFilters] = useState<Filters>(filters);
+  const inputRef           = useRef<HTMLInputElement>(null);
+  const listboxId          = useId();
 
-  useEffect(() => {
-    setMobileFilters(filters);
-  }, [filters]);
+  // Sync yearInput ← filters.year (ex : quand on efface les filtres)
+  useEffect(() => { setYearInput(filters.year); }, [filters.year]);
 
+  // Fermer suggestions au clic dehors
   useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "/" && (e.target as HTMLElement)?.tagName !== "INPUT") {
-        e.preventDefault();
-        (document.getElementById("unified-search-input") as HTMLInputElement)?.focus();
-      }
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (searchContainerRef.current && !searchContainerRef.current.contains(event.target as Node)) {
+    const handler = (e: MouseEvent) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
         setIsSuggestionsVisible(false);
+        setHighlightedIndex(-1);
       }
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  const handleQueryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newQuery = e.target.value;
-    onFiltersChange({ ...filters, query: newQuery });
+  // Raccourci clavier "/" pour focus
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === '/' && (e.target as HTMLElement)?.tagName !== 'INPUT') {
+        e.preventDefault();
+        inputRef.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
-    if (newQuery.length > 1) {
-      const filteredSuggestions = allEvents.filter(event =>
-        event.title.toLowerCase().includes(newQuery.toLowerCase())
-      ).slice(0, 5);
-      setSuggestions(filteredSuggestions);
+  // Autocomplete
+  const handleQueryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = e.target.value;
+    onFiltersChange({ ...filters, query: v });
+    setHighlightedIndex(-1);
+    if (v.length > 1) {
+      setSuggestions(
+        allEvents
+          .filter(ev => ev.title.toLowerCase().includes(v.toLowerCase()))
+          .slice(0, 6)
+      );
       setIsSuggestionsVisible(true);
     } else {
       setSuggestions([]);
@@ -154,131 +235,342 @@ export function UnifiedSearchBar({ themes, countries, allEvents, filters, onFilt
     }
   };
 
-  const handleSuggestionClick = (event: Event) => {
-    setSuggestions([]);
+  const handleSuggestionClick = useCallback((event: Event) => {
     setIsSuggestionsVisible(false);
+    setSuggestions([]);
+    setHighlightedIndex(-1);
     onSuggestionSelect(event);
+  }, [onSuggestionSelect]);
+
+  // Navigation clavier dans l'autocomplétion
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!isSuggestionsVisible || suggestions.length === 0) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setHighlightedIndex(i => Math.min(i + 1, suggestions.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlightedIndex(i => Math.max(i - 1, -1));
+    } else if (e.key === 'Enter' && highlightedIndex >= 0) {
+      e.preventDefault();
+      handleSuggestionClick(suggestions[highlightedIndex]);
+    } else if (e.key === 'Escape') {
+      setIsSuggestionsVisible(false);
+      setHighlightedIndex(-1);
+    }
   };
 
-  const years = Array.from({ length: new Date().getFullYear() - 1800 + 1 }, (_, i) => String(new Date().getFullYear() - i));
+  // Navigation par année
+  const commitYear = useCallback((raw: string) => {
+    const y = parseInt(raw, 10);
+    if (raw === '') {
+      onFiltersChange({ ...filters, year: '' });
+    } else if (!isNaN(y) && y >= 1800 && y <= 2100) {
+      onFiltersChange({ ...filters, year: String(y) });
+      onNavigateToYear?.(y);
+    }
+  }, [filters, onFiltersChange, onNavigateToYear]);
 
-  const mobileFilterContent = (
-    <div className="p-4 space-y-6">
-      <div>
-        <label className="text-sm font-bold text-secondary uppercase tracking-wider">Thème</label>
-        <select 
-          value={mobileFilters.theme} 
-          onChange={(e) => setMobileFilters({...mobileFilters, theme: e.target.value})} 
-          className="mt-2 w-full h-12 px-4 border border-border rounded-xl focus:ring-2 focus:ring-primary outline-none transition bg-white text-base"
-        >
-          <option value="">Tous les thèmes</option>
-          {themes.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-        </select>
-      </div>
-       <div>
-        <label className="text-sm font-bold text-secondary uppercase tracking-wider">Pays</label>
-        <select 
-          value={mobileFilters.country} 
-          onChange={(e) => setMobileFilters({...mobileFilters, country: e.target.value})} 
-          className="mt-2 w-full h-12 px-4 border border-border rounded-xl focus:ring-2 focus:ring-primary outline-none transition bg-white text-base"
-        >
-          <option value="">Tous les pays</option>
-          {countries.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
-        </select>
-      </div>
-      <div>
-        <label className="text-sm font-bold text-secondary uppercase tracking-wider">Année</label>
-        <Input 
-          type="number" 
-          placeholder="Ex: 1969" 
-          value={mobileFilters.year} 
-          onChange={e => setMobileFilters({...mobileFilters, year: e.target.value})} 
-          className="mt-2 w-full" 
-        />
-      </div>
-      <Button className="w-full rounded-xl h-12 font-bold" onClick={() => { onFiltersChange(mobileFilters); setIsSheetOpen(false); }}>
-        Appliquer les filtres
-      </Button>
-    </div>
-  );
+  // Filtres actifs
+  const activeFilters = [
+    filters.theme   && { key: 'theme',   label: themes.find(t => t.value === filters.theme)?.label ?? filters.theme },
+    filters.country && { key: 'country', label: countries.find(c => c.value === filters.country)?.label ?? filters.country },
+    filters.year    && { key: 'year',    label: `${filters.year}` },
+  ].filter(Boolean) as { key: string; label: string }[];
+
+  const hasActiveFilters = activeFilters.length > 0;
+
+  const clearAll = () => {
+    onFiltersChange({ ...filters, theme: '', country: '', year: '' });
+    setYearInput('');
+  };
+
+  // Contenu filtres mobile
+  const [mobileFilters, setMobileFilters] = useState<Filters>(filters);
+  useEffect(() => { setMobileFilters(filters); }, [filters]);
 
   return (
     <div
-      className="w-full rounded-2xl border bg-card p-2 flex items-center gap-2 shadow-soft"
+      className="w-full rounded-2xl border bg-card shadow-soft overflow-visible"
       aria-label="Recherche et filtres"
       ref={searchContainerRef}
     >
-      <div className="flex-1 flex items-center gap-2 relative">
-        <SearchIcon className="h-4 w-4 text-muted-foreground ml-2" aria-hidden="true" />
-        <Input
-          id="unified-search-input"
-          value={filters.query}
-          onChange={handleQueryChange}
-          onFocus={() => { if (filters.query.length > 1 && suggestions.length > 0) setIsSuggestionsVisible(true); }}
-          placeholder="Rechercher... (appuyez sur /)"
-          className="border-none shadow-none focus-visible:ring-0 px-0 h-9"
-          aria-label="Rechercher"
-          autoComplete="off"
-          onKeyDown={(e) => { if (e.key === "Enter") setIsSuggestionsVisible(false); }}
-        />
-        {isSuggestionsVisible && suggestions.length > 0 && (
-          <ul className="absolute top-full w-full mt-2 bg-card border rounded-md shadow-lg z-30 max-h-60 overflow-y-auto">
-            {suggestions.map(event => (
-              <li
-                key={event.id}
-                className="px-4 py-3 hover:bg-muted cursor-pointer text-sm"
-                onClick={() => handleSuggestionClick(event)}
-              >
-                {event.title} <span className="text-muted-foreground">({event.year || event.period})</span>
+      {/* ── Ligne principale : champ + filtres desktop ─────────────────────── */}
+      <div className="flex items-center gap-2 p-2">
+
+        {/* Champ de recherche */}
+        <div className="flex-1 flex items-center gap-2 relative min-w-0">
+          <SearchIcon className="h-4 w-4 text-muted-foreground ml-1.5 shrink-0" aria-hidden />
+          <input
+            ref={inputRef}
+            id="unified-search-input"
+            type="text"
+            role="combobox"
+            aria-expanded={isSuggestionsVisible}
+            aria-controls={listboxId}
+            aria-autocomplete="list"
+            aria-activedescendant={highlightedIndex >= 0 ? `suggestion-${highlightedIndex}` : undefined}
+            value={filters.query}
+            onChange={handleQueryChange}
+            onFocus={() => {
+              if (filters.query.length > 1 && suggestions.length > 0)
+                setIsSuggestionsVisible(true);
+            }}
+            onKeyDown={handleKeyDown}
+            placeholder="Rechercher… (appuyez sur /)"
+            className="flex-1 min-w-0 border-none shadow-none outline-none bg-transparent text-sm h-9 placeholder:text-muted-foreground/60"
+            autoComplete="off"
+          />
+          {filters.query && (
+            <button
+              type="button"
+              onClick={() => {
+                onFiltersChange({ ...filters, query: '' });
+                setSuggestions([]);
+                setIsSuggestionsVisible(false);
+                inputRef.current?.focus();
+              }}
+              className="no-min-h shrink-0 w-5 h-5 rounded-full bg-muted hover:bg-muted/80 flex items-center justify-center text-muted-foreground transition-colors mr-1"
+              aria-label="Effacer la recherche"
+            >
+              <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M18 6 6 18M6 6l12 12" strokeLinecap="round"/>
+              </svg>
+            </button>
+          )}
+
+          {/* Dropdown autocomplétion */}
+          {isSuggestionsVisible && suggestions.length > 0 && (
+            <ul
+              id={listboxId}
+              role="listbox"
+              className="absolute top-[calc(100%+0.5rem)] left-0 right-0 bg-card border border-border rounded-2xl shadow-xl z-40 overflow-hidden"
+            >
+              {suggestions.map((event, i) => (
+                <li
+                  key={event.id}
+                  id={`suggestion-${i}`}
+                  role="option"
+                  aria-selected={i === highlightedIndex}
+                  className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors ${
+                    i === highlightedIndex ? 'bg-primary/10' : 'hover:bg-muted'
+                  } ${i < suggestions.length - 1 ? 'border-b border-border/50' : ''}`}
+                  onMouseDown={e => e.preventDefault()}
+                  onClick={() => handleSuggestionClick(event)}
+                  onMouseEnter={() => setHighlightedIndex(i)}
+                >
+                  {/* Thumbnail */}
+                  <div className="shrink-0 w-9 h-9 rounded-lg overflow-hidden bg-muted">
+                    {event.media?.[0]?.url
+                      ? <img src={event.media[0].url} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      : <div className="w-full h-full bg-primary/10 flex items-center justify-center text-sm">📅</div>
+                    }
+                  </div>
+                  {/* Texte */}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-secondary truncate">{event.title}</p>
+                    <p className="text-[10px] text-muted-foreground">
+                      {event.dateISO ?? event.period}
+                      {event.countryCode ? ` · ${event.countryCode}` : ''}
+                    </p>
+                  </div>
+                  {/* Flèche */}
+                  <svg className="h-4 w-4 text-muted-foreground shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path d="M9 18l6-6-6-6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </li>
+              ))}
+              <li className="px-3 py-2 text-[10px] text-muted-foreground/60 text-center border-t border-border/40">
+                ↑↓ naviguer · Entrée sélectionner · Échap fermer
               </li>
+            </ul>
+          )}
+        </div>
+
+        {/* Séparateur */}
+        <span className="h-5 w-px bg-border shrink-0 hidden sm:block" aria-hidden />
+
+        {/* ── Filtres desktop ──────────────────────────────────────────────── */}
+        <div className="hidden md:flex items-center gap-1 shrink-0">
+          <FilterPopover
+            triggerLabel="Thème"
+            icon={<TagIcon className="h-3.5 w-3.5" />}
+            options={themes}
+            selectedValue={filters.theme}
+            onSelect={v => onFiltersChange({ ...filters, theme: v })}
+            placeholder="Filtrer un thème…"
+          />
+          <FilterPopover
+            triggerLabel="Pays"
+            icon={<GlobeIcon className="h-3.5 w-3.5" />}
+            options={countries}
+            selectedValue={filters.country}
+            onSelect={v => onFiltersChange({ ...filters, country: v })}
+            placeholder="Rechercher un pays…"
+          />
+
+          {/* Année — input numérique compact (saute le calendrier) */}
+          <div className={`relative inline-flex items-center gap-1 rounded-full px-2.5 py-1.5 border text-xs font-bold transition-all ${
+            filters.year
+              ? 'bg-primary text-white border-primary shadow-sm'
+              : 'bg-card text-muted-foreground border-border hover:border-primary/40'
+          }`}>
+            <CalendarIcon className="h-3.5 w-3.5 shrink-0" />
+            <input
+              type="number"
+              value={yearInput}
+              onChange={e => setYearInput(e.target.value)}
+              onBlur={e => commitYear(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') { commitYear(yearInput); (e.target as HTMLInputElement).blur(); } }}
+              placeholder="Année"
+              min={1800}
+              max={2100}
+              className={`w-14 bg-transparent border-none outline-none text-xs font-bold placeholder:font-normal ${
+                filters.year ? 'placeholder:text-white/60' : 'placeholder:text-muted-foreground/60'
+              }`}
+              aria-label="Filtrer par année (appuyez sur Entrée)"
+            />
+            {filters.year && (
+              <button
+                type="button"
+                onClick={() => { setYearInput(''); onFiltersChange({ ...filters, year: '' }); }}
+                className="no-min-h w-3.5 h-3.5 rounded-full bg-white/25 hover:bg-white/40 flex items-center justify-center transition-colors"
+                aria-label="Effacer l'année"
+              >
+                <svg className="h-2 w-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                  <path d="M18 6 6 18M6 6l12 12" strokeLinecap="round"/>
+                </svg>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Bouton filtres mobile avec badge */}
+        <Sheet>
+          <SheetTrigger asChild>
+            <button
+              type="button"
+              onClick={() => setIsSheetOpen(true)}
+              className={`md:hidden no-min-h relative inline-flex items-center gap-1.5 rounded-2xl border px-3 py-2 text-sm font-bold transition-all ${
+                hasActiveFilters
+                  ? 'bg-primary text-white border-primary'
+                  : 'bg-card text-secondary border-border hover:border-primary/40'
+              }`}
+            >
+              <SlidersHorizontalIcon className="h-4 w-4" />
+              <span>Filtres</span>
+              {hasActiveFilters && (
+                <span className="w-5 h-5 rounded-full bg-white/25 text-[10px] font-black flex items-center justify-center">
+                  {activeFilters.length}
+                </span>
+              )}
+            </button>
+          </SheetTrigger>
+          <SheetContent isOpen={isSheetOpen} onClose={() => setIsSheetOpen(false)} side="bottom" className="h-auto rounded-t-2xl">
+            <SheetHeader className="mb-2">
+              <SheetTitle>Filtres</SheetTitle>
+            </SheetHeader>
+            <div className="p-4 space-y-5">
+              <div>
+                <label className="text-xs font-black text-secondary uppercase tracking-wider">Thème</label>
+                <select
+                  value={mobileFilters.theme}
+                  onChange={e => setMobileFilters(f => ({ ...f, theme: e.target.value }))}
+                  className="mt-2 w-full h-11 px-4 border border-border rounded-xl bg-white text-sm focus:outline-none"
+                >
+                  <option value="">Tous les thèmes</option>
+                  {themes.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-black text-secondary uppercase tracking-wider">Pays</label>
+                <select
+                  value={mobileFilters.country}
+                  onChange={e => setMobileFilters(f => ({ ...f, country: e.target.value }))}
+                  className="mt-2 w-full h-11 px-4 border border-border rounded-xl bg-white text-sm focus:outline-none"
+                >
+                  <option value="">Tous les pays</option>
+                  {countries.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-black text-secondary uppercase tracking-wider">Année</label>
+                <Input
+                  type="number"
+                  placeholder="Ex : 1969"
+                  value={mobileFilters.year}
+                  onChange={e => setMobileFilters(f => ({ ...f, year: e.target.value }))}
+                  className="mt-2 w-full"
+                  min={1800}
+                  max={2100}
+                />
+              </div>
+              <div className="flex gap-2">
+                {hasActiveFilters && (
+                  <Button
+                    variant="outline"
+                    className="flex-1 rounded-xl h-11 font-bold"
+                    onClick={() => {
+                      setMobileFilters({ query: filters.query, theme: '', country: '', year: '' });
+                    }}
+                  >
+                    Effacer tout
+                  </Button>
+                )}
+                <Button
+                  className="flex-1 rounded-xl h-11 font-bold"
+                  onClick={() => {
+                    onFiltersChange(mobileFilters);
+                    if (mobileFilters.year) {
+                      const y = parseInt(mobileFilters.year, 10);
+                      if (!isNaN(y)) onNavigateToYear?.(y);
+                    }
+                    setIsSheetOpen(false);
+                  }}
+                >
+                  Appliquer
+                </Button>
+              </div>
+            </div>
+          </SheetContent>
+        </Sheet>
+      </div>
+
+      {/* ── Chips des filtres actifs + compteur ──────────────────────────────── */}
+      {(hasActiveFilters || resultCount !== undefined) && (
+        <div className="flex items-center justify-between flex-wrap gap-2 px-3 pb-2.5 pt-0.5 border-t border-border/40">
+
+          {/* Chips */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            {activeFilters.map(f => (
+              <FilterChip
+                key={f.key}
+                label={f.label}
+                onRemove={() => {
+                  onFiltersChange({ ...filters, [f.key]: '' });
+                  if (f.key === 'year') setYearInput('');
+                }}
+              />
             ))}
-          </ul>
-        )}
-      </div>
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={clearAll}
+                className="no-min-h text-[11px] text-muted-foreground hover:text-secondary font-bold px-2 py-0.5 rounded-full hover:bg-muted transition-colors"
+              >
+                Tout effacer
+              </button>
+            )}
+          </div>
 
-      <span className="h-6 w-px bg-border hidden sm:block" aria-hidden="true" />
-
-      <div className="hidden md:flex items-center gap-0.5">
-        <FilterPopover 
-          triggerLabel="Thème"
-          icon={<TagIcon className="h-4 w-4" />}
-          options={themes}
-          selectedValue={filters.theme}
-          onSelect={(value) => onFiltersChange({...filters, theme: value})}
-          placeholder="Filtrer un thème..."
-        />
-        <FilterPopover 
-          triggerLabel="Pays"
-          icon={<GlobeIcon className="h-4 w-4" />}
-          options={countries}
-          selectedValue={filters.country}
-          onSelect={(value) => onFiltersChange({...filters, country: value})}
-          placeholder="Rechercher un pays..."
-        />
-        <FilterPopover 
-          triggerLabel="Année"
-          icon={<CalendarIcon className="h-4 w-4" />}
-          options={years.map(y => ({label: y, value: y}))}
-          selectedValue={filters.year}
-          onSelect={(value) => onFiltersChange({...filters, year: value})}
-          placeholder="Filtrer par année..."
-        />
-      </div>
-
-      <Sheet>
-        <SheetTrigger asChild>
-          <Button variant="outline" size="sm" className="md:hidden rounded-2xl gap-2" onClick={() => setIsSheetOpen(true)}>
-            <SlidersHorizontalIcon className="h-4 w-4" />
-            Filtres
-          </Button>
-        </SheetTrigger>
-        <SheetContent isOpen={isSheetOpen} onClose={() => setIsSheetOpen(false)} side="bottom" className="h-auto rounded-t-2xl">
-          <SheetHeader className="mb-2">
-            <SheetTitle>Filtres</SheetTitle>
-          </SheetHeader>
-          {mobileFilterContent}
-        </SheetContent>
-      </Sheet>
+          {/* Compteur résultats */}
+          {resultCount !== undefined && (
+            <span className="text-[11px] text-muted-foreground font-medium ml-auto">
+              {resultCount} événement{resultCount !== 1 ? 's' : ''}
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 }

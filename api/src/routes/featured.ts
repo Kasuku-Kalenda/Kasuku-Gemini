@@ -36,9 +36,9 @@ const SELECT_FEATURED = sql`
     fi.created_at        AS "createdAt",
     fi.updated_at        AS "updatedAt",
 
-    -- Titre fusionné
+    -- Titre fusionné (NULLIF pour ignorer les chaînes vides)
     COALESCE(
-      fi.title_override,
+      NULLIF(fi.title_override, ''),
       e.title,
       s.title,
       m.title
@@ -46,32 +46,52 @@ const SELECT_FEATURED = sql`
 
     -- Sous-titre fusionné
     COALESCE(
-      fi.subtitle_override,
+      NULLIF(fi.subtitle_override, ''),
       e.summary,
       s.summary,
       m.summary
     ) AS subtitle,
 
-    -- Image fusionnée
+    -- Image fusionnée (NULLIF gère les chaînes vides comme NULL)
     COALESCE(
-      fi.image_url_override,
+      NULLIF(fi.image_url_override, ''),
       (SELECT med.url FROM event_media em JOIN media med ON med.id = em.media_id
        WHERE em.event_id = e.id AND em.is_cover = true LIMIT 1),
-      s.cover_url,
-      m.thumbnail_url
+      (SELECT med.url FROM event_media em JOIN media med ON med.id = em.media_id
+       WHERE em.event_id = e.id LIMIT 1),
+      NULLIF(s.cover_url, ''),
+      (SELECT med.url FROM story_media sm JOIN media med ON med.id = sm.media_id
+       WHERE sm.story_id = s.id AND sm.is_cover = true LIMIT 1),
+      (SELECT med.url FROM story_events se
+       JOIN event_media em ON em.event_id = se.event_id AND em.is_cover = true
+       JOIN media med ON med.id = em.media_id
+       WHERE se.story_id = s.id LIMIT 1),
+      NULLIF(m.thumbnail_url, '')
     ) AS "imageUrl",
 
     -- Infos source (pour le formulaire)
     e.slug               AS "eventSlug",
     e.title              AS "eventTitle",
     e.summary            AS "eventSummary",
-    (SELECT med.url FROM event_media em JOIN media med ON med.id = em.media_id
-     WHERE em.event_id = e.id AND em.is_cover = true LIMIT 1) AS "eventImageUrl",
+    COALESCE(
+      (SELECT med.url FROM event_media em JOIN media med ON med.id = em.media_id
+       WHERE em.event_id = e.id AND em.is_cover = true LIMIT 1),
+      (SELECT med.url FROM event_media em JOIN media med ON med.id = em.media_id
+       WHERE em.event_id = e.id LIMIT 1)
+    ) AS "eventImageUrl",
 
     s.slug               AS "storySlug",
     s.title              AS "storyTitle",
     s.summary            AS "storySummary",
-    s.cover_url          AS "storyImageUrl",
+    COALESCE(
+      NULLIF(s.cover_url, ''),
+      (SELECT med.url FROM story_media sm JOIN media med ON med.id = sm.media_id
+       WHERE sm.story_id = s.id AND sm.is_cover = true LIMIT 1),
+      (SELECT med.url FROM story_events se
+       JOIN event_media em ON em.event_id = se.event_id AND em.is_cover = true
+       JOIN media med ON med.id = em.media_id
+       WHERE se.story_id = s.id LIMIT 1)
+    ) AS "storyImageUrl",
 
     m.slug               AS "moduleSlug",
     m.title              AS "moduleTitle",

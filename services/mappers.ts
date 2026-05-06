@@ -7,6 +7,7 @@
  */
 
 import type { Event, TrainingModule, Media, Source } from '../types';
+import { normalizeMediaUrl } from '../utils/helpers';
 
 // ─── Événement ────────────────────────────────────────────────────────────────
 
@@ -27,12 +28,12 @@ export function mapApiEvent(raw: Record<string, unknown>): Event {
     ? rawMediaItems.map(m => ({
         id:      m.id,
         type:    (m.type === 'video' ? 'video' : 'image') as 'image' | 'video',
-        url:     m.url,
+        url:     normalizeMediaUrl(m.url) ?? m.url,
         caption: m.caption  ?? undefined,
         credit:  m.credit   ?? undefined,
       }))
     : thumbnailUrl
-      ? [{ type: 'image' as const, url: thumbnailUrl }]
+      ? [{ type: 'image' as const, url: normalizeMediaUrl(thumbnailUrl) ?? thumbnailUrl }]
       : [];
 
   // Sources : construit depuis sourceLabel / sourceUrl (source unique sur les events)

@@ -8,11 +8,10 @@
 
 import { api } from './apiClient';
 import { mapApiEvent } from './mappers';
+import { normalizeMediaUrl } from '../utils/helpers';
 import type { Event, Theme, TrainingModule, FeaturedStory, TimelineNarrative } from '../types';
 
 interface PaginatedResponse<T> { items: T[]; page: number; totalPages: number; totalItems: number; }
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const COUNTRY_NAMES: Record<string, string> = {
   US: 'United States', GB: 'United Kingdom', DE: 'Germany', IT: 'Italy',
@@ -125,11 +124,14 @@ export const getCountries = async (): Promise<{ code: string; name: string }[]> 
 
 export const getFeaturedItems = async (_limit = 12): Promise<FeaturedStory[]> => {
   const raw = await api.get<any[]>('/featured');
-  return raw.map((item: any) => ({
+  return raw.map((item: any) => {
+    // Chaîne vide = pas d'image ; utilise les champs source comme fallback
+    const rawImageUrl = item.imageUrl || item.eventImageUrl || item.storyImageUrl || item.moduleImageUrl;
+    return {
     id:          item.id,
     title:       item.title,
     subtitle:    item.subtitle,
-    imageUrl:    item.imageUrl,
+    imageUrl:    normalizeMediaUrl(rawImageUrl),
     sourceType:  item.sourceType,
     eventSlug:   item.eventSlug  ?? null,
     storySlug:   item.storySlug  ?? null,
@@ -142,5 +144,6 @@ export const getFeaturedItems = async (_limit = 12): Promise<FeaturedStory[]> =>
                      : null,
     ctaLabel:    item.ctaLabel,
     ctaTo:       item.ctaTo,
-  }));
+    };
+  });
 };

@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ChevronLeftIcon } from '../icons/ChevronLeftIcon';
 import { ChevronRightIcon } from '../icons/ChevronRightIcon';
 import { TimelineIcon } from '../icons/TimelineIcon';
@@ -15,6 +15,8 @@ type CalendarProps = {
   className?: string;
   eventsByDayOfYear?: Record<string, Event[]>; // Expects "MM-DD" keys
   onMonthChange?: (date: Date) => void;
+  /** Mois affiché contrôlé depuis l'extérieur (navigation par année depuis la recherche) */
+  month?: Date;
 };
 
 /** Résout la couleur d'un thème : priorité à la propriété .color (API),
@@ -31,8 +33,19 @@ export const Calendar: React.FC<CalendarProps> = ({
   className,
   eventsByDayOfYear,
   onMonthChange,
+  month,
 }) => {
-  const [currentDate, setCurrentDate] = useState(selected || new Date());
+  const [currentDate, setCurrentDate] = useState(month || selected || new Date());
+  // Ref pour distinguer les changements internes (user) des changements externes (prop `month`)
+  const isExternalUpdate = useRef(false);
+
+  // Prop `month` contrôlé depuis l'extérieur — ne pas reboucler vers onMonthChange
+  useEffect(() => {
+    if (month) {
+      isExternalUpdate.current = true;
+      setCurrentDate(month);
+    }
+  }, [month]);
 
   useEffect(() => {
     if (selected) {
@@ -40,12 +53,18 @@ export const Calendar: React.FC<CalendarProps> = ({
         selected.getUTCFullYear() !== currentDate.getUTCFullYear() ||
         selected.getUTCMonth() !== currentDate.getUTCMonth()
       ) {
+        isExternalUpdate.current = true;
         setCurrentDate(new Date(selected));
       }
     }
   }, [selected]);
 
+  // N'appelle onMonthChange que pour les changements initiés par l'utilisateur (prev/next, selects)
   useEffect(() => {
+    if (isExternalUpdate.current) {
+      isExternalUpdate.current = false;
+      return;
+    }
     onMonthChange?.(currentDate);
   }, [currentDate, onMonthChange]);
 

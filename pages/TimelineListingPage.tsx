@@ -105,13 +105,24 @@ export const TimelineListingPage: React.FC<TimelineListingPageProps> = ({ onSele
   );
 
   return (
-    <div className="pb-16 md:pb-4 space-y-0">
+    <div className="pb-16 md:pb-4 space-y-4">
+
+      {/* ── En-tête mobile (masqué sur desktop) ──────────────────────────────── */}
+      <div className="lg:hidden space-y-1 pt-1">
+        <div className="inline-flex items-center gap-2 text-primary bg-primary/5 px-4 py-1.5 rounded-full">
+          <TimelineIcon className="h-3.5 w-3.5" />
+          <span className="text-[10px] font-black uppercase tracking-[0.25em]">Histoires Narratives</span>
+        </div>
+        <h1 className="text-3xl font-black text-secondary leading-tight">
+          Bibliothèque de <span className="text-primary">Récits</span>
+        </h1>
+      </div>
 
       {/* ── 2-column layout on desktop ─────────────────────────────────────── */}
       <div className="lg:grid lg:grid-cols-[320px_1fr] lg:gap-6 lg:items-start space-y-4 lg:space-y-0">
 
-        {/* ── COLONNE GAUCHE — Header + contrôles (sticky) ─────────────────── */}
-        <div className="lg:sticky lg:top-4 space-y-4">
+        {/* ── COLONNE GAUCHE — Header + contrôles (sticky) — desktop only ── */}
+        <div className="hidden lg:block lg:sticky lg:top-4 space-y-4">
 
           {/* En-tête */}
           <div className="bg-card rounded-2xl shadow-soft p-5 space-y-4">
