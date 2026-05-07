@@ -502,6 +502,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onViewEvent, navigateToModul
   const shortsPageRef                       = useRef(1);
   const shortsReturnIndex                   = useRef<number | null>(null);
   const [canReturnToShorts, setCanReturnToShorts] = useState(false);
+  const [shortsLastEvent, setShortsLastEvent] = useState<Event | null>(null);
   const { exists, toggle }                  = useFavorites();
   const allEventsRef                        = useRef<Event[]>([]);
 
@@ -600,6 +601,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onViewEvent, navigateToModul
         setShortsStartIndex(shortsReturnIndex.current);
         shortsReturnIndex.current = null;
         setCanReturnToShorts(false);
+        setShortsLastEvent(null);
         setMode('shorts');
       } else {
         setShortsStartIndex(0);
@@ -645,6 +647,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onViewEvent, navigateToModul
             onViewEvent={(e, idx) => {
               shortsReturnIndex.current = idx;
               setCanReturnToShorts(true);
+              setShortsLastEvent(e);
               setMode('discover');
               onViewEvent(e);
             }}
@@ -656,35 +659,78 @@ export const HomePage: React.FC<HomePageProps> = ({ onViewEvent, navigateToModul
         )
       )}
 
-      {/* ── Bouton flottant "Reprendre les Shorts" ─────────────────────────── */}
+      {/* ── Mini player Shorts — style YouTube ────────────────────────────── */}
       <AnimatePresence>
-        {canReturnToShorts && mode === 'discover' && (
-          <motion.button
-            initial={{ opacity: 0, y: 24, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 24, scale: 0.95 }}
-            transition={{ duration: 0.22, ease: 'easeOut' }}
-            onClick={() => handleModeSwitch('shorts')}
-            className="fixed bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2.5 px-5 py-3 rounded-full bg-foreground text-background shadow-xl font-semibold text-sm whitespace-nowrap"
-            style={{ backdropFilter: 'blur(8px)' }}
+        {canReturnToShorts && mode === 'discover' && shortsLastEvent && (
+          <motion.div
+            initial={{ opacity: 0, y: 80 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 80 }}
+            transition={{ type: 'spring', stiffness: 380, damping: 32 }}
+            className="fixed bottom-20 md:bottom-6 left-3 right-3 md:left-auto md:right-6 md:w-80 z-40 rounded-2xl overflow-hidden shadow-2xl border border-white/10"
+            style={{ background: 'rgba(20,20,20,0.97)', backdropFilter: 'blur(12px)' }}
           >
-            {/* Play icon */}
-            <svg className="h-4 w-4 fill-current flex-shrink-0" viewBox="0 0 24 24">
-              <path d="M8 5v14l11-7z" />
-            </svg>
-            Reprendre les Shorts
-            {/* Dismiss */}
-            <span
-              role="button"
-              aria-label="Ignorer"
-              className="ml-1 opacity-50 hover:opacity-100 transition-opacity"
-              onClick={e => { e.stopPropagation(); setCanReturnToShorts(false); shortsReturnIndex.current = null; }}
+            <button
+              className="w-full flex items-center gap-0 text-left group"
+              onClick={() => handleModeSwitch('shorts')}
+              aria-label="Reprendre les Shorts"
             >
-              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              {/* Thumbnail */}
+              <div className="relative flex-shrink-0 w-20 h-16 overflow-hidden">
+                {(shortsLastEvent.thumbnailUrl
+                  ? normalizeMediaUrl(shortsLastEvent.thumbnailUrl)
+                  : shortsLastEvent.media?.[0]?.url)
+                  ? (
+                    <img
+                      src={shortsLastEvent.thumbnailUrl ? normalizeMediaUrl(shortsLastEvent.thumbnailUrl) : shortsLastEvent.media![0].url}
+                      alt={shortsLastEvent.title}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div
+                      className="w-full h-full"
+                      style={{ backgroundColor: ((shortsLastEvent.themes?.[0] as any)?.color ?? '#1a1a2e') }}
+                    />
+                  )
+                }
+                {/* Play overlay */}
+                <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  <svg className="h-6 w-6 fill-white" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                </div>
+              </div>
+
+              {/* Info */}
+              <div className="flex-1 px-3 py-2 min-w-0">
+                <p className="text-[10px] text-white/50 font-medium mb-0.5">Shorts · En pause</p>
+                <p className="text-white text-sm font-semibold leading-snug line-clamp-2">
+                  {shortsLastEvent.title}
+                </p>
+              </div>
+
+              {/* Play button */}
+              <div className="px-3 flex-shrink-0">
+                <div className="w-9 h-9 rounded-full bg-white/10 group-hover:bg-white/20 transition-colors flex items-center justify-center">
+                  <svg className="h-5 w-5 fill-white ml-0.5" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                </div>
+              </div>
+            </button>
+
+            {/* Barre de progression décorative */}
+            <div className="h-0.5 bg-white/10">
+              <div className="h-full bg-primary w-1/3" />
+            </div>
+
+            {/* Fermer */}
+            <button
+              onClick={() => { setCanReturnToShorts(false); setShortsLastEvent(null); shortsReturnIndex.current = null; }}
+              className="absolute top-2 right-2 no-min-h w-5 h-5 rounded-full bg-white/10 hover:bg-white/20 transition-colors flex items-center justify-center"
+              aria-label="Fermer"
+            >
+              <svg className="h-3 w-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
               </svg>
-            </span>
-          </motion.button>
+            </button>
+          </motion.div>
         )}
       </AnimatePresence>
 
