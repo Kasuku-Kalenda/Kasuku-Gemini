@@ -60,6 +60,21 @@ export const getEvents = async (filters: EventFilterOptions = {}): Promise<Event
   return res.items.map(mapApiEvent);
 };
 
+// ─── Événements approximatifs (sans date précise) ────────────────────────────
+
+export const getApproximateEvents = async (
+  filters: { q?: string; theme?: string; country?: string } = {},
+): Promise<Event[]> => {
+  const params = new URLSearchParams();
+  params.set('temporal', 'approximate');
+  params.set('limit', '200');
+  if (filters.q)       params.set('q',       filters.q);
+  if (filters.theme)   params.set('theme',   filters.theme);
+  if (filters.country) params.set('country', filters.country);
+  const res = await api.get<PaginatedResponse<Record<string, unknown>>>(`/events?${params.toString()}`);
+  return res.items.map(mapApiEvent);
+};
+
 // ─── Calendar days (On This Day) ──────────────────────────────────────────────
 // Retourne les comptes d'événements par jour pour un mois donné.
 // Scalable : 1 requête GROUP BY par mois, sans charger les événements complets.

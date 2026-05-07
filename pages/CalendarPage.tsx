@@ -3,13 +3,29 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'motion/react';
 import { Calendar } from '../components/ui/Calendar';
 import { EventCardSkeleton } from '../components/EventCardSkeleton';
-import { getEvents, getCalendarDays, getThemes, getCountries, getFeaturedItems } from '../services/api';
+import { getEvents, getCalendarDays, getApproximateEvents, getThemes, getCountries, getFeaturedItems } from '../services/api';
 import type { CalendarDay } from '../services/api';
 import type { Event, Theme, FeaturedStory } from '../types';
 import { useFavorites } from '../hooks/useFavorites';
 import { formatDate } from '../utils/helpers';
 import { FeaturedStories } from '../components/home/FeaturedStories';
 import { UnifiedSearchBar, Filters } from '../components/UnifiedSearchBar';
+
+// Convertit un numéro de siècle ou décennie en libellé lisible
+// ex: 18 → "XVIIIe siècle", 1960 → "Années 1960", 9 → "IXe siècle"
+function formatEra(n: number): string {
+  if (n === 0) return 'Époque inconnue';
+  if (n >= 1000) return `Années ${n}`; // décennie (ex: 1960)
+  const vals = [1000,900,500,400,100,90,50,40,10,9,5,4,1];
+  const syms = ['M','CM','D','CD','C','XC','L','XL','X','IX','V','IV','I'];
+  let roman = '';
+  let num = Math.abs(n);
+  for (let i = 0; i < vals.length; i++) {
+    while (num >= vals[i]) { roman += syms[i]; num -= vals[i]; }
+  }
+  const suffix = n < 0 ? 'e siècle av. J.-C.' : 'e siècle';
+  return roman + suffix;
+}
 
 interface CalendarPageProps {
   onViewEvent: (event: Event) => void;
@@ -26,8 +42,10 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({
   const [calendarDays, setCalendarDays]     = useState<Record<string, CalendarDay>>({});
   const [eventsForDate, setEventsForDate]   = useState<Event[]>([]);
   const [allEventsCache, setAllEventsCache] = useState<Event[]>([]);
-  const [isLoading, setIsLoading]           = useState(true);
-  const [isLoadingDate, setIsLoadingDate]   = useState(false);
+  const [approximateEvents, setApproximateEvents] = useState<Event[]>([]);
+  const [isLoading, setIsLoading]                 = useState(true);
+  const [isLoadingDate, setIsLoadingDate]          = useState(false);
+  const [approxExpanded, setApproxExpanded]        = useState(false);
   const [themes, setThemes]                 = useState<Theme[]>([]);
   const [countries, setCountries]           = useState<{ code: string; name: string }[]>([]);
   const [filters, setFilters]               = useState<Filters>({ query: '', theme: '', country: '', year: '' });
@@ -84,6 +102,18 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({
     };
   }, [calendarMonth, filters.query, filters.theme, filters.country, filters.year]);
 
+  // ─── Événements approximatifs (sans date exacte) ──────────────────────────
+  useEffect(() => {
+    const t = setTimeout(() => {
+      getApproximateEvents({
+        q:       filters.query   || undefined,
+        theme:   filters.theme   || undefined,
+        country: filters.country || undefined,
+      }).then(setApproximateEvents);
+    }, filters.query ? 300 : 0);
+    return () => clearTimeout(t);
+  }, [filters.query, filters.theme, filters.country]);
+
   // ─── Événements pour la date sélectionnée ─────────────────────────────────
   // Se re-déclenche aussi quand les filtres changent (pour cohérence avec les dots)
   useEffect(() => {
@@ -133,6 +163,19 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({
     () => (Object.values(calendarDays) as CalendarDay[]).reduce((s, d) => s + d.count, 0),
     [calendarDays],
   );
+
+  // ─── Groupement des événements approximatifs par siècle ───────────────────
+  const approximateByEra = useMemo(() => {
+    const groups = new Map<number, Event[]>();
+    for (const evt of approximateEvents) {
+      const key = evt.approxCentury ?? evt.approxDecade ?? 0;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(evt);
+    }
+    return [...groups.entries()]
+      .sort(([a], [b]) => b - a)
+      .map(([era, events]) => ({ era, events }));
+  }, [approximateEvents]);
 
   const formattedDate = selectedDate
     ? formatDate(selectedDate, { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' })
@@ -277,28 +320,133 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({
           </div>
         </div>
 
-        {/* ── COLONNE DROITE — Grand calendrier ─────────────────────────────── */}
-        <div className="bg-card rounded-2xl shadow-soft overflow-hidden">
-          <div className="px-4 pt-4 pb-2 flex items-center justify-between border-b">
-            <h2 className="font-black text-secondary text-sm uppercase tracking-widest">Calendrier</h2>
-            <span className="text-[10px] text-muted-foreground bg-muted/60 rounded-full px-3 py-1">
-              {Object.keys(calendarDays).length} dates ce mois
-            </span>
+        {/* ── COLONNE DROITE — Calendrier + Événements approximatifs ──────── */}
+        <div className="space-y-4">
+
+          {/* Grand calendrier */}
+          <div className="bg-card rounded-2xl shadow-soft overflow-hidden">
+            <div className="px-4 pt-4 pb-2 flex items-center justify-between border-b">
+              <h2 className="font-black text-secondary text-sm uppercase tracking-widest">Calendrier</h2>
+              <span className="text-[10px] text-muted-foreground bg-muted/60 rounded-full px-3 py-1">
+                {Object.keys(calendarDays).length} dates ce mois
+              </span>
+            </div>
+            <div className="p-2 sm:p-4">
+              <Calendar
+                mode="single"
+                selected={selectedDate}
+                onSelect={handleSelectDate}
+                calendarDays={calendarDays}
+                className="w-full"
+                month={calendarMonth}
+                onMonthChange={setCalendarMonth}
+              />
+            </div>
+            <div className="px-4 pb-3 text-center text-muted-foreground text-[10px] border-t pt-2 opacity-50">
+              Cliquez sur une date pour voir les événements historiques.
+            </div>
           </div>
-          <div className="p-2 sm:p-4">
-            <Calendar
-              mode="single"
-              selected={selectedDate}
-              onSelect={handleSelectDate}
-              calendarDays={calendarDays}
-              className="w-full"
-              month={calendarMonth}
-              onMonthChange={setCalendarMonth}
-            />
-          </div>
-          <div className="px-4 pb-3 text-center text-muted-foreground text-[10px] border-t pt-2 opacity-50">
-            Cliquez sur une date pour voir les événements historiques.
-          </div>
+
+          {/* ── Événements sans date précise ────────────────────────────────── */}
+          {approximateByEra.length > 0 && (
+            <div className="bg-card rounded-2xl shadow-soft overflow-hidden">
+              {/* Header cliquable */}
+              <button
+                onClick={() => setApproxExpanded(v => !v)}
+                className="w-full px-4 pt-4 pb-3 flex items-center justify-between border-b hover:bg-muted/30 transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">⏳</span>
+                  <div className="text-left">
+                    <h2 className="font-black text-secondary text-sm uppercase tracking-widest">
+                      Périodes & siècles
+                    </h2>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      {approximateEvents.length} événement{approximateEvents.length > 1 ? 's' : ''} sans date exacte
+                    </p>
+                  </div>
+                </div>
+                <motion.span
+                  animate={{ rotate: approxExpanded ? 180 : 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="text-muted-foreground"
+                >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path d="M19 9l-7 7-7-7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </motion.span>
+              </button>
+
+              {/* Contenu dépliable */}
+              <AnimatePresence initial={false}>
+                {approxExpanded && (
+                  <motion.div
+                    key="approx-content"
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.25, ease: 'easeInOut' }}
+                    className="overflow-hidden"
+                  >
+                    <div className="divide-y">
+                      {approximateByEra.map(({ era, events }) => (
+                        <div key={era}>
+                          {/* Label de période */}
+                          <div className="px-4 py-2 bg-muted/40">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                              {formatEra(era)}
+                            </span>
+                          </div>
+                          {/* Événements de cette période */}
+                          {events.map(event => (
+                            <button
+                              key={event.id}
+                              onClick={() => onViewEvent(event)}
+                              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted/40 transition-colors text-left group"
+                            >
+                              {/* Thumbnail */}
+                              <div className="shrink-0 w-10 h-10 rounded-lg overflow-hidden bg-muted">
+                                {event.media[0]?.url ? (
+                                  <img
+                                    src={event.media[0].url}
+                                    alt={event.title}
+                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                                    referrerPolicy="no-referrer"
+                                  />
+                                ) : (
+                                  <div className="w-full h-full bg-gradient-to-br from-primary/20 to-secondary/20" />
+                                )}
+                              </div>
+                              {/* Texte */}
+                              <div className="flex-1 min-w-0">
+                                <p className="font-bold text-sm text-secondary truncate group-hover:text-primary transition-colors">
+                                  {event.title}
+                                </p>
+                                <p className="text-[10px] text-muted-foreground truncate mt-0.5">
+                                  {event.displayDate || event.period || formatEra(era)}
+                                  {event.countryCode ? ` · ${event.countryCode}` : ''}
+                                </p>
+                              </div>
+                              {/* Thème chip */}
+                              {event.themes?.[0] && (
+                                <span
+                                  className="shrink-0 text-[9px] font-black uppercase tracking-wide px-2 py-0.5 rounded-full text-white"
+                                  style={{ backgroundColor: (event.themes[0] as any).color || '#94a3b8' }}
+                                >
+                                  {event.themes[0].name}
+                                </span>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
+
         </div>
 
       </div>
