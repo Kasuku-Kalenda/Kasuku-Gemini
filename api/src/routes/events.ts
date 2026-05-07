@@ -74,6 +74,7 @@ export async function eventsRoutes(app: FastifyInstance) {
     const month    = q.month ? parseInt(q.month, 10) : null;
     const day      = q.day   ? parseInt(q.day,   10) : null;
     const temporal = q.temporal ?? '';
+    const sortBy   = q.sort?.trim() ?? 'date';
 
     const [{ count }] = await sql`
       SELECT COUNT(*)::int AS count
@@ -124,7 +125,8 @@ export async function eventsRoutes(app: FastifyInstance) {
           WHERE et2.event_id = e.id AND t2.slug = ${theme}
         ))
       GROUP BY e.id, p.name
-      ORDER BY e.start_date DESC NULLS LAST
+      ORDER BY
+        ${sortBy === 'featured' ? sql`e.featured_position ASC NULLS LAST, e.start_date DESC NULLS LAST` : sql`e.start_date DESC NULLS LAST`}
       LIMIT ${pg.limit} OFFSET ${pg.offset}
     `;
 

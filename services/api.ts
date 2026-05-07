@@ -62,6 +62,19 @@ export const getEvents = async (filters: EventFilterOptions = {}): Promise<Event
 
 // ─── Événements approximatifs (sans date précise) ────────────────────────────
 
+export const getCarouselEvents = async (
+  theme: string,
+  query?: string,
+): Promise<Event[]> => {
+  const params = new URLSearchParams();
+  params.set('theme', theme);
+  params.set('limit', '20');
+  params.set('sort', 'featured');
+  if (query) params.set('q', query);
+  const res = await api.get<PaginatedResponse<Record<string, unknown>>>(`/events?${params.toString()}`);
+  return res.items.map(mapApiEvent);
+};
+
 export const getApproximateEvents = async (
   filters: { q?: string; theme?: string; country?: string } = {},
 ): Promise<Event[]> => {
