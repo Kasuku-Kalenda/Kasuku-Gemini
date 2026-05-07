@@ -62,6 +62,7 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({
     const validYear = year && !isNaN(year) ? year : undefined;
 
     const doFetch = () => {
+      setCalendarDays({});
       getCalendarDays(month, {
         q:       filters.query   || undefined,
         theme:   filters.theme   || undefined,
