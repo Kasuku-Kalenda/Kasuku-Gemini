@@ -148,7 +148,7 @@ export async function eventsRoutes(app: FastifyInstance) {
         EXTRACT(DAY FROM e.start_date)::int         AS day,
         COUNT(DISTINCT e.id)::int                   AS count,
         BOOL_OR(se.id IS NOT NULL)                  AS has_timeline,
-        BOOL_OR(em.id IS NOT NULL)                  AS has_module,
+        BOOL_OR(em.module_id IS NOT NULL)           AS has_module,
         ARRAY_AGG(DISTINCT t.color)
           FILTER (WHERE t.color IS NOT NULL)        AS theme_colors
       FROM events e
