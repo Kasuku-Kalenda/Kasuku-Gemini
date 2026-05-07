@@ -1,0 +1,32 @@
+# ─── Deploy PRODUCTION — déclenchement manuel uniquement ─────────────────────
+name: Deploy → Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Tape 'prod' pour confirmer le déploiement en production"
+        required: true
+
+jobs:
+  deploy:
+    name: Deploy to kasuku.afrikia.org
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.confirm == 'prod' }}
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script: |
+            set -e
+            cd /opt/kasuku
+            echo "📥 Pull du dernier code..."
+            git pull origin main
+            cd kasuku-immersive && git pull origin main && cd ..
+            echo "🚀 Build et démarrage production..."
+            docker compose -f docker-compose.coolify.yml --env-file .env.prod up -d --build
+            echo "✅ Production déployée sur https://kasuku.afrikia.org"

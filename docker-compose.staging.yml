@@ -1,21 +1,13 @@
-# ─── Kasuku — Docker Compose STAGING (staging.kasuku.afrikia.org) ─────────────
+# ─── Kasuku — Docker Compose STAGING (staging.kasuku.afrikia.org) ────────────
 #
-# Stack complètement isolée de la prod :
-#   - DB séparée (kasuku_staging_db)
-#   - MinIO bucket séparé (kasuku-staging-media)
-#   - Redis séparé
-#   - Domaine staging.kasuku.afrikia.org
-#
-# Dans Coolify :
-#   Source         : branche `staging`
-#   Compose File   : docker-compose.staging.yml
-#
+# Déploiement automatique via GitHub Actions sur push main.
+# Ne pas utiliser en local — utiliser docker-compose.yml à la place.
 
 name: kasuku-staging
 
 services:
 
-  # ── Kasuku Immersive (Next.js) ─────────────────────────────────────────────
+  # ── Kasuku Immersive (Next.js) ────────────────────────────────────────────
   kasuku-immersive:
     build:
       context: ./kasuku-immersive
@@ -28,11 +20,6 @@ services:
       NEXT_PUBLIC_BASE_URL:    https://staging.kasuku.afrikia.org/immersive
       KASUKU_API_URL:          http://api:4000/api/v1
       PORT:                    3001
-      DB_HOST:                 postgres
-      DB_PORT:                 5432
-      DB_USER:                 ${POSTGRES_USER:-kasuku}
-      DB_PASSWORD:             ${POSTGRES_PASSWORD}
-      DB_NAME:                 ${POSTGRES_DB:-kasuku_staging_db}
     depends_on:
       postgres-migrate:
         condition: service_completed_successfully
@@ -48,7 +35,7 @@ services:
     networks:
       - kasuku-staging-net
 
-  # ── Reverse Proxy ──────────────────────────────────────────────────────────
+  # ── Reverse Proxy ─────────────────────────────────────────────────────────
   nginx:
     image: nginx:1.27-alpine
     labels:
@@ -63,7 +50,7 @@ services:
       - "traefik.http.routers.kasuku-staging-http.middlewares=kasuku-staging-https"
       - "traefik.http.middlewares.kasuku-staging-https.redirectscheme.scheme=https"
     volumes:
-      - ./deploy/nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./deploy/nginx/nginx.staging.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
       frontend:
         condition: service_healthy
@@ -76,7 +63,7 @@ services:
       - kasuku-staging-net
       - coolify
 
-  # ── Frontend (SPA React / Vite) ────────────────────────────────────────────
+  # ── Frontend (SPA React / Vite) ───────────────────────────────────────────
   frontend:
     build:
       context: .
@@ -93,14 +80,14 @@ services:
     networks:
       - kasuku-staging-net
 
-  # ── API (Node.js / Fastify) ────────────────────────────────────────────────
+  # ── API (Node.js / Fastify) ───────────────────────────────────────────────
   api:
     build:
       context: ./api
       dockerfile: Dockerfile
     environment:
       NODE_ENV:               production
-      DATABASE_URL:           postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-kasuku_staging_db}
+      DATABASE_URL:           postgresql://${POSTGRES_USER:-kasuku}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-kasuku_staging_db}
       REDIS_URL:              redis://redis:6379
       JWT_SECRET:             ${JWT_SECRET}
       JWT_EXPIRES_IN:         ${JWT_EXPIRES_IN:-7d}
@@ -133,7 +120,7 @@ services:
     networks:
       - kasuku-staging-net
 
-  # ── PostgreSQL 16 ──────────────────────────────────────────────────────────
+  # ── PostgreSQL ─────────────────────────────────────────────────────────────
   postgres:
     image: postgres:16-alpine
     environment:
@@ -141,7 +128,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB:       ${POSTGRES_DB:-kasuku_staging_db}
     volumes:
-      - pg_data_staging:/var/lib/postgresql/data
+      - pg_staging_data:/var/lib/postgresql/data
       - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-kasuku} -d ${POSTGRES_DB:-kasuku_staging_db}"]
@@ -153,7 +140,7 @@ services:
     networks:
       - kasuku-staging-net
 
-  # ── Migrations PostgreSQL ──────────────────────────────────────────────────
+  # ── Migrations ─────────────────────────────────────────────────────────────
   postgres-migrate:
     image: postgres:16-alpine
     environment:
@@ -175,9 +162,9 @@ services:
   # ── Redis ──────────────────────────────────────────────────────────────────
   redis:
     image: redis:7-alpine
-    command: redis-server --save 60 1 --loglevel warning
+    command: redis-server --loglevel warning
     volumes:
-      - redis_data_staging:/data
+      - redis_staging_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -195,7 +182,7 @@ services:
       MINIO_ROOT_USER:     ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     volumes:
-      - minio_data_staging:/data
+      - minio_staging_data:/data
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 30s
@@ -227,9 +214,9 @@ services:
     restart: on-failure
 
 volumes:
-  pg_data_staging:
-  redis_data_staging:
-  minio_data_staging:
+  pg_staging_data:
+  redis_staging_data:
+  minio_staging_data:
 
 networks:
   kasuku-staging-net:

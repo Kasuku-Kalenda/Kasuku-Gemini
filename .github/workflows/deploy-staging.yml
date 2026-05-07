@@ -1,0 +1,29 @@
+# ─── Deploy STAGING — déclenché automatiquement sur push main ────────────────
+name: Deploy → Staging
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: Deploy to staging.kasuku.afrikia.org
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script: |
+            set -e
+            cd /opt/kasuku
+            echo "📥 Pull du dernier code..."
+            git pull origin main
+            cd kasuku-immersive && git pull origin main && cd ..
+            echo "🔨 Build et démarrage staging..."
+            docker compose -f docker-compose.staging.yml --env-file .env.staging up -d --build
+            echo "✅ Staging déployé sur https://staging.kasuku.afrikia.org"
