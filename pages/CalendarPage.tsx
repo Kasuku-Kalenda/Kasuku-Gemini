@@ -484,12 +484,13 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({
 
             {/* Bottom sheet */}
             <motion.div
-              className="lg:hidden fixed inset-x-0 bottom-0 z-50 bg-card flex flex-col"
+              className="lg:hidden fixed inset-x-0 z-50 bg-card flex flex-col"
               style={{
+                bottom: 'calc(4rem + env(safe-area-inset-bottom, 0px))',
                 borderRadius: '2rem 2rem 0 0',
                 maxHeight: '82vh',
                 boxShadow: '0 -8px 40px rgba(0,0,0,0.18)',
-                paddingBottom: 'max(1rem, env(safe-area-inset-bottom, 0px))',
+                paddingBottom: '1rem',
               }}
               initial={{ y: '100%' }}
               animate={{ y: 0 }}
