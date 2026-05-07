@@ -154,16 +154,28 @@ const ThemeCarousel: React.FC<{
 // ─── Shorts / Explorer mode ───────────────────────────────────────────────────
 const ShortsViewer: React.FC<{
   pool: Event[];
-  onViewEvent: (e: Event) => void;
+  initialIndex?: number;
+  onViewEvent: (e: Event, index: number) => void;
   onClose: () => void;
   exists: (type: string, id: string) => boolean;
   toggle: (item: any) => void;
-}> = ({ pool, onViewEvent, onClose, exists, toggle }) => {
-  const [index, setIndex] = useState(0);
+  onNearEnd: () => void;
+}> = ({ pool, initialIndex = 0, onViewEvent, onClose, exists, toggle, onNearEnd }) => {
+  const [index, setIndex] = useState(initialIndex);
   const touchStartY = useRef<number | null>(null);
+  const nearEndFired = useRef(false);
 
   const prev = useCallback(() => setIndex(i => Math.max(0, i - 1)), []);
-  const next = useCallback(() => setIndex(i => Math.min(pool.length - 1, i + 1)), [pool.length]);
+  const next = useCallback(() => setIndex(i => i + 1), []);
+
+  // Trigger near-end load when 8 events from the end
+  useEffect(() => {
+    if (pool.length > 0 && index >= pool.length - 8 && !nearEndFired.current) {
+      nearEndFired.current = true;
+      onNearEnd();
+    }
+    if (index < pool.length - 15) nearEndFired.current = false;
+  }, [index, pool.length, onNearEnd]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -185,7 +197,8 @@ const ShortsViewer: React.FC<{
     touchStartY.current = null;
   };
 
-  const event = pool[index];
+  const safeIndex = pool.length > 0 ? index % pool.length : 0;
+  const event = pool[safeIndex];
   if (!event) return null;
 
   const img = event.thumbnailUrl
@@ -222,7 +235,7 @@ const ShortsViewer: React.FC<{
           <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-black/20" />
 
           {/* Top bar */}
-          <div className="relative flex items-center justify-between px-4 pt-safe pt-4">
+          <div className="relative flex items-center px-4 pt-safe pt-4">
             <button
               onClick={onClose}
               className="no-min-h p-2 rounded-full bg-black/40 text-white hover:bg-black/60 transition-colors"
@@ -232,11 +245,10 @@ const ShortsViewer: React.FC<{
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
-            <span className="text-white/50 text-xs">{index + 1} / {pool.length}</span>
           </div>
 
-          {/* Content bottom */}
-          <div className="relative mt-auto px-5 pb-8 space-y-3">
+          {/* Content bottom — pb-24 to clear bottom nav on mobile */}
+          <div className="relative mt-auto px-5 pb-24 md:pb-10 space-y-3">
             {/* Theme chips */}
             {event.themes?.length > 0 && (
               <div className="flex flex-wrap gap-1.5">
@@ -266,7 +278,7 @@ const ShortsViewer: React.FC<{
             <div className="flex gap-3 pt-1">
               <button
                 className="flex-1 h-11 rounded-xl bg-white text-black font-bold text-sm hover:bg-white/90 transition-colors"
-                onClick={() => onViewEvent(event)}
+                onClick={() => onViewEvent(event, safeIndex)}
               >
                 Voir l'événement
               </button>
@@ -287,7 +299,7 @@ const ShortsViewer: React.FC<{
       </AnimatePresence>
 
       {/* Nav arrows (desktop) */}
-      <div className="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col gap-2 hidden md:flex">
+      <div className="absolute right-4 top-1/2 -translate-y-1/2 flex-col gap-2 hidden md:flex">
         <button
           onClick={prev}
           disabled={index === 0}
@@ -300,8 +312,7 @@ const ShortsViewer: React.FC<{
         </button>
         <button
           onClick={next}
-          disabled={index === pool.length - 1}
-          className="no-min-h p-2 rounded-full bg-black/40 text-white hover:bg-black/60 disabled:opacity-30 transition-all"
+          className="no-min-h p-2 rounded-full bg-black/40 text-white hover:bg-black/60 transition-all"
           aria-label="Suivant"
         >
           <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -331,6 +342,10 @@ export const HomePage: React.FC<HomePageProps> = ({ onViewEvent, navigateToModul
   const [featuredItems, setFeaturedItems]   = useState<FeaturedStory[]>([]);
   const [shortsPool, setShortsPool]         = useState<Event[]>([]);
   const [isLoadingShorts, setIsLoadingShorts] = useState(false);
+  const isLoadingMoreRef                    = useRef(false);
+  const shortsPageRef                       = useRef(1);
+  const shortsReturnIndex                   = useRef<number | null>(null);
+  const [canReturnToShorts, setCanReturnToShorts] = useState(false);
   const { exists, toggle }                  = useFavorites();
   const allEventsRef                        = useRef<Event[]>([]);
 
@@ -370,15 +385,28 @@ export const HomePage: React.FC<HomePageProps> = ({ onViewEvent, navigateToModul
     }
   }, [themes, debouncedQuery]);
 
-  // Load shorts pool
+  // Load shorts pool (always reshuffles)
   const loadShorts = useCallback(async () => {
-    if (shortsPool.length > 0) return;
     setIsLoadingShorts(true);
+    shortsPageRef.current = 1;
+    isLoadingMoreRef.current = false;
     const events = await getEvents({ limit: 200 });
     allEventsRef.current = events;
     setShortsPool(shuffle(events));
     setIsLoadingShorts(false);
-  }, [shortsPool.length]);
+  }, []);
+
+  // Append more events near end — cycles through new shuffled pages, wraps back
+  const handleNearEnd = useCallback(async () => {
+    if (isLoadingMoreRef.current) return;
+    isLoadingMoreRef.current = true;
+    shortsPageRef.current += 1;
+    const more = await getEvents({ limit: 200, page: shortsPageRef.current });
+    const pool = more.length > 0 ? more : allEventsRef.current; // wrap if no more pages
+    if (more.length === 0) shortsPageRef.current = 1;
+    setShortsPool(prev => [...prev, ...shuffle(pool)]);
+    isLoadingMoreRef.current = false;
+  }, []);
 
   const handleFeaturedEvent = useCallback(async (slug: string) => {
     const cached = allEventsRef.current.find(e => e.slug === slug);
@@ -386,9 +414,25 @@ export const HomePage: React.FC<HomePageProps> = ({ onViewEvent, navigateToModul
     if (event) onViewEvent(event);
   }, [onViewEvent]);
 
+  const [shortsStartIndex, setShortsStartIndex] = useState(0);
+
   const handleModeSwitch = (m: 'discover' | 'shorts') => {
-    setMode(m);
-    if (m === 'shorts') loadShorts();
+    if (m === 'shorts') {
+      if (shortsReturnIndex.current !== null) {
+        // Returning from event view — restore position, no reshuffle
+        setShortsStartIndex(shortsReturnIndex.current);
+        shortsReturnIndex.current = null;
+        setCanReturnToShorts(false);
+        setMode('shorts');
+      } else {
+        // Fresh Explorer click — always reshuffle
+        setShortsStartIndex(0);
+        loadShorts();
+        setMode('shorts');
+      }
+    } else {
+      setMode(m);
+    }
   };
 
   // ─── Render ────────────────────────────────────────────────────────────────
@@ -406,10 +450,17 @@ export const HomePage: React.FC<HomePageProps> = ({ onViewEvent, navigateToModul
         ) : (
           <ShortsViewer
             pool={shortsPool}
-            onViewEvent={e => { setMode('discover'); onViewEvent(e); }}
+            initialIndex={shortsStartIndex}
+            onViewEvent={(e, idx) => {
+              shortsReturnIndex.current = idx;
+              setCanReturnToShorts(true);
+              setMode('discover');
+              onViewEvent(e);
+            }}
             onClose={() => setMode('discover')}
             exists={exists}
             toggle={toggle}
+            onNearEnd={handleNearEnd}
           />
         )
       )}
@@ -459,16 +510,21 @@ export const HomePage: React.FC<HomePageProps> = ({ onViewEvent, navigateToModul
             </button>
             <button
               onClick={() => handleModeSwitch('shorts')}
-              className={`no-min-h px-3 py-2.5 text-sm font-medium transition-colors flex items-center gap-1.5 ${
+              className={`no-min-h px-3 py-2.5 text-sm font-medium transition-colors flex items-center gap-1.5 relative ${
                 mode === 'shorts' ? 'bg-primary text-white' : 'text-muted-foreground hover:bg-muted'
               }`}
-              aria-label="Mode Explorer"
+              aria-label={canReturnToShorts ? 'Reprendre Explorer' : 'Mode Explorer'}
             >
               <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <rect x="5" y="2" width="14" height="20" rx="2" strokeWidth="2" />
                 <line x1="12" y1="18" x2="12" y2="18.01" strokeWidth="3" strokeLinecap="round" />
               </svg>
-              <span className="hidden sm:inline">Explorer</span>
+              <span className="hidden sm:inline">
+                {canReturnToShorts ? 'Reprendre' : 'Explorer'}
+              </span>
+              {canReturnToShorts && (
+                <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-amber-400" />
+              )}
             </button>
           </div>
         </div>
