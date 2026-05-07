@@ -64,6 +64,8 @@ export default defineConfig({
       workbox: {
         // App shell — mise en cache agressive
         globPatterns: ['**/*.{js,css,html,svg,woff2}'],
+        // Ne pas intercepter /immersive/* — servi par Next.js séparé
+        navigateFallbackDenylist: [/^\/immersive/],
         // Stratégies réseau par type de ressource
         runtimeCaching: [
           {
