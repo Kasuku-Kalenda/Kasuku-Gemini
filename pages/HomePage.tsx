@@ -277,8 +277,9 @@ const ShortsViewer: React.FC<{
   const [index, setIndex] = useState(initialIndex);
   const touchStartY = useRef<number | null>(null);
   const nearEndFired = useRef(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  // ── #4 : Swipe visual feedback ────────────────────────────────────────────
+  // ── Swipe visual feedback ─────────────────────────────────────────────────
   const [dragDeltaY, setDragDeltaY] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -311,6 +312,15 @@ const ShortsViewer: React.FC<{
     return () => window.removeEventListener('keydown', handler);
   }, [prev, next, onClose]);
 
+  // ── Fix swipe-down on mobile : block pull-to-refresh with passive:false ───
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const onTouchMove = (e: TouchEvent) => { e.preventDefault(); };
+    el.addEventListener('touchmove', onTouchMove, { passive: false });
+    return () => el.removeEventListener('touchmove', onTouchMove);
+  }, []);
+
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartY.current = e.touches[0].clientY;
     setIsDragging(true);
@@ -319,7 +329,6 @@ const ShortsViewer: React.FC<{
   const handleTouchMove = (e: React.TouchEvent) => {
     if (touchStartY.current === null) return;
     const delta = e.touches[0].clientY - touchStartY.current;
-    // Resistance: card moves at 35% of finger speed
     setDragDeltaY(delta * 0.35);
   };
 
@@ -343,7 +352,9 @@ const ShortsViewer: React.FC<{
 
   return (
     <div
+      ref={containerRef}
       className="fixed inset-0 z-50 bg-black flex flex-col"
+      style={{ touchAction: 'none', overscrollBehavior: 'none' }}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
@@ -389,13 +400,6 @@ const ShortsViewer: React.FC<{
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
-
-              {/* Progress indicator */}
-              {pool.length > 0 && (
-                <div className="ml-3 text-white/50 text-xs font-medium">
-                  {safeIndex + 1} / {pool.length}
-                </div>
-              )}
             </div>
 
             {/* Content bottom — pb-24 to clear bottom nav on mobile */}
@@ -711,14 +715,16 @@ export const HomePage: React.FC<HomePageProps> = ({ onViewEvent, navigateToModul
               className={`no-min-h px-3 py-2.5 text-sm font-medium transition-colors flex items-center gap-1.5 relative ${
                 mode === 'shorts' ? 'bg-primary text-white' : 'text-muted-foreground hover:bg-muted'
               }`}
-              aria-label={canReturnToShorts ? 'Reprendre Explorer' : 'Mode Explorer'}
+              aria-label={canReturnToShorts ? 'Reprendre Shorts' : 'Mode Shorts'}
             >
-              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <rect x="5" y="2" width="14" height="20" rx="2" strokeWidth="2" />
-                <line x1="12" y1="18" x2="12" y2="18.01" strokeWidth="3" strokeLinecap="round" />
+              {/* Icône cartes empilées — suggère du contenu swipeable */}
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                <rect x="5" y="8" width="14" height="13" rx="2" />
+                <path d="M8 8V6a2 2 0 012-2h4a2 2 0 012 2v2" opacity="0.5" />
+                <path d="M3 11h2M19 11h2" opacity="0.4" strokeLinecap="round" />
               </svg>
               <span className="hidden sm:inline">
-                {canReturnToShorts ? 'Reprendre' : 'Explorer'}
+                {canReturnToShorts ? 'Reprendre' : 'Shorts'}
               </span>
               {canReturnToShorts && (
                 <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-amber-400" />
