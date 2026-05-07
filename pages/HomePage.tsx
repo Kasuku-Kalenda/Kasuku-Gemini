@@ -656,6 +656,38 @@ export const HomePage: React.FC<HomePageProps> = ({ onViewEvent, navigateToModul
         )
       )}
 
+      {/* ── Bouton flottant "Reprendre les Shorts" ─────────────────────────── */}
+      <AnimatePresence>
+        {canReturnToShorts && mode === 'discover' && (
+          <motion.button
+            initial={{ opacity: 0, y: 24, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 24, scale: 0.95 }}
+            transition={{ duration: 0.22, ease: 'easeOut' }}
+            onClick={() => handleModeSwitch('shorts')}
+            className="fixed bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2.5 px-5 py-3 rounded-full bg-foreground text-background shadow-xl font-semibold text-sm whitespace-nowrap"
+            style={{ backdropFilter: 'blur(8px)' }}
+          >
+            {/* Play icon */}
+            <svg className="h-4 w-4 fill-current flex-shrink-0" viewBox="0 0 24 24">
+              <path d="M8 5v14l11-7z" />
+            </svg>
+            Reprendre les Shorts
+            {/* Dismiss */}
+            <span
+              role="button"
+              aria-label="Ignorer"
+              className="ml-1 opacity-50 hover:opacity-100 transition-opacity"
+              onClick={e => { e.stopPropagation(); setCanReturnToShorts(false); shortsReturnIndex.current = null; }}
+            >
+              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </span>
+          </motion.button>
+        )}
+      </AnimatePresence>
+
       {/* ── Main content ───────────────────────────────────────────────────── */}
       <div className="space-y-6 pb-16 md:pb-4">
 
