@@ -20,6 +20,12 @@ services:
       NEXT_PUBLIC_BASE_URL:    https://staging.kasuku.afrikia.org/immersive
       KASUKU_API_URL:          http://api:4000/api/v1
       PORT:                    3001
+      # Connexion directe PostgreSQL (utilisée par /api/stories et /events/[slug])
+      DB_HOST:                 postgres
+      DB_PORT:                 5432
+      DB_USER:                 ${POSTGRES_USER:-kasuku}
+      DB_PASSWORD:             ${POSTGRES_PASSWORD}
+      DB_NAME:                 ${POSTGRES_DB:-kasuku_staging_db}
     depends_on:
       postgres-migrate:
         condition: service_completed_successfully
