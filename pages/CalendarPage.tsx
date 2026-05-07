@@ -45,7 +45,7 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({
   const [approximateEvents, setApproximateEvents] = useState<Event[]>([]);
   const [isLoading, setIsLoading]                 = useState(true);
   const [isLoadingDate, setIsLoadingDate]          = useState(false);
-  const [approxExpanded, setApproxExpanded]        = useState(false);
+  const [expandedEras, setExpandedEras]            = useState<Set<number>>(new Set());
   const [themes, setThemes]                 = useState<Theme[]>([]);
   const [countries, setCountries]           = useState<{ code: string; name: string }[]>([]);
   const [filters, setFilters]               = useState<Filters>({ query: '', theme: '', country: '', year: '' });
@@ -78,6 +78,7 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({
     const month = calendarMonth.getUTCMonth() + 1;
     const year  = filters.year ? parseInt(filters.year, 10) : undefined;
     const validYear = year && !isNaN(year) ? year : undefined;
+    let cancelled = false;
 
     const doFetch = () => {
       setCalendarDays({});
@@ -86,7 +87,7 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({
         theme:   filters.theme   || undefined,
         country: filters.country || undefined,
         year:    validYear,
-      }).then(setCalendarDays);
+      }).then(days => { if (!cancelled) setCalendarDays(days); });
     };
 
     // Debounce uniquement sur la saisie texte
@@ -98,6 +99,7 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({
     }
 
     return () => {
+      cancelled = true;
       if (calendarFetchTimer.current) clearTimeout(calendarFetchTimer.current);
     };
   }, [calendarMonth, filters.query, filters.theme, filters.country, filters.year]);
@@ -141,6 +143,14 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({
 
   // ─── Handlers ──────────────────────────────────────────────────────────────
   const handleSelectDate = useCallback((date: Date | undefined) => setSelectedDate(date), []);
+
+  const toggleEra = useCallback((era: number) => {
+    setExpandedEras(prev => {
+      const next = new Set(prev);
+      if (next.has(era)) next.delete(era); else next.add(era);
+      return next;
+    });
+  }, []);
 
   const handleNavigateToYear = useCallback((year: number) => {
     setCalendarMonth(new Date(Date.UTC(year, 0, 1)));
@@ -347,103 +357,110 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({
             </div>
           </div>
 
-          {/* ── Événements sans date précise ────────────────────────────────── */}
+          {/* ── Événements sans date précise — siècles dépliables ──────────── */}
           {approximateByEra.length > 0 && (
             <div className="bg-card rounded-2xl shadow-soft overflow-hidden">
-              {/* Header cliquable */}
-              <button
-                onClick={() => setApproxExpanded(v => !v)}
-                className="w-full px-4 pt-4 pb-3 flex items-center justify-between border-b hover:bg-muted/30 transition-colors"
-              >
-                <div className="flex items-center gap-2">
-                  <span className="text-lg">⏳</span>
-                  <div className="text-left">
-                    <h2 className="font-black text-secondary text-sm uppercase tracking-widest">
-                      Périodes & siècles
-                    </h2>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">
-                      {approximateEvents.length} événement{approximateEvents.length > 1 ? 's' : ''} sans date exacte
-                    </p>
-                  </div>
+              {/* Header fixe */}
+              <div className="px-4 pt-4 pb-3 border-b flex items-center gap-2">
+                <span className="text-base">⏳</span>
+                <div>
+                  <h2 className="font-black text-secondary text-sm uppercase tracking-widest">
+                    Périodes & siècles
+                  </h2>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                    {approximateEvents.length} événement{approximateEvents.length > 1 ? 's' : ''} sans date exacte · cliquez un siècle pour l'explorer
+                  </p>
                 </div>
-                <motion.span
-                  animate={{ rotate: approxExpanded ? 180 : 0 }}
-                  transition={{ duration: 0.2 }}
-                  className="text-muted-foreground"
-                >
-                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path d="M19 9l-7 7-7-7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                </motion.span>
-              </button>
+              </div>
 
-              {/* Contenu dépliable */}
-              <AnimatePresence initial={false}>
-                {approxExpanded && (
-                  <motion.div
-                    key="approx-content"
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: 'auto', opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.25, ease: 'easeInOut' }}
-                    className="overflow-hidden"
-                  >
-                    <div className="divide-y">
-                      {approximateByEra.map(({ era, events }) => (
-                        <div key={era}>
-                          {/* Label de période */}
-                          <div className="px-4 py-2 bg-muted/40">
-                            <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                              {formatEra(era)}
-                            </span>
-                          </div>
-                          {/* Événements de cette période */}
-                          {events.map(event => (
-                            <button
-                              key={event.id}
-                              onClick={() => onViewEvent(event)}
-                              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted/40 transition-colors text-left group"
-                            >
-                              {/* Thumbnail */}
-                              <div className="shrink-0 w-10 h-10 rounded-lg overflow-hidden bg-muted">
-                                {event.media[0]?.url ? (
-                                  <img
-                                    src={event.media[0].url}
-                                    alt={event.title}
-                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                                    referrerPolicy="no-referrer"
-                                  />
-                                ) : (
-                                  <div className="w-full h-full bg-gradient-to-br from-primary/20 to-secondary/20" />
-                                )}
-                              </div>
-                              {/* Texte */}
-                              <div className="flex-1 min-w-0">
-                                <p className="font-bold text-sm text-secondary truncate group-hover:text-primary transition-colors">
-                                  {event.title}
-                                </p>
-                                <p className="text-[10px] text-muted-foreground truncate mt-0.5">
-                                  {event.displayDate || event.period || formatEra(era)}
-                                  {event.countryCode ? ` · ${event.countryCode}` : ''}
-                                </p>
-                              </div>
-                              {/* Thème chip */}
-                              {event.themes?.[0] && (
-                                <span
-                                  className="shrink-0 text-[9px] font-black uppercase tracking-wide px-2 py-0.5 rounded-full text-white"
-                                  style={{ backgroundColor: (event.themes[0] as any).color || '#94a3b8' }}
-                                >
-                                  {event.themes[0].name}
-                                </span>
-                              )}
-                            </button>
-                          ))}
+              {/* Une ligne par siècle */}
+              <div className="divide-y">
+                {approximateByEra.map(({ era, events }) => {
+                  const isOpen = expandedEras.has(era);
+                  const PREVIEW = 6;
+                  return (
+                    <div key={era}>
+                      {/* Ligne siècle — toujours visible */}
+                      <button
+                        onClick={() => toggleEra(era)}
+                        className="w-full flex items-center justify-between px-4 py-3 hover:bg-muted/40 transition-colors group"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`w-1 h-5 rounded-full transition-colors ${isOpen ? 'bg-primary' : 'bg-border'}`} />
+                          <span className="font-black text-sm text-secondary group-hover:text-primary transition-colors">
+                            {formatEra(era)}
+                          </span>
+                          <span className="text-[10px] font-semibold text-muted-foreground bg-muted/60 rounded-full px-2 py-0.5">
+                            {events.length}
+                          </span>
                         </div>
-                      ))}
+                        <motion.svg
+                          animate={{ rotate: isOpen ? 180 : 0 }}
+                          transition={{ duration: 0.18 }}
+                          className="h-3.5 w-3.5 text-muted-foreground shrink-0"
+                          fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                        >
+                          <path d="M19 9l-7 7-7-7" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                        </motion.svg>
+                      </button>
+
+                      {/* Événements du siècle — dépliable */}
+                      <AnimatePresence initial={false}>
+                        {isOpen && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.22, ease: 'easeInOut' }}
+                            className="overflow-hidden"
+                          >
+                            <div className="bg-muted/20 border-t divide-y">
+                              {events.slice(0, PREVIEW).map(event => (
+                                <button
+                                  key={event.id}
+                                  onClick={() => onViewEvent(event)}
+                                  className="w-full flex items-center gap-3 px-5 py-2.5 hover:bg-muted/50 transition-colors text-left group"
+                                >
+                                  <div className="shrink-0 w-9 h-9 rounded-lg overflow-hidden bg-muted">
+                                    {event.media[0]?.url ? (
+                                      <img src={event.media[0].url} alt={event.title}
+                                        className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                                        referrerPolicy="no-referrer" />
+                                    ) : (
+                                      <div className="w-full h-full bg-gradient-to-br from-primary/20 to-secondary/20" />
+                                    )}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="font-bold text-sm text-secondary truncate group-hover:text-primary transition-colors">
+                                      {event.title}
+                                    </p>
+                                    <p className="text-[10px] text-muted-foreground truncate">
+                                      {event.displayDate || formatEra(era)}{event.countryCode ? ` · ${event.countryCode}` : ''}
+                                    </p>
+                                  </div>
+                                  {event.themes?.[0] && (
+                                    <span
+                                      className="shrink-0 text-[9px] font-black uppercase tracking-wide px-2 py-0.5 rounded-full text-white"
+                                      style={{ backgroundColor: (event.themes[0] as any).color || '#94a3b8' }}
+                                    >
+                                      {event.themes[0].name}
+                                    </span>
+                                  )}
+                                </button>
+                              ))}
+                              {events.length > PREVIEW && (
+                                <div className="px-5 py-2.5 text-[11px] text-muted-foreground italic">
+                                  + {events.length - PREVIEW} autres événements · affinez avec les filtres
+                                </div>
+                              )}
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                  );
+                })}
+              </div>
             </div>
           )}
 
