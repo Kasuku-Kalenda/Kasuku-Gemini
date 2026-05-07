@@ -13,6 +13,13 @@ import type { Event, Theme, TrainingModule, FeaturedStory, TimelineNarrative } f
 
 interface PaginatedResponse<T> { items: T[]; page: number; totalPages: number; totalItems: number; }
 
+export type CalendarDay = {
+  count: number;
+  hasTimeline: boolean;
+  hasModule: boolean;
+  themeColors: string[];
+};
+
 const COUNTRY_NAMES: Record<string, string> = {
   US: 'United States', GB: 'United Kingdom', DE: 'Germany', IT: 'Italy',
   CO: 'Colombia', ZA: 'South Africa', ET: 'Ethiopia', GH: 'Ghana',
@@ -29,8 +36,11 @@ interface EventFilterOptions {
   query?: string;
   theme?: string;
   country?: string;
-  date?: string;
   year?: number;
+  month?: number;   // filtre "On This Day" — EXTRACT(MONTH)
+  day?: number;     // filtre "On This Day" — EXTRACT(DAY)
+  limit?: number;
+  page?: number;
 }
 
 // ─── Events ───────────────────────────────────────────────────────────────────
@@ -40,11 +50,34 @@ export const getEvents = async (filters: EventFilterOptions = {}): Promise<Event
   if (filters.query)   params.set('q',       filters.query);
   if (filters.theme)   params.set('theme',   filters.theme);
   if (filters.country) params.set('country', filters.country);
-  if (filters.date)    params.set('date',    filters.date);
   if (filters.year)    params.set('year',    String(filters.year));
+  if (filters.month)   params.set('month',   String(filters.month));
+  if (filters.day)     params.set('day',     String(filters.day));
+  if (filters.limit)   params.set('limit',   String(filters.limit));
+  if (filters.page)    params.set('page',    String(filters.page));
   const qs = params.toString();
   const res = await api.get<PaginatedResponse<Record<string, unknown>>>(`/events${qs ? `?${qs}` : ''}`);
   return res.items.map(mapApiEvent);
+};
+
+// ─── Calendar days (On This Day) ──────────────────────────────────────────────
+// Retourne les comptes d'événements par jour pour un mois donné.
+// Scalable : 1 requête GROUP BY par mois, sans charger les événements complets.
+
+export const getCalendarDays = async (
+  month: number,
+  filters: { q?: string; theme?: string; country?: string; year?: number } = {},
+): Promise<Record<string, CalendarDay>> => {
+  const params = new URLSearchParams();
+  params.set('month', String(month));
+  if (filters.q)       params.set('q',       filters.q);
+  if (filters.theme)   params.set('theme',   filters.theme);
+  if (filters.country) params.set('country', filters.country);
+  if (filters.year)    params.set('year',    String(filters.year));
+  const res = await api.get<{ month: number; days: Record<string, CalendarDay> }>(
+    `/events/calendar-days?${params.toString()}`
+  );
+  return res.days;
 };
 
 export const getEventBySlug = async (slug: string): Promise<Event | null> => {

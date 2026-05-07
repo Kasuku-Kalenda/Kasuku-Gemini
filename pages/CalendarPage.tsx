@@ -1,9 +1,10 @@
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Calendar } from '../components/ui/Calendar';
 import { EventCardSkeleton } from '../components/EventCardSkeleton';
-import { getEvents, getThemes, getCountries, getFeaturedItems } from '../services/api';
+import { getEvents, getCalendarDays, getThemes, getCountries, getFeaturedItems } from '../services/api';
+import type { CalendarDay } from '../services/api';
 import type { Event, Theme, FeaturedStory } from '../types';
 import { useFavorites } from '../hooks/useFavorites';
 import { formatDate } from '../utils/helpers';
@@ -22,67 +23,93 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({
 }) => {
   const [selectedDate, setSelectedDate]     = useState<Date | undefined>(undefined);
   const [calendarMonth, setCalendarMonth]   = useState<Date>(new Date());
+  const [calendarDays, setCalendarDays]     = useState<Record<string, CalendarDay>>({});
   const [eventsForDate, setEventsForDate]   = useState<Event[]>([]);
-  const [filteredEvents, setFilteredEvents] = useState<Event[]>([]);
   const [allEventsCache, setAllEventsCache] = useState<Event[]>([]);
   const [isLoading, setIsLoading]           = useState(true);
+  const [isLoadingDate, setIsLoadingDate]   = useState(false);
   const [themes, setThemes]                 = useState<Theme[]>([]);
   const [countries, setCountries]           = useState<{ code: string; name: string }[]>([]);
   const [filters, setFilters]               = useState<Filters>({ query: '', theme: '', country: '', year: '' });
   const [featuredItems, setFeaturedItems]   = useState<FeaturedStory[]>([]);
   const { exists, toggle }                  = useFavorites();
 
-  // ─── Init ──────────────────────────────────────────────────────────────────
+  // Ref pour debounce de la recherche texte
+  const calendarFetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ─── Init : données de base + cache pour l'autocomplete ───────────────────
   useEffect(() => {
     (async () => {
       setIsLoading(true);
-      const [fetchedThemes, fetchedCountries, initialEvents, featured] = await Promise.all([
-        getThemes(), getCountries(), getEvents(), getFeaturedItems(),
+      const [fetchedThemes, fetchedCountries, featured, eventsCache] = await Promise.all([
+        getThemes(),
+        getCountries(),
+        getFeaturedItems(),
+        getEvents({ limit: 200 }), // cache léger pour l'autocomplete
       ]);
       setThemes(fetchedThemes);
       setCountries(fetchedCountries);
-      setFilteredEvents(initialEvents);
-      setAllEventsCache(initialEvents);
       setFeaturedItems(featured);
+      setAllEventsCache(eventsCache);
       setIsLoading(false);
     })();
   }, []);
 
-  // ─── Filtered fetch (debounced) ────────────────────────────────────────────
+  // ─── Calendar days : re-fetch quand le mois ou les filtres changent ────────
   useEffect(() => {
-    const t = setTimeout(() => {
-      setIsLoading(true);
-      const year = filters.year ? parseInt(filters.year, 10) : undefined;
-      getEvents({ query: filters.query, theme: filters.theme, country: filters.country, year: isNaN(year!) ? undefined : year })
-        .then(data => { setFilteredEvents(data); setIsLoading(false); });
-    }, 300);
-    return () => clearTimeout(t);
-  }, [filters]);
+    const month = calendarMonth.getUTCMonth() + 1;
+    const year  = filters.year ? parseInt(filters.year, 10) : undefined;
+    const validYear = year && !isNaN(year) ? year : undefined;
 
-  // ─── Calendar data ─────────────────────────────────────────────────────────
-  const eventsByDayOfYear = useMemo(() => {
-    const map: Record<string, Event[]> = {};
-    filteredEvents.forEach(event => {
-      if (event.dateISO) {
-        const key = event.dateISO.substring(5);
-        if (!map[key]) map[key] = [];
-        map[key].push(event);
-      }
-    });
-    return map;
-  }, [filteredEvents]);
+    const doFetch = () => {
+      getCalendarDays(month, {
+        q:       filters.query   || undefined,
+        theme:   filters.theme   || undefined,
+        country: filters.country || undefined,
+        year:    validYear,
+      }).then(setCalendarDays);
+    };
 
-  // ─── Date selection ────────────────────────────────────────────────────────
-  const handleSelectDate = useCallback((date: Date | undefined) => setSelectedDate(date), []);
-
-  useEffect(() => {
-    if (selectedDate) {
-      const key = `${String(selectedDate.getUTCMonth() + 1).padStart(2, '0')}-${String(selectedDate.getUTCDate()).padStart(2, '0')}`;
-      setEventsForDate(eventsByDayOfYear[key] || []);
+    // Debounce uniquement sur la saisie texte
+    if (calendarFetchTimer.current) clearTimeout(calendarFetchTimer.current);
+    if (filters.query) {
+      calendarFetchTimer.current = setTimeout(doFetch, 300);
     } else {
-      setEventsForDate([]);
+      doFetch();
     }
-  }, [selectedDate, eventsByDayOfYear]);
+
+    return () => {
+      if (calendarFetchTimer.current) clearTimeout(calendarFetchTimer.current);
+    };
+  }, [calendarMonth, filters.query, filters.theme, filters.country, filters.year]);
+
+  // ─── Événements pour la date sélectionnée ─────────────────────────────────
+  // Se re-déclenche aussi quand les filtres changent (pour cohérence avec les dots)
+  useEffect(() => {
+    if (!selectedDate) { setEventsForDate([]); return; }
+
+    const month = selectedDate.getUTCMonth() + 1;
+    const day   = selectedDate.getUTCDate();
+    const year  = filters.year ? parseInt(filters.year, 10) : undefined;
+    const validYear = year && !isNaN(year) ? year : undefined;
+
+    setIsLoadingDate(true);
+    getEvents({
+      month,
+      day,
+      query:   filters.query   || undefined,
+      theme:   filters.theme   || undefined,
+      country: filters.country || undefined,
+      year:    validYear,
+      limit:   100,
+    }).then(events => {
+      setEventsForDate(events);
+      setIsLoadingDate(false);
+    });
+  }, [selectedDate, filters.query, filters.theme, filters.country, filters.year]);
+
+  // ─── Handlers ──────────────────────────────────────────────────────────────
+  const handleSelectDate = useCallback((date: Date | undefined) => setSelectedDate(date), []);
 
   const handleNavigateToYear = useCallback((year: number) => {
     setCalendarMonth(new Date(Date.UTC(year, 0, 1)));
@@ -98,11 +125,17 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({
     }
   }, []);
 
+  const closeSheet = useCallback(() => setSelectedDate(undefined), []);
+
+  // ─── Dérivés ───────────────────────────────────────────────────────────────
+  const totalCalendarCount = useMemo(
+    () => (Object.values(calendarDays) as CalendarDay[]).reduce((s, d) => s + d.count, 0),
+    [calendarDays],
+  );
+
   const formattedDate = selectedDate
     ? formatDate(selectedDate, { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' })
     : null;
-
-  const closeSheet = useCallback(() => setSelectedDate(undefined), []);
 
   // ─── Render ────────────────────────────────────────────────────────────────
   return (
@@ -134,7 +167,7 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({
             onFiltersChange={setFilters}
             onSuggestionSelect={handleSuggestionSelected}
             onNavigateToYear={handleNavigateToYear}
-            resultCount={filteredEvents.length}
+            resultCount={totalCalendarCount}
           />
 
           {/* ── Panneau date — DESKTOP UNIQUEMENT ────────────────────────── */}
@@ -169,7 +202,7 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({
 
                 {/* Liste d'événements */}
                 <div className="divide-y max-h-[calc(100vh-280px)] overflow-y-auto">
-                  {isLoading ? (
+                  {isLoadingDate ? (
                     <div className="p-4 space-y-3">
                       <EventCardSkeleton />
                       <EventCardSkeleton />
@@ -238,11 +271,6 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({
                     Cliquez sur une date pour voir<br />les événements historiques.
                   </p>
                 </div>
-                {filteredEvents.length > 0 && (
-                  <div className="mt-2 text-[11px] text-muted-foreground bg-muted/50 rounded-xl px-4 py-2">
-                    {filteredEvents.length} événements chargés
-                  </div>
-                )}
               </div>
             )}
           </div>
@@ -253,7 +281,7 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({
           <div className="px-4 pt-4 pb-2 flex items-center justify-between border-b">
             <h2 className="font-black text-secondary text-sm uppercase tracking-widest">Calendrier</h2>
             <span className="text-[10px] text-muted-foreground bg-muted/60 rounded-full px-3 py-1">
-              {Object.keys(eventsByDayOfYear).length} dates avec événements
+              {Object.keys(calendarDays).length} dates ce mois
             </span>
           </div>
           <div className="p-2 sm:p-4">
@@ -261,7 +289,7 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({
               mode="single"
               selected={selectedDate}
               onSelect={handleSelectDate}
-              eventsByDayOfYear={eventsByDayOfYear}
+              calendarDays={calendarDays}
               className="w-full"
               month={calendarMonth}
               onMonthChange={setCalendarMonth}
@@ -320,9 +348,11 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({
                     {formattedDate}
                   </p>
                   <h2 className="text-xl font-black text-secondary leading-tight mt-0.5">
-                    {eventsForDate.length === 0
-                      ? 'Aucun événement'
-                      : `${eventsForDate.length} événement${eventsForDate.length > 1 ? 's' : ''}`}
+                    {isLoadingDate
+                      ? 'Chargement…'
+                      : eventsForDate.length === 0
+                        ? 'Aucun événement'
+                        : `${eventsForDate.length} événement${eventsForDate.length > 1 ? 's' : ''}`}
                   </h2>
                 </div>
                 <button
@@ -338,7 +368,7 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({
 
               {/* Scrollable event cards */}
               <div className="flex-1 overflow-y-auto px-4 pb-2 space-y-3">
-                {isLoading ? (
+                {isLoadingDate ? (
                   <div className="space-y-3 pt-2">
                     {[1, 2].map(i => (
                       <div key={i} className="h-32 bg-muted animate-pulse rounded-2xl" />

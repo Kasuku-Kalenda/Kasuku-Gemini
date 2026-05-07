@@ -70,7 +70,9 @@ export async function eventsRoutes(app: FastifyInstance) {
     const country  = q.country?.trim() ?? '';
     const theme    = q.theme?.trim() ?? '';
     const lang     = q.lang?.trim() ?? '';
-    const year     = q.year ? parseInt(q.year, 10) : null;
+    const year     = q.year  ? parseInt(q.year,  10) : null;
+    const month    = q.month ? parseInt(q.month, 10) : null;
+    const day      = q.day   ? parseInt(q.day,   10) : null;
     const temporal = q.temporal ?? '';
 
     const [{ count }] = await sql`
@@ -81,7 +83,9 @@ export async function eventsRoutes(app: FastifyInstance) {
         AND (${country}  = '' OR e.primary_country_code = ${country})
         AND (${lang}     = '' OR e.lang = ${lang})
         AND (${temporal} = '' OR e.temporal_type::text = ${temporal})
-        AND (${year}::int IS NULL OR EXTRACT(YEAR FROM e.start_date)::int = ${year}::int)
+        AND (${year}::int  IS NULL OR EXTRACT(YEAR  FROM e.start_date)::int = ${year}::int)
+        AND (${month}::int IS NULL OR EXTRACT(MONTH FROM e.start_date)::int = ${month}::int)
+        AND (${day}::int   IS NULL OR EXTRACT(DAY   FROM e.start_date)::int = ${day}::int)
         AND (${theme} = '' OR EXISTS (
           SELECT 1 FROM event_themes et JOIN themes t ON t.id = et.theme_id
           WHERE et.event_id = e.id AND t.slug = ${theme}
@@ -112,7 +116,9 @@ export async function eventsRoutes(app: FastifyInstance) {
         AND (${country}  = '' OR e.primary_country_code = ${country})
         AND (${lang}     = '' OR e.lang = ${lang})
         AND (${temporal} = '' OR e.temporal_type::text = ${temporal})
-        AND (${year}::int IS NULL OR EXTRACT(YEAR FROM e.start_date)::int = ${year}::int)
+        AND (${year}::int  IS NULL OR EXTRACT(YEAR  FROM e.start_date)::int = ${year}::int)
+        AND (${month}::int IS NULL OR EXTRACT(MONTH FROM e.start_date)::int = ${month}::int)
+        AND (${day}::int   IS NULL OR EXTRACT(DAY   FROM e.start_date)::int = ${day}::int)
         AND (${theme} = '' OR EXISTS (
           SELECT 1 FROM event_themes et2 JOIN themes t2 ON t2.id = et2.theme_id
           WHERE et2.event_id = e.id AND t2.slug = ${theme}
@@ -123,6 +129,62 @@ export async function eventsRoutes(app: FastifyInstance) {
     `;
 
     return reply.send(paginate(items, count, pg));
+  });
+
+  // ── GET /calendar-days — points calendrier par mois ──────────────────────
+  // Retourne { month, days: { "MM-DD": { count, hasTimeline, hasModule, themeColors } } }
+  // Utilisé par le front pour afficher les points du calendrier sans charger
+  // tous les événements. Scalable à l'infini.
+  app.get('/calendar-days', async (req, reply) => {
+    const q       = req.query as Record<string, string>;
+    const month   = q.month ? parseInt(q.month, 10) : new Date().getMonth() + 1;
+    const year    = q.year  ? parseInt(q.year,  10) : null;
+    const search  = q.q?.trim()      ?? '';
+    const country = q.country?.trim() ?? '';
+    const theme   = q.theme?.trim()  ?? '';
+
+    const rows = await sql`
+      SELECT
+        EXTRACT(DAY FROM e.start_date)::int         AS day,
+        COUNT(DISTINCT e.id)::int                   AS count,
+        BOOL_OR(se.id IS NOT NULL)                  AS has_timeline,
+        BOOL_OR(em.id IS NOT NULL)                  AS has_module,
+        ARRAY_AGG(DISTINCT t.color)
+          FILTER (WHERE t.color IS NOT NULL)        AS theme_colors
+      FROM events e
+      LEFT JOIN story_events  se ON se.event_id = e.id
+      LEFT JOIN event_modules em ON em.event_id = e.id
+      LEFT JOIN event_themes  et ON et.event_id = e.id
+      LEFT JOIN themes         t ON t.id = et.theme_id
+      WHERE e.status = 'published' AND e.deleted_at IS NULL
+        AND e.start_date IS NOT NULL
+        AND EXTRACT(MONTH FROM e.start_date)::int = ${month}
+        AND (${year}::int  IS NULL OR EXTRACT(YEAR FROM e.start_date)::int = ${year}::int)
+        AND (${search}  = '' OR e.search_vector @@ plainto_tsquery('french', unaccent(${search})))
+        AND (${country} = '' OR e.primary_country_code = ${country})
+        AND (${theme}   = '' OR EXISTS (
+          SELECT 1 FROM event_themes et2 JOIN themes t2 ON t2.id = et2.theme_id
+          WHERE et2.event_id = e.id AND t2.slug = ${theme}
+        ))
+      GROUP BY EXTRACT(DAY FROM e.start_date)::int
+      ORDER BY day
+    `;
+
+    const days: Record<string, {
+      count: number; hasTimeline: boolean; hasModule: boolean; themeColors: string[];
+    }> = {};
+
+    for (const row of rows) {
+      const key = `${String(month).padStart(2, '0')}-${String(row.day).padStart(2, '0')}`;
+      days[key] = {
+        count:       row.count,
+        hasTimeline: Boolean(row.has_timeline),
+        hasModule:   Boolean(row.has_module),
+        themeColors: (row.theme_colors as string[] | null)?.slice(0, 3) ?? ['#94a3b8'],
+      };
+    }
+
+    return reply.send({ month, days });
   });
 
   // ── GET /calendar — anniversaires du jour ─────────────────────────────────

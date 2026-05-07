@@ -5,6 +5,7 @@ import { ChevronRightIcon } from '../icons/ChevronRightIcon';
 import { TimelineIcon } from '../icons/TimelineIcon';
 import { GraduationCapIcon } from '../icons/GraduationCapIcon';
 import type { Event } from '../../types';
+import type { CalendarDay } from '../../services/api';
 import { THEME_COLORS } from '../../constants';
 import { formatDate } from '../../utils/helpers';
 
@@ -13,7 +14,10 @@ type CalendarProps = {
   selected: Date | undefined;
   onSelect: (date: Date | undefined) => void;
   className?: string;
-  eventsByDayOfYear?: Record<string, Event[]>; // Expects "MM-DD" keys
+  /** Données légères par jour (préféré) — retournées par /events/calendar-days */
+  calendarDays?: Record<string, CalendarDay>;
+  /** Fallback legacy — tableau d'événements complets indexés par "MM-DD" */
+  eventsByDayOfYear?: Record<string, Event[]>;
   onMonthChange?: (date: Date) => void;
   /** Mois affiché contrôlé depuis l'extérieur (navigation par année depuis la recherche) */
   month?: Date;
@@ -31,6 +35,7 @@ export const Calendar: React.FC<CalendarProps> = ({
   selected,
   onSelect,
   className,
+  calendarDays,
   eventsByDayOfYear,
   onMonthChange,
   month,
@@ -171,32 +176,29 @@ export const Calendar: React.FC<CalendarProps> = ({
       {/* ── Grille des jours ─────────────────────────────────────────────── */}
       <div className="grid grid-cols-7">
         {days.map((d, i) => {
-          const month = (d.getUTCMonth() + 1).toString().padStart(2, '0');
-          const dayOfMonth = d.getUTCDate().toString().padStart(2, '0');
-          const key = `${month}-${dayOfMonth}`;
-          const dayEvents = eventsByDayOfYear?.[key] || [];
+          const mm = (d.getUTCMonth() + 1).toString().padStart(2, '0');
+          const dd = d.getUTCDate().toString().padStart(2, '0');
+          const key = `${mm}-${dd}`;
 
           const isCurrentMonth = d.getUTCMonth() === currentDate.getUTCMonth();
-          const isSelected = selected ? isSameDay(d, selected) : false;
-          const isToday = isSameDay(d, today);
-          const hasEvents = isCurrentMonth && dayEvents.length > 0;
 
-          // ── Indicateurs ─────────────────────────────────────────────────
-          const hasTimeline = hasEvents && dayEvents.some(
-            (e) => (e as any).timelineId || (e as any).timelineSlug
-          );
-          const hasModule = hasEvents && dayEvents.some(
-            (e) => (e as any).trainingModules?.length > 0
-          );
+          // Préférer calendarDays (léger, depuis l'API) ; fallback sur eventsByDayOfYear (legacy)
+          const calDay      = calendarDays?.[key];
+          const legacyEvts  = eventsByDayOfYear?.[key] ?? [];
+          const hasEvents   = isCurrentMonth && (calDay ? calDay.count > 0 : legacyEvts.length > 0);
+
+          const hasTimeline = hasEvents && (calDay ? calDay.hasTimeline : legacyEvts.some(e => (e as any).timelineId || (e as any).timelineSlug));
+          const hasModule   = hasEvents && (calDay ? calDay.hasModule   : legacyEvts.some(e => (e as any).trainingModules?.length > 0));
+          const dotColors   = calDay?.themeColors?.slice(0, 3) ?? legacyEvts.slice(0, 3).map(resolveThemeColor);
+
+          const isSelected = selected ? isSameDay(d, selected) : false;
+          const isToday    = isSameDay(d, today);
 
           // Tooltip aria
           const indicators: string[] = [];
           if (hasTimeline) indicators.push('récit associé');
-          if (hasModule) indicators.push('module de formation');
-          const ariaLabel = [
-            formatDate(d),
-            ...indicators,
-          ].join(' — ');
+          if (hasModule)   indicators.push('module de formation');
+          const ariaLabel = [formatDate(d), ...indicators].join(' — ');
 
           return (
             <button
@@ -235,11 +237,11 @@ export const Calendar: React.FC<CalendarProps> = ({
                 <div className="flex items-center justify-center gap-[2px] mt-[2px] min-h-[14px]">
 
                   {/* Points colorés par thème – max 3 */}
-                  {dayEvents.slice(0, 3).map((evt, idx) => (
+                  {dotColors.map((color, idx) => (
                     <span
                       key={`dot-${idx}`}
                       className="block h-[5px] w-[5px] rounded-full flex-shrink-0"
-                      style={{ backgroundColor: resolveThemeColor(evt) }}
+                      style={{ backgroundColor: color }}
                       aria-hidden="true"
                     />
                   ))}
