@@ -98,7 +98,7 @@ services:
       MINIO_ROOT_PASSWORD:    ${MINIO_ROOT_PASSWORD}
       MINIO_BUCKET:           ${MINIO_BUCKET:-kasuku-media}
       MINIO_PUBLIC_URL:       https://kasuku.afrikia.org/storage
-      CORS_ORIGINS:           https://kasuku.afrikia.org
+      CORS_ORIGINS:           https://kasuku.afrikia.org,capacitor://localhost,https://localhost
       INITIAL_ADMIN_EMAIL:    ${INITIAL_ADMIN_EMAIL}
       INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD}
       INITIAL_ADMIN_NAME:     ${INITIAL_ADMIN_NAME:-Admin Kasuku}
