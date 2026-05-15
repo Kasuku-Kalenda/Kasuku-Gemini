@@ -95,7 +95,7 @@ export const EventCard: React.FC<EventCardProps> = ({ id, event, onView, isFavor
 
     return (
       <Card 
-        className="overflow-hidden border border-border/50 shadow-sm hover:shadow-md transition-all duration-300 cursor-pointer group/compact bg-white rounded-2xl mb-4"
+        className="overflow-hidden border border-border/50 shadow-sm hover:shadow-md transition-all duration-300 cursor-pointer group/compact bg-card rounded-2xl mb-4"
         onClick={onView}
       >
         <div className="flex flex-col sm:flex-row h-full">
