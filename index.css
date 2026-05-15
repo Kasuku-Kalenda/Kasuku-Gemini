@@ -2,6 +2,36 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Theme color tokens (R G B — pour compatibilité opacité Tailwind) ──────── */
+:root {
+  /* Light mode */
+  --color-light:            250 248 245;
+  --color-dark:             44 62 80;
+  --color-border:           229 231 235;
+  --color-input:            229 231 235;
+  --color-background:       250 248 245;
+  --color-foreground:       44 62 80;
+  --color-muted:            243 244 246;
+  --color-muted-foreground: 107 114 128;
+  --color-card:             255 255 255;
+  --color-card-foreground:  44 62 80;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-light:            15 25 35;
+    --color-dark:             226 217 207;
+    --color-border:           45 63 80;
+    --color-input:            45 63 80;
+    --color-background:       15 25 35;
+    --color-foreground:       226 217 207;
+    --color-muted:            26 37 53;
+    --color-muted-foreground: 148 163 180;
+    --color-card:             26 37 53;
+    --color-card-foreground:  226 217 207;
+  }
+}
+
 /* ── Safe-area CSS variables (iOS notch / Dynamic Island / home bar) ─────── */
 :root {
   --sat: env(safe-area-inset-top, 0px);
