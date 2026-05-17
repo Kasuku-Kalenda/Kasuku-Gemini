@@ -66,31 +66,56 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,svg,woff2}'],
         // Ne pas intercepter /immersive/* — servi par Next.js séparé
         navigateFallbackDenylist: [/^\/immersive/],
-        // Stratégies réseau par type de ressource
         runtimeCaching: [
+
+          // ── Images MinIO — immuables, cache long ─────────────────────────
           {
-            // Images (stockage MinIO)
             urlPattern: /^https:\/\/kasuku\.afrikia\.org\/storage\/.*/i,
             handler: 'CacheFirst',
             options: {
               cacheName: 'kasuku-images',
-              expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 * 30 }, // 30 jours
+              expiration: { maxEntries: 300, maxAgeSeconds: 60 * 60 * 24 * 30 },
               cacheableResponse: { statuses: [0, 200] },
             },
           },
+
+          // ── Auth — jamais en cache (données sensibles) ───────────────────
           {
-            // API — toujours frais, fallback cache si hors-ligne
+            urlPattern: /^https:\/\/kasuku\.afrikia\.org\/api\/v1\/auth\/.*/i,
+            handler: 'NetworkOnly',
+          },
+
+          // ── Contenu public — StaleWhileRevalidate ────────────────────────
+          // Affiche instantanément depuis le cache, rafraîchit en arrière-plan.
+          // Endpoints : events, calendar-days, timelines, modules, themes, featured
+          {
+            urlPattern: /^https:\/\/kasuku\.afrikia\.org\/api\/v1\/(events|timelines|modules|themes|featured|sources|countries)\b.*/i,
+            handler: 'StaleWhileRevalidate',
+            options: {
+              cacheName: 'kasuku-content',
+              expiration: {
+                maxEntries: 200,
+                maxAgeSeconds: 60 * 60 * 24 * 7, // 7 jours
+              },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+
+          // ── Reste de l'API — NetworkFirst rapide (3s) ────────────────────
+          // Données utilisateur (favoris, profil) : réseau d'abord, cache en fallback
+          {
             urlPattern: /^https:\/\/kasuku\.afrikia\.org\/api\/.*/i,
             handler: 'NetworkFirst',
             options: {
-              cacheName: 'kasuku-api',
-              expiration: { maxEntries: 100, maxAgeSeconds: 60 * 60 * 24 }, // 24h
+              cacheName: 'kasuku-api-misc',
+              expiration: { maxEntries: 50, maxAgeSeconds: 60 * 60 * 24 },
               cacheableResponse: { statuses: [0, 200] },
-              networkTimeoutSeconds: 10,
+              networkTimeoutSeconds: 3, // fail fast (vs 10s avant)
             },
           },
+
+          // ── Google Fonts ─────────────────────────────────────────────────
           {
-            // Google Fonts
             urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com\/.*/i,
             handler: 'CacheFirst',
             options: {
