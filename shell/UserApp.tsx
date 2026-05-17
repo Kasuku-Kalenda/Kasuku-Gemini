@@ -3,25 +3,40 @@
  *
  * Handles all user views. Admin views are handled by AdminApp.tsx.
  * Uses NavigationContext instead of prop-drilled navigateTo callbacks.
+ *
+ * All pages are lazy-loaded (React.lazy) so each page is a separate JS
+ * chunk — only parsed/executed when first navigated to.
  */
 
-import React, { useCallback } from 'react';
+import React, { useCallback, Suspense } from 'react';
 import { useNavigation } from '../core/navigation';
 import type { AppView } from '../core/navigation';
 import { Layout } from '../components/Layout';
-import { HomePage } from '../pages/HomePage';
-import { CalendarPage } from '../pages/CalendarPage';
-import { FavoritesPage } from '../pages/FavoritesPage';
-import { EventDetailPage } from '../pages/EventDetailPage';
-import { TimelineListingPage } from '../pages/TimelineListingPage';
-import { TimelinePage } from '../pages/TimelinePage';
-import { ModulePage } from '../pages/ModulePage';
-import { ModulesIndexPage } from '../pages/ModulesIndexPage';
-import { DateTimelinePage } from '../pages/DateTimelinePage';
-import { ScormPlayerPage } from '../pages/offline/ScormPlayerPage';
-import { H5pPlayerPage } from '../pages/offline/H5pPlayerPage';
 import { apiService } from '../services/api.service';
 import type { Event } from '../types';
+
+// ── Lazy page imports ─────────────────────────────────────────────────────────
+const HomePage            = React.lazy(() => import('../pages/HomePage').then(m => ({ default: m.HomePage })));
+const CalendarPage        = React.lazy(() => import('../pages/CalendarPage').then(m => ({ default: m.CalendarPage })));
+const FavoritesPage       = React.lazy(() => import('../pages/FavoritesPage').then(m => ({ default: m.FavoritesPage })));
+const EventDetailPage     = React.lazy(() => import('../pages/EventDetailPage').then(m => ({ default: m.EventDetailPage })));
+const TimelineListingPage = React.lazy(() => import('../pages/TimelineListingPage').then(m => ({ default: m.TimelineListingPage })));
+const TimelinePage        = React.lazy(() => import('../pages/TimelinePage').then(m => ({ default: m.TimelinePage })));
+const ModulePage          = React.lazy(() => import('../pages/ModulePage').then(m => ({ default: m.ModulePage })));
+const ModulesIndexPage    = React.lazy(() => import('../pages/ModulesIndexPage').then(m => ({ default: m.ModulesIndexPage })));
+const DateTimelinePage    = React.lazy(() => import('../pages/DateTimelinePage').then(m => ({ default: m.DateTimelinePage })));
+const ScormPlayerPage     = React.lazy(() => import('../pages/offline/ScormPlayerPage').then(m => ({ default: m.ScormPlayerPage })));
+const H5pPlayerPage       = React.lazy(() => import('../pages/offline/H5pPlayerPage').then(m => ({ default: m.H5pPlayerPage })));
+
+// ── Fallback de chargement ────────────────────────────────────────────────────
+const PageLoader = () => (
+  <div className="flex items-center justify-center min-h-[60vh]">
+    <div className="flex flex-col items-center gap-3">
+      <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+      <span className="text-xs text-muted-foreground">Chargement…</span>
+    </div>
+  </div>
+);
 
 export const UserApp: React.FC = () => {
   const { view, previousView, payload, navigate, goBack } = useNavigation();
@@ -62,7 +77,6 @@ export const UserApp: React.FC = () => {
     if (event) viewEvent(event);
   }, [viewEvent]);
 
-  // Adapter: Layout/BottomNav use the old (view, id?) signature
   const legacyNavigateTo = useCallback((v: string, id?: string) => {
     navigate(v as AppView, id ? { id } : undefined);
   }, [navigate]);
@@ -186,22 +200,27 @@ export const UserApp: React.FC = () => {
   // ── Layout selection ──────────────────────────────────────────────────────
 
   const isImmersive = view === 'timeline' || view === 'dateTimeline';
-  const isOffline = view === 'offlineScorm' || view === 'offlineH5p';
+  const isOffline   = view === 'offlineScorm' || view === 'offlineH5p';
 
   if (isImmersive) {
-    return <div className="bg-[#FAF8F5] min-h-screen">{renderView()}</div>;
+    return (
+      <div className="bg-[#FAF8F5] min-h-screen">
+        <Suspense fallback={<PageLoader />}>{renderView()}</Suspense>
+      </div>
+    );
   }
 
   if (isOffline) {
-    return <div className="bg-light min-h-screen">{renderView()}</div>;
+    return (
+      <div className="bg-light min-h-screen">
+        <Suspense fallback={<PageLoader />}>{renderView()}</Suspense>
+      </div>
+    );
   }
 
   return (
-    <Layout
-      currentView={view as any}
-      navigateTo={legacyNavigateTo as any}
-    >
-      {renderView()}
+    <Layout currentView={view as any} navigateTo={legacyNavigateTo as any}>
+      <Suspense fallback={<PageLoader />}>{renderView()}</Suspense>
     </Layout>
   );
 };
