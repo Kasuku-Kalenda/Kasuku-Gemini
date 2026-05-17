@@ -10,6 +10,7 @@ import { AuthProvider } from './hooks/useAuth';
 import { NavigationProvider, useNavigation } from './core/navigation';
 import { LayeredViewStack } from './core/navigation/LayeredViewStack';
 import { initPushNotifications } from './services/pushNotifications.service';
+import { initDynamicStatusBar } from './services/statusBar.service';
 import { apiService } from './services/api.service';
 
 // Composant interne qui a accès au contexte navigation
@@ -17,12 +18,14 @@ function AppWithPush() {
   const { navigate } = useNavigation();
 
   useEffect(() => {
-    // Initialise les push notifications au démarrage (Capacitor uniquement)
+    // Status bar dynamique selon le thème système
+    void initDynamicStatusBar();
+
+    // Push notifications
     const navigateToEvent = async (slug: string) => {
       const event = await apiService.getEventBySlug(slug);
       if (event) navigate('event', { event });
     };
-
     void initPushNotifications(navigateToEvent);
   }, [navigate]);
 

@@ -6,6 +6,7 @@ import { CompassIcon } from './icons/CompassIcon';
 import { CalendarIcon } from './icons/CalendarIcon';
 import { TimelineIcon } from './icons/TimelineIcon';
 import { ModulesIcon } from './icons/ModulesIcon';
+import { hapticLight } from '../services/haptics.service';
 
 const IMMERSIVE_URL = '/immersive';
 
@@ -66,7 +67,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ currentView, navigateTo })
           label={item.label}
           icon={item.icon}
           isActive={currentView === item.view || (item.view === 'timelines' && currentView === 'timeline')}
-          onClick={() => navigateTo(item.view)}
+          onClick={() => { void hapticLight(); navigateTo(item.view); }}
         />
       ))}
       {/* Kasuku Immersive */}
