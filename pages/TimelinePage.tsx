@@ -138,6 +138,7 @@ export const TimelinePage: React.FC<TimelinePageProps> = ({
     const [slides, setSlides] = useState<NarrativeSlide[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [activeIndex, setActiveIndex] = useState(0);
+    const [expandedId, setExpandedId]   = useState<string | null>(null);
 
     useEffect(() => {
         const loadContent = async () => {
@@ -218,8 +219,8 @@ export const TimelinePage: React.FC<TimelinePageProps> = ({
         loadContent();
     }, [timelineSlug, initialEventId]);
 
-    const goNext = () => setActiveIndex(prev => Math.min(prev + 1, slides.length - 1));
-    const goPrev = () => setActiveIndex(prev => Math.max(prev - 1, 0));
+    const goNext = () => { setActiveIndex(prev => Math.min(prev + 1, slides.length - 1)); setExpandedId(null); };
+    const goPrev = () => { setActiveIndex(prev => Math.max(prev - 1, 0)); setExpandedId(null); };
 
     const touchStart = useRef<number | null>(null);
     const handleTouchStart = (e: React.TouchEvent) => { touchStart.current = e.touches[0].clientX; };
@@ -341,7 +342,7 @@ export const TimelinePage: React.FC<TimelinePageProps> = ({
                                 onClick={() => {
                                     if (isPrev) goPrev();
                                     else if (isNext) goNext();
-                                    else if (isFocused && slide.originalType === 'event') onViewEvent(slide.refObject);
+                                    // Focused card: navigation is via explicit CTA buttons inside
                                 }}
                                 className={`absolute transition-all duration-[800ms] w-[310px] sm:w-[480px] rounded-[3.5rem] overflow-hidden border backdrop-blur-3xl shadow-[0_30px_60px_-15px_rgba(0,0,0,0.15)] cursor-pointer group/card
                                     ${isFocused ? 'z-30 scale-100 opacity-100 translate-x-0 rotate-0 translate-y-0' : ''}
@@ -386,27 +387,60 @@ export const TimelinePage: React.FC<TimelinePageProps> = ({
                                 </div>
 
                                 {/* Contenu textuel */}
-                                <div className={`p-6 sm:p-10 flex flex-col bg-white/10 ${isSlideIntro ? 'min-h-[160px]' : 'h-full'}`}>
+                                <div className={`p-6 sm:p-8 flex flex-col bg-white/10 ${isSlideIntro ? 'min-h-[160px]' : 'flex-1'}`}>
                                     {isSlideIntro && timeline.subtitle && (
                                         <p className="text-[10px] font-black uppercase tracking-widest text-primary mb-3">
                                             {timeline.subtitle}
                                         </p>
                                     )}
-                                    <h3 className={`font-black text-secondary leading-tight mb-3 sm:mb-5 tracking-tight group-hover/card:text-primary transition-colors ${isSlideIntro ? 'text-2xl sm:text-4xl' : 'text-xl sm:text-3xl'}`}>
+
+                                    {/* Date — visible sur toutes les slides non-intro */}
+                                    {!isSlideIntro && slide.dateLabel && (
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <div className="h-px w-5 rounded-full bg-primary/50" />
+                                            <p className="text-[11px] font-black text-primary uppercase tracking-[0.2em]">
+                                                {slide.dateLabel}
+                                            </p>
+                                        </div>
+                                    )}
+
+                                    <h3 className={`font-black text-secondary leading-tight mb-3 tracking-tight group-hover/card:text-primary transition-colors ${isSlideIntro ? 'text-2xl sm:text-4xl' : 'text-lg sm:text-2xl'}`}>
                                         {slide.title}
                                     </h3>
-                                    <p className={`text-dark/80 text-sm sm:text-base leading-relaxed font-medium mb-4 ${isFocused && slide.resources.length > 0 ? 'line-clamp-3' : 'line-clamp-4 mb-6'}`}>
-                                        {slide.description}
-                                    </p>
+
+                                    {/* Description avec "Lire plus" */}
+                                    {slide.description && (
+                                        <div onClick={e => e.stopPropagation()}>
+                                            <p className={`text-dark/75 text-sm leading-relaxed font-medium transition-all ${
+                                                isFocused && expandedId === slide.id
+                                                    ? 'line-clamp-none'
+                                                    : isFocused && slide.resources.length > 0
+                                                        ? 'line-clamp-2'
+                                                        : isFocused
+                                                            ? 'line-clamp-4'
+                                                            : 'line-clamp-2'
+                                            }`}>
+                                                {slide.description}
+                                            </p>
+                                            {isFocused && slide.description.length > 180 && slide.originalType !== 'event' && (
+                                                <button
+                                                    className="mt-1.5 text-[11px] font-black text-primary uppercase tracking-widest hover:underline"
+                                                    onClick={e => { e.stopPropagation(); setExpandedId(id => id === slide.id ? null : slide.id); }}
+                                                >
+                                                    {expandedId === slide.id ? 'Réduire ↑' : 'Lire plus ↓'}
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}
 
                                     {/* ── Ressources complémentaires (moments uniquement, carte focalisée) ── */}
                                     {isFocused && slide.originalType === 'moment' && slide.resources.length > 0 && (
-                                        <div className="mb-4" onClick={e => e.stopPropagation()}>
+                                        <div className="mt-3" onClick={e => e.stopPropagation()}>
                                             <div className="h-px bg-black/8 mb-3" />
                                             <p className="text-[9px] font-black uppercase tracking-[0.25em] text-muted-foreground mb-2.5">
                                                 Ressources
                                             </p>
-                                            <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1">
+                                            <div className="space-y-2 max-h-[140px] overflow-y-auto pr-1">
                                                 {slide.resources.map((res, ri) => (
                                                     <MomentResourceItem key={res.id ?? ri} resource={res} />
                                                 ))}
@@ -414,9 +448,25 @@ export const TimelinePage: React.FC<TimelinePageProps> = ({
                                         </div>
                                     )}
 
+                                    {/* CTA — Voir l'événement (event slides) */}
+                                    {isFocused && slide.originalType === 'event' && (
+                                        <div className="mt-3" onClick={e => e.stopPropagation()}>
+                                            {/* Afficher quelques lignes de la description */}
+                                            <button
+                                                onClick={() => onViewEvent(slide.refObject)}
+                                                className="inline-flex items-center gap-2 mt-2 bg-secondary text-white px-5 py-2.5 rounded-full text-[11px] font-black uppercase tracking-widest hover:bg-secondary/90 active:scale-95 transition-all shadow-sm"
+                                            >
+                                                Voir l'événement
+                                                <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path d="M5 12h14M12 5l7 7-7 7" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    )}
+
                                     {/* Pied de la slide intro : nombre de moments */}
                                     {isSlideIntro && contentCount > 0 && isFocused && (
-                                        <div className="mt-auto">
+                                        <div className="mt-auto pt-3">
                                             <div className="inline-flex items-center gap-2 px-4 py-2 bg-primary/10 rounded-full border border-primary/20">
                                                 <span className="w-2 h-2 bg-primary rounded-full animate-pulse" />
                                                 <span className="text-[10px] font-black uppercase tracking-widest text-primary">
@@ -427,13 +477,13 @@ export const TimelinePage: React.FC<TimelinePageProps> = ({
                                     )}
 
                                     {/* Thèmes sur les slides événement */}
-                                    {!isSlideIntro && (
-                                        <div className="mt-auto flex flex-wrap gap-3">
+                                    {!isSlideIntro && slide.themes.length > 0 && (
+                                        <div className="mt-auto pt-2 flex flex-wrap gap-2">
                                             {slide.themes.map(t => (
                                                 <Badge
                                                     key={t.id}
                                                     style={{ backgroundColor: THEME_COLORS[t.slug] || '#ccc', border: 'none', color: '#fff' }}
-                                                    className="px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.15em] shadow-sm"
+                                                    className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-[0.12em] shadow-sm"
                                                 >
                                                     {t.name}
                                                 </Badge>
