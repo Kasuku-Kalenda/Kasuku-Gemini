@@ -90,19 +90,22 @@ export async function timelinesRoutes(app: FastifyInstance) {
       SELECT s.*,
         COALESCE(JSON_AGG(
           JSONB_BUILD_OBJECT(
-            'id',               e.id,
-            'slug',             e.slug,
-            'title',            e.title,
-            'summary',          e.summary,
-            'startDate',        e.start_date,
+            'id',                 e.id,
+            'slug',               e.slug,
+            'title',              e.title,
+            'summary',            e.summary,
+            'narrative',          COALESCE(se.narrative_text, e.summary, ''),
+            'timeType',           CASE WHEN e.start_date IS NOT NULL THEN 'date' ELSE 'period' END,
+            'dateExact',          TO_CHAR(e.start_date, 'YYYY-MM-DD'),
+            'periodText',         e.display_date,
             'primaryCountryCode', e.primary_country_code,
-            'position',         se.position,
-            'narrativeText',    se.narrative_text,
-            'narrativeAudioUrl',se.narrative_audio_url,
-            'narrativeVideoUrl',se.narrative_video_url,
-            'quote',            se.quote,
-            'quoteAuthor',      se.quote_author,
-            'cta',              se.cta
+            'thumbnailUrl',       e.thumbnail_url,
+            'position',           se.position,
+            'narrativeAudioUrl',  se.narrative_audio_url,
+            'narrativeVideoUrl',  se.narrative_video_url,
+            'quote',              se.quote,
+            'quoteAuthor',        se.quote_author,
+            'cta',                se.cta
           ) ORDER BY se.position ASC
         ) FILTER (WHERE e.id IS NOT NULL), '[]') AS moments
       FROM stories s

@@ -165,7 +165,9 @@ export const TimelinePage: React.FC<TimelinePageProps> = ({
                 sortTimestamp: toSortTs(m.dateExact, null, m.periodText),
                 media: (m.media ?? []).length > 0
                     ? m.media!
-                    : tl.thumbnail ? [{ id: 'fallback', type: 'image' as const, url: tl.thumbnail }] : [],
+                    : (m as any).thumbnailUrl
+                        ? [{ id: 'event-thumb', type: 'image' as const, url: (m as any).thumbnailUrl }]
+                        : tl.thumbnail ? [{ id: 'fallback', type: 'image' as const, url: tl.thumbnail }] : [],
                 themes: [],
                 resources: m.resources ?? [],
                 originalType: 'moment' as const,
