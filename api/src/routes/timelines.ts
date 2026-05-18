@@ -99,7 +99,6 @@ export async function timelinesRoutes(app: FastifyInstance) {
             'dateExact',          TO_CHAR(e.start_date, 'YYYY-MM-DD'),
             'periodText',         e.display_date,
             'primaryCountryCode', e.primary_country_code,
-            'thumbnailUrl',       e.thumbnail_url,
             'position',           se.position,
             'narrativeAudioUrl',  se.narrative_audio_url,
             'narrativeVideoUrl',  se.narrative_video_url,
