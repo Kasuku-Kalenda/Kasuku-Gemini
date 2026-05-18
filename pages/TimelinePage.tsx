@@ -158,10 +158,10 @@ export const TimelinePage: React.FC<TimelinePageProps> = ({
                 id: m.id,
                 title: m.title,
                 description: m.narrative,
-                dateLabel: m.timeType === 'date' && m.dateExact
+                dateLabel: m.dateExact
                     ? formatDate(new Date(m.dateExact + 'T12:00:00Z'))
                     : (m.periodText || ''),
-                year: m.dateExact ? new Date(m.dateExact + 'T12:00:00Z').getFullYear() : undefined,
+                year: m.dateExact ? new Date(m.dateExact + 'T12:00:00Z').getFullYear() : extractYear(m.periodText),
                 sortTimestamp: toSortTs(m.dateExact, null, m.periodText),
                 media: (m.media ?? []).length > 0
                     ? m.media!
@@ -395,11 +395,11 @@ export const TimelinePage: React.FC<TimelinePageProps> = ({
                                     )}
 
                                     {/* Date — visible sur toutes les slides non-intro */}
-                                    {!isSlideIntro && slide.dateLabel && (
+                                    {!isSlideIntro && (slide.dateLabel || slide.year) && (
                                         <div className="flex items-center gap-2 mb-2">
                                             <div className="h-px w-5 rounded-full bg-primary/50" />
                                             <p className="text-[11px] font-black text-primary uppercase tracking-[0.2em]">
-                                                {slide.dateLabel}
+                                                {slide.dateLabel || String(slide.year)}
                                             </p>
                                         </div>
                                     )}
