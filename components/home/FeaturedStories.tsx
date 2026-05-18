@@ -81,11 +81,16 @@ function PortraitCard({ item, onClick, index }: {
           </div>
         </div>
 
-        {/* Title at bottom */}
+        {/* Title + subtitle at bottom */}
         <div className="absolute inset-x-0 bottom-0 p-2.5 z-10">
           <p className="text-white text-[10px] sm:text-[11px] font-black leading-tight line-clamp-2 drop-shadow-lg">
             {item.title}
           </p>
+          {item.subtitle && (
+            <p className="text-white/70 text-[8px] sm:text-[9px] font-semibold leading-tight mt-0.5 line-clamp-1 drop-shadow">
+              {item.subtitle}
+            </p>
+          )}
         </div>
       </div>
 
@@ -216,6 +221,20 @@ export function FeaturedStories({
     setPaused(false);
   };
 
+  // Navigation directe depuis la card (sans passer par le viewer)
+  const handleCardClick = (item: FeaturedStory, idx: number) => {
+    const slugFromPath = (path: string) => path?.split('/').filter(Boolean).pop() ?? path ?? '';
+    if (item.sourceType === 'event') {
+      onNavigateToEvent(item.eventSlug ?? slugFromPath(item.ctaTo ?? ''));
+    } else if (item.sourceType === 'story') {
+      onNavigateToModule(item.storySlug ?? slugFromPath(item.ctaTo ?? ''));
+    } else if (item.sourceType === 'module') {
+      onNavigateToModule(item.moduleSlug ?? slugFromPath(item.ctaTo ?? ''));
+    } else {
+      openAt(idx);
+    }
+  };
+
   if (!items?.length) return null;
 
   const cur     = items[active];
@@ -245,51 +264,14 @@ export function FeaturedStories({
         className="flex items-stretch gap-3 overflow-x-auto py-2 -mx-4 px-4 no-scrollbar"
         aria-label="Contenus à la une"
       >
-        {items.map((item, i) => {
-          const k = getTypeKey(item);
-          const c = TYPE_CONFIG[k];
-          return (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => openAt(i)}
-              className="shrink-0 group relative flex flex-col outline-none focus-visible:ring-2 ring-primary ring-offset-2"
-              style={{ width: 'clamp(90px, 15vw, 160px)' }}
-              aria-label={`Ouvrir : ${item.title}`}
-            >
-              <div
-                className="relative w-full rounded-2xl overflow-hidden bg-zinc-800 shadow-md group-hover:shadow-xl transition-all duration-300 group-hover:scale-[1.03] group-active:scale-95"
-                style={{ aspectRatio: '9 / 16' }}
-              >
-                {item.imageUrl ? (
-                  <img
-                    src={item.imageUrl}
-                    alt=""
-                    className="absolute inset-0 h-full w-full object-cover"
-                    referrerPolicy="no-referrer"
-                    loading={i < 3 ? 'eager' : 'lazy'}
-                  />
-                ) : (
-                  <div className="absolute inset-0 bg-gradient-to-br from-primary/80 via-accent/60 to-secondary/80" />
-                )}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
-                <div className="absolute top-2 left-2 z-10">
-                  <span className={`inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full shadow ${c.color}`}>
-                    {c.emoji}
-                  </span>
-                </div>
-                <div className="absolute inset-x-0 bottom-0 p-2.5 z-10">
-                  <p className="text-white text-[10px] sm:text-[11px] font-black leading-tight line-clamp-2 drop-shadow-lg">
-                    {item.title}
-                  </p>
-                </div>
-              </div>
-              <p className="mt-1.5 text-[9px] sm:text-[10px] font-bold text-secondary/60 text-center line-clamp-1 px-1 group-hover:text-primary transition-colors">
-                {c.label}
-              </p>
-            </button>
-          );
-        })}
+        {items.map((item, i) => (
+          <PortraitCard
+            key={item.id}
+            item={item}
+            index={i}
+            onClick={() => handleCardClick(item, i)}
+          />
+        ))}
 
         {/* Espace à droite pour que le fade soit visible */}
         <div className="shrink-0 w-8 pointer-events-none" />

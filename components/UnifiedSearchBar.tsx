@@ -344,7 +344,7 @@ export function UnifiedSearchBar({
             <ul
               id={listboxId}
               role="listbox"
-              className="absolute top-[calc(100%+0.5rem)] left-0 right-0 bg-card border border-border rounded-2xl shadow-xl z-40 overflow-hidden"
+              className="absolute top-[calc(100%+0.5rem)] left-0 right-0 md:min-w-[420px] bg-card border border-border rounded-2xl shadow-2xl z-40 overflow-hidden"
             >
               {suggestions.map((event, i) => (
                 <li
@@ -352,35 +352,35 @@ export function UnifiedSearchBar({
                   id={`suggestion-${i}`}
                   role="option"
                   aria-selected={i === highlightedIndex}
-                  className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors ${
-                    i === highlightedIndex ? 'bg-primary/10' : 'hover:bg-muted'
-                  } ${i < suggestions.length - 1 ? 'border-b border-border/50' : ''}`}
+                  className={`flex items-center gap-4 px-4 py-3.5 cursor-pointer transition-colors ${
+                    i === highlightedIndex ? 'bg-primary/10' : 'hover:bg-muted/70'
+                  } ${i < suggestions.length - 1 ? 'border-b border-border/40' : ''}`}
                   onMouseDown={e => e.preventDefault()}
                   onClick={() => handleSuggestionClick(event)}
                   onMouseEnter={() => setHighlightedIndex(i)}
                 >
                   {/* Thumbnail */}
-                  <div className="shrink-0 w-9 h-9 rounded-lg overflow-hidden bg-muted">
+                  <div className="shrink-0 w-12 h-12 rounded-xl overflow-hidden bg-muted shadow-sm">
                     {event.media?.[0]?.url
                       ? <img src={event.media[0].url} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                      : <div className="w-full h-full bg-primary/10 flex items-center justify-center text-sm">📅</div>
+                      : <div className="w-full h-full bg-primary/10 flex items-center justify-center text-lg">📅</div>
                     }
                   </div>
                   {/* Texte */}
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-secondary truncate">{event.title}</p>
-                    <p className="text-[10px] text-muted-foreground">
+                    <p className="text-[15px] font-bold text-secondary leading-snug line-clamp-2">{event.title}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
                       {event.dateISO ?? event.period}
                       {event.countryCode ? ` · ${event.countryCode}` : ''}
                     </p>
                   </div>
                   {/* Flèche */}
-                  <svg className="h-4 w-4 text-muted-foreground shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path d="M9 18l6-6-6-6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  <svg className={`h-4 w-4 shrink-0 transition-colors ${i === highlightedIndex ? 'text-primary' : 'text-muted-foreground'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path d="M9 18l6-6-6-6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                 </li>
               ))}
-              <li className="px-3 py-2 text-[10px] text-muted-foreground/60 text-center border-t border-border/40">
+              <li className="px-4 py-2.5 text-[11px] text-muted-foreground/60 text-center border-t border-border/40 bg-muted/30">
                 ↑↓ naviguer · Entrée sélectionner · Échap fermer
               </li>
             </ul>
