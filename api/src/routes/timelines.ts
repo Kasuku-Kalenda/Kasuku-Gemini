@@ -139,9 +139,14 @@ export async function timelinesRoutes(app: FastifyInstance) {
             'dateExact',          TO_CHAR(e.start_date, 'YYYY-MM-DD'),
             'periodText',         e.display_date,
             'media',              COALESCE((
-              SELECT JSON_AGG(JSONB_BUILD_OBJECT('type', m.type, 'url', m.url, 'caption', m.alt_text))
-              FROM event_media em JOIN media m ON m.id = em.media_id
-              WHERE em.event_id = e.id ORDER BY em.position LIMIT 1
+              SELECT JSON_AGG(JSONB_BUILD_OBJECT('type', sub.type, 'url', sub.url, 'caption', sub.alt_text))
+              FROM (
+                SELECT m.type, m.url, m.alt_text
+                FROM event_media em JOIN media m ON m.id = em.media_id
+                WHERE em.event_id = e.id
+                ORDER BY em.position
+                LIMIT 1
+              ) sub
             ), '[]'::json)
           ) ORDER BY se.position ASC
         ) FILTER (WHERE se.id IS NOT NULL), '[]') AS moments

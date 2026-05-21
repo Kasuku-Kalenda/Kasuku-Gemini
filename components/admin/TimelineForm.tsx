@@ -464,10 +464,8 @@ const MomentCard: React.FC<MomentCardProps> = ({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const mediaFileRef = useRef<HTMLInputElement>(null);
-
-  // Pending clone: stores the cloneFrom data while waiting for linkedEvent to be truthy
-  // (so we can apply values after the Textarea is mounted and registered)
-  const [pendingClone, setPendingClone] = useState<{ ev: any; cloneFrom: EventStoryEventItem } | null>(null);
+  // Ref for pending clone — avoids state timing issues with useEffect
+  const pendingCloneRef = useRef<{ ev: any; cloneFrom: EventStoryEventItem } | null>(null);
 
   const timeType = form.watch(`moments.${index}.timeType`);
   const mediaUrl = form.watch(`moments.${index}.media.0.url`);
@@ -480,17 +478,6 @@ const MomentCard: React.FC<MomentCardProps> = ({
   const titleErr: string | undefined = undefined;
   const narrativeErr: string | undefined = undefined;
   const dateErr: string | undefined = undefined;
-
-  // Apply pending clone values once linkedEvent is truthy (i.e., once the Textarea is mounted)
-  useEffect(() => {
-    if (!pendingClone || !linkedEvent) return;
-    const { ev, cloneFrom } = pendingClone;
-    form.setValue(`moments.${index}.narrative`, cloneFrom.narrativeText ?? ev.summary ?? '', { shouldDirty: true, shouldTouch: true });
-    form.setValue(`moments.${index}.quote` as any, cloneFrom.quote ?? null, { shouldDirty: true });
-    form.setValue(`moments.${index}.quoteAuthor` as any, cloneFrom.quoteAuthor ?? null, { shouldDirty: true });
-    form.setValue(`moments.${index}.sourceStoryEventId` as any, cloneFrom.id, { shouldDirty: true });
-    setPendingClone(null);
-  }, [pendingClone, linkedEvent, form, index]);
 
   // Select an event (optionally cloning from an existing StoryEvent)
   const handleSelectEvent = useCallback((ev: any, cloneFrom?: EventStoryEventItem) => {
@@ -506,8 +493,17 @@ const MomentCard: React.FC<MomentCardProps> = ({
     }
 
     if (cloneFrom) {
-      // Store clone data — values will be applied once linkedEvent is truthy (Textarea mounted)
-      setPendingClone({ ev, cloneFrom });
+      // Store in ref, then apply after next paint so the Controller is definitely mounted
+      pendingCloneRef.current = { ev, cloneFrom };
+      requestAnimationFrame(() => {
+        const pending = pendingCloneRef.current;
+        if (!pending) return;
+        pendingCloneRef.current = null;
+        form.setValue(`moments.${index}.narrative`, pending.cloneFrom.narrativeText ?? pending.ev.summary ?? '', { shouldDirty: true, shouldTouch: true });
+        form.setValue(`moments.${index}.quote` as any, pending.cloneFrom.quote ?? null, { shouldDirty: true });
+        form.setValue(`moments.${index}.quoteAuthor` as any, pending.cloneFrom.quoteAuthor ?? null, { shouldDirty: true });
+        form.setValue(`moments.${index}.sourceStoryEventId` as any, pending.cloneFrom.id, { shouldDirty: true });
+      });
     } else {
       // Fresh start: pre-fill narrative with event summary if narrative is empty
       const currentNarrative = form.getValues(`moments.${index}.narrative`);
