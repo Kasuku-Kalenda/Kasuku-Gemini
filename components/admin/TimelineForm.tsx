@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { useForm, useFieldArray, useWatch } from 'react-hook-form';
+import { useForm, useFieldArray, useWatch, Controller } from 'react-hook-form';
 import { timelineFormSchema, TimelineFormData } from '../../schemas/admin';
 import { adminApi, type EventStoryEventItem } from '../../services/adminApi';
 import { uploadFile } from '../../services/apiClient';
@@ -465,6 +465,10 @@ const MomentCard: React.FC<MomentCardProps> = ({
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const mediaFileRef = useRef<HTMLInputElement>(null);
 
+  // Pending clone: stores the cloneFrom data while waiting for linkedEvent to be truthy
+  // (so we can apply values after the Textarea is mounted and registered)
+  const [pendingClone, setPendingClone] = useState<{ ev: any; cloneFrom: EventStoryEventItem } | null>(null);
+
   const timeType = form.watch(`moments.${index}.timeType`);
   const mediaUrl = form.watch(`moments.${index}.media.0.url`);
   const eventId = form.watch(`moments.${index}.eventId` as any) as string | null;
@@ -477,38 +481,46 @@ const MomentCard: React.FC<MomentCardProps> = ({
   const narrativeErr: string | undefined = undefined;
   const dateErr: string | undefined = undefined;
 
+  // Apply pending clone values once linkedEvent is truthy (i.e., once the Textarea is mounted)
+  useEffect(() => {
+    if (!pendingClone || !linkedEvent) return;
+    const { ev, cloneFrom } = pendingClone;
+    form.setValue(`moments.${index}.narrative`, cloneFrom.narrativeText ?? ev.summary ?? '', { shouldDirty: true, shouldTouch: true });
+    form.setValue(`moments.${index}.quote` as any, cloneFrom.quote ?? null, { shouldDirty: true });
+    form.setValue(`moments.${index}.quoteAuthor` as any, cloneFrom.quoteAuthor ?? null, { shouldDirty: true });
+    form.setValue(`moments.${index}.sourceStoryEventId` as any, cloneFrom.id, { shouldDirty: true });
+    setPendingClone(null);
+  }, [pendingClone, linkedEvent, form, index]);
+
   // Select an event (optionally cloning from an existing StoryEvent)
   const handleSelectEvent = useCallback((ev: any, cloneFrom?: EventStoryEventItem) => {
-    form.setValue(`moments.${index}.eventId` as any, ev.id);
-    form.setValue(`moments.${index}.title`, ev.title);
+    form.setValue(`moments.${index}.eventId` as any, ev.id, { shouldDirty: true });
+    form.setValue(`moments.${index}.title`, ev.title, { shouldDirty: true });
     // Date
     if (ev.dateISO) {
-      form.setValue(`moments.${index}.timeType`, 'date');
-      form.setValue(`moments.${index}.dateExact`, ev.dateISO);
+      form.setValue(`moments.${index}.timeType`, 'date', { shouldDirty: true });
+      form.setValue(`moments.${index}.dateExact`, ev.dateISO, { shouldDirty: true });
     } else if (ev.year || ev.period) {
-      form.setValue(`moments.${index}.timeType`, 'period');
-      form.setValue(`moments.${index}.periodText`, ev.period ?? String(ev.year ?? ''));
+      form.setValue(`moments.${index}.timeType`, 'period', { shouldDirty: true });
+      form.setValue(`moments.${index}.periodText`, ev.period ?? String(ev.year ?? ''), { shouldDirty: true });
     }
 
     if (cloneFrom) {
-      // Clone narration fields from the selected StoryEvent
-      form.setValue(`moments.${index}.narrative`, cloneFrom.narrativeText ?? ev.summary ?? '');
-      form.setValue(`moments.${index}.quote` as any, cloneFrom.quote ?? null);
-      form.setValue(`moments.${index}.quoteAuthor` as any, cloneFrom.quoteAuthor ?? null);
-      form.setValue(`moments.${index}.sourceStoryEventId` as any, cloneFrom.id);
+      // Store clone data — values will be applied once linkedEvent is truthy (Textarea mounted)
+      setPendingClone({ ev, cloneFrom });
     } else {
       // Fresh start: pre-fill narrative with event summary if narrative is empty
       const currentNarrative = form.getValues(`moments.${index}.narrative`);
       if ((!currentNarrative || currentNarrative.trim() === '') && ev.summary) {
-        form.setValue(`moments.${index}.narrative`, ev.summary);
+        form.setValue(`moments.${index}.narrative`, ev.summary, { shouldDirty: true });
       }
     }
 
     // Image: pre-fill with event's first image if no image set
     const currentImg = form.getValues(`moments.${index}.media.0.url`);
     if (!currentImg && ev.media?.[0]?.url) {
-      form.setValue(`moments.${index}.media.0.url`, ev.media[0].url);
-      form.setValue(`moments.${index}.media.0.type`, ev.media[0].type ?? 'image');
+      form.setValue(`moments.${index}.media.0.url`, ev.media[0].url, { shouldDirty: true });
+      form.setValue(`moments.${index}.media.0.type`, ev.media[0].type ?? 'image', { shouldDirty: true });
     }
     setPickerOpen(false);
   }, [form, index]);
@@ -680,16 +692,23 @@ const MomentCard: React.FC<MomentCardProps> = ({
                 </Label>
                 {linkedEvent.summary && (
                   <button type="button"
-                    onClick={() => form.setValue(`moments.${index}.narrative`, linkedEvent.summary)}
+                    onClick={() => form.setValue(`moments.${index}.narrative`, linkedEvent.summary, { shouldDirty: true })}
                     className="text-[10px] text-primary hover:underline font-medium">
                     ↩ Copier le résumé de l'événement
                   </button>
                 )}
               </div>
-              <Textarea
-                {...form.register(`moments.${index}.narrative`)}
-                placeholder="Narration de ce moment dans le récit…"
-                rows={5}
+              <Controller
+                control={form.control}
+                name={`moments.${index}.narrative` as any}
+                render={({ field }) => (
+                  <Textarea
+                    {...field}
+                    value={field.value ?? ''}
+                    placeholder="Narration de ce moment dans le récit…"
+                    rows={5}
+                  />
+                )}
               />
             </div>
 
@@ -720,10 +739,22 @@ const MomentCard: React.FC<MomentCardProps> = ({
             </Label>
             <div className="grid sm:grid-cols-3 gap-2">
               <div className="sm:col-span-2">
-                <Input {...form.register(`moments.${index}.quote` as any)} placeholder="« Texte de la citation… »" className="text-xs h-8" />
+                <Controller
+                  control={form.control}
+                  name={`moments.${index}.quote` as any}
+                  render={({ field }) => (
+                    <Input {...field} value={field.value ?? ''} placeholder="« Texte de la citation… »" className="text-xs h-8" />
+                  )}
+                />
               </div>
               <div>
-                <Input {...form.register(`moments.${index}.quoteAuthor` as any)} placeholder="Auteur / source" className="text-xs h-8" />
+                <Controller
+                  control={form.control}
+                  name={`moments.${index}.quoteAuthor` as any}
+                  render={({ field }) => (
+                    <Input {...field} value={field.value ?? ''} placeholder="Auteur / source" className="text-xs h-8" />
+                  )}
+                />
               </div>
             </div>
           </div>
