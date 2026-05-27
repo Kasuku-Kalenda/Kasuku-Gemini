@@ -68,7 +68,7 @@ export async function timelinesRoutes(app: FastifyInstance) {
     `;
 
     const items = await sql`
-      SELECT s.id, s.slug, s.lang, s.title, s.type, s.status, s.cover_url,
+      SELECT s.id, s.slug, s.lang, s.title, s.summary, s.type, s.status, s.cover_url,
              s.period_label,
              s.computed_start_date, s.computed_end_date,
              s.published_at, s.created_at, s.updated_at,
@@ -129,6 +129,7 @@ export async function timelinesRoutes(app: FastifyInstance) {
           JSONB_BUILD_OBJECT(
             'id',                 se.id,
             'eventId',            se.event_id,
+            'eventSlug',          e.slug,
             'position',           se.position,
             'title',              e.title,
             'narrativeText',      se.narrative_text,

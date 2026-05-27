@@ -180,6 +180,8 @@ export const timelineMomentSchema = z.object({
   media: z.array(mediaSchema).default([]),             // illustration principale
   resources: z.array(momentResourceSchema).default([]), // ressources complémentaires
   // ── Champs story_events narratifs ──────────────────────────────────────────
+  narrativeAudioUrl: z.string().nullable().optional(), // URL audio narratif
+  narrativeVideoUrl: z.string().nullable().optional(), // URL vidéo narratif
   quote: z.string().optional().nullable(),             // citation d'époque
   quoteAuthor: z.string().optional().nullable(),       // auteur de la citation
   sourceStoryEventId: z.string().optional().nullable(), // ID du StoryEvent source (clonage)

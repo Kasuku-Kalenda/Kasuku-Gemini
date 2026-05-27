@@ -306,15 +306,32 @@ export function EventForm({ mode, initialData, onSave, onCreated, compact = fals
     }
 
     try {
+      // En mode compact, les champs avancés ne sont pas affichés : préserver les
+      // valeurs DB existantes pour éviter de les réinitialiser à leurs défauts Zod.
+      const payload = (compact && mode === 'edit' && initialData)
+        ? {
+            ...result.data,
+            temporalType:      initialData.temporalType      ?? result.data.temporalType,
+            displayDate:       initialData.displayDate       ?? result.data.displayDate,
+            endDate:           initialData.endDate           ?? result.data.endDate,
+            approxCentury:     initialData.approxCentury     ?? result.data.approxCentury,
+            approxDecade:      initialData.approxDecade      ?? result.data.approxDecade,
+            annualRecurrence:  initialData.annualRecurrence  ?? result.data.annualRecurrence,
+            reliability:       initialData.reliability       ?? result.data.reliability,
+            content:           initialData.content           ?? result.data.content,
+            contributors:      initialData.contributors      ?? result.data.contributors,
+          }
+        : result.data;
+
       if (mode === 'create') {
-        const created = await adminApi.createEvent(result.data);
+        const created = await adminApi.createEvent(payload);
         if (onCreated) {
           onCreated(created);
         } else {
           onSave();
         }
       } else {
-        await adminApi.updateEvent(initialData.id, result.data);
+        await adminApi.updateEvent(initialData.id, payload);
         onSave();
       }
     } catch (err: unknown) {
@@ -586,6 +603,7 @@ export function EventForm({ mode, initialData, onSave, onCreated, compact = fals
               type="button"
               size="sm"
               variant="outline"
+              disabled={sourcesFields.length >= 1}
               onClick={() => appendSource({ label: '', url: '' })}
             >
               + Ajouter une source
@@ -594,6 +612,9 @@ export function EventForm({ mode, initialData, onSave, onCreated, compact = fals
 
           {sourcesFields.length === 0 && (
             <p className="text-sm text-muted-foreground italic">Aucune source — recommandé pour la crédibilité.</p>
+          )}
+          {sourcesFields.length >= 1 && (
+            <p className="text-xs text-muted-foreground italic">Une seule source par événement est actuellement supportée.</p>
           )}
 
           <div className="space-y-3">

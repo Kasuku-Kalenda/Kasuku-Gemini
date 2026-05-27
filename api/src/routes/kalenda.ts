@@ -100,7 +100,8 @@ export async function kalendaRoutes(app: FastifyInstance) {
 
   // ── DELETE /:id ───────────────────────────────────────────────────────────
   app.delete('/:id', { preHandler: requireAdmin }, async (req: any, reply) => {
-    await sql`DELETE FROM kalendas WHERE id = ${req.params.id}`;
+    const [deleted] = await sql`DELETE FROM kalendas WHERE id = ${req.params.id} RETURNING id`;
+    if (!deleted) return reply.status(404).send({ error: 'Kalenda introuvable' });
     return reply.send({ success: true });
   });
 }

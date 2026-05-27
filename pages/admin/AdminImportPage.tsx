@@ -2,7 +2,7 @@ import React, { useState, useRef, useCallback } from 'react';
 import { AdminLayout } from '../../components/admin/AdminLayout';
 import { Button } from '../../components/ui/Button';
 import { adminApi } from '../../services/adminApi';
-import type { Event, Theme, TimelineNarrative } from '../../types';
+import type { Event, Theme, TimelineNarrative, TimelineMoment } from '../../types';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -84,10 +84,10 @@ const EVENTS_TEMPLATE = `titre,slug,resume,dateISO,annee,periode,codePays,slugsT
 "Première Guerre Mondiale","premiere-guerre-mondiale","La Première Guerre mondiale est un conflit militaire mondial qui oppose les grandes puissances européennes et leurs alliés entre 1914 et 1918. Cet événement transforme profondément l'ordre mondial.","","","1914-1918","","histoire-politique","","","",""
 `;
 
-const MOMENTS_TEMPLATE = `slugTimeline,titre,recit,typeDuration,dateExact,textePeriode,imageUrl,imageLegende
-"nelson-mandela","Naissance à Mvezo","Nelson Mandela naît le 18 juillet 1918 dans le village de Mvezo, en Afrique du Sud. Fils d'un chef tribal de la tribu Thembu, il grandit dans un contexte de ségrégation raciale.","date","1918-07-18","","https://example.com/mandela-young.jpg","Nelson Mandela jeune"
-"nelson-mandela","Emprisonnement à Robben Island","Condamné à la prison à vie pour sabotage et activités de résistance, Nelson Mandela est incarcéré à Robben Island. Il y passera 18 des 27 années de détention.","date","1964-06-12","","",""
-"nelson-mandela","Apartheid - Années sombres","La politique d'apartheid institutionnalise la ségrégation raciale dans toute l'Afrique du Sud. Les Noirs sont dépossédés de leurs droits civiques et contraints de vivre dans des zones réservées.","period","","1948-1991","",""
+const MOMENTS_TEMPLATE = `slugTimeline,slugEvenement,titre,recit,typeDuration,dateExact,textePeriode,imageUrl,imageLegende
+"nelson-mandela","naissance-nelson-mandela","Naissance à Mvezo","Nelson Mandela naît le 18 juillet 1918 dans le village de Mvezo, en Afrique du Sud. Fils d'un chef tribal de la tribu Thembu, il grandit dans un contexte de ségrégation raciale.","date","1918-07-18","","https://example.com/mandela-young.jpg","Nelson Mandela jeune"
+"nelson-mandela","robben-island-mandela","Emprisonnement à Robben Island","Condamné à la prison à vie pour sabotage et activités de résistance, Nelson Mandela est incarcéré à Robben Island. Il y passera 18 des 27 années de détention.","date","1964-06-12","","",""
+"nelson-mandela","apartheid-annees-sombres","Apartheid - Années sombres","La politique d'apartheid institutionnalise la ségrégation raciale dans toute l'Afrique du Sud. Les Noirs sont dépossédés de leurs droits civiques et contraints de vivre dans des zones réservées.","period","","1948-1991","",""
 `;
 
 function downloadCSV(content: string, filename: string) {
@@ -219,23 +219,23 @@ async function importMoments(rows: Record<string, string>[]): Promise<ImportResu
 
     const ev = eventBySlug[evSlug];
     const typeDuration = (row['typeduration'] || row['type_date'] || 'date') as 'date' | 'period';
-    const moment: TimelineNarrative['moments'][0] = {
-      id:          `mom${crypto.randomUUID()}`,
-      timelineId:  timelineBySlug[tlSlug].id,
-      eventId:     ev.id,                          // ← résolu depuis le slug
+    const moment = {
+      id:            `mom${crypto.randomUUID()}`,
+      timelineId:    timelineBySlug[tlSlug].id,
+      eventId:       ev.id,
       title:         row['titre'] || ev.title,
       narrative:     row['recit'],
-      narrativeText: row['recit'],                  // clé attendue par l'API PUT /timelines/:id
-      timeType:      typeDuration === 'period' ? 'period' : 'date',
-      dateExact:   row['dateexact'] || null,
-      periodText:  row['texteperiode'] || row['texte_periode'] || null,
-      position:    momentsByTimeline[tlSlug].length,
+      narrativeText: row['recit'],  // clé attendue par l'API PUT /timelines/:id
+      timeType:      (typeDuration === 'period' ? 'period' : 'date') as 'period' | 'date',
+      dateExact:     row['dateexact'] || null,
+      periodText:    row['texteperiode'] || row['texte_periode'] || null,
+      position:      momentsByTimeline[tlSlug].length,
       media: row['imageurl'] ? [{
         id: `med${crypto.randomUUID()}`,
         type: 'image' as const,
         url: row['imageurl'],
         caption: row['imagelegende'] || undefined,
-      }] : [],
+      }] : [] as TimelineMoment['media'],
     };
 
     momentsByTimeline[tlSlug].push(moment);
@@ -299,7 +299,7 @@ export const AdminImportPage: React.FC<AdminImportPageProps> = ({ navigateTo }) 
     const parsed: ParsedRow[] = rows.map(row => {
       const errors = mode === 'events'
         ? validateEventRow(row)
-        : validateMomentRow(row, timelineSlugs);
+        : validateMomentRow(row, timelineSlugs, new Set());
       return { raw: row, errors, valid: errors.length === 0 };
     });
     setParsedRows(parsed);

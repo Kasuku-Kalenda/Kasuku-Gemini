@@ -6,6 +6,7 @@
 
 import Fastify from 'fastify';
 import cors        from '@fastify/cors';
+import helmet      from '@fastify/helmet';
 import jwt         from '@fastify/jwt';
 import multipart   from '@fastify/multipart';
 import rateLimit   from '@fastify/rate-limit';
@@ -43,6 +44,15 @@ const PREFIX = '/api/v1';
 const CORS_ORIGINS = (process.env.CORS_ORIGINS ?? 'http://localhost')
   .split(',').map(o => o.trim());
 
+// ─── Validation des variables d'environnement critiques ──────────────────────
+
+if (process.env.NODE_ENV === 'production') {
+  if (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'dev_secret_change_me') {
+    console.error('FATAL: JWT_SECRET est obligatoire en production');
+    process.exit(1);
+  }
+}
+
 // ─── Bootstrap ────────────────────────────────────────────────────────────────
 
 async function bootstrap() {
@@ -64,9 +74,14 @@ async function bootstrap() {
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   });
 
+  await app.register(helmet, {
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+    contentSecurityPolicy: false, // géré par le frontend (Vite/Next.js)
+  });
+
   await app.register(jwt, {
     secret: process.env.JWT_SECRET ?? 'dev_secret_change_me',
-    sign:   { expiresIn: process.env.JWT_EXPIRES_IN ?? '7d' },
+    sign:   { expiresIn: process.env.JWT_EXPIRES_IN ?? '15m' },
   });
 
   await app.register(multipart, {

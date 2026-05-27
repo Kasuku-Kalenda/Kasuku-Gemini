@@ -20,8 +20,9 @@ const deleteTimeline = async (id: string): Promise<boolean> => { await api.delet
 
 // ─── Events ────────────────────────────────────────────────────────────────────
 
-const listEvents = async (): Promise<ListResponse<Event>> => {
-  const res = await api.get<ListResponse<Record<string, unknown>>>('/events/all?limit=500');
+const listEvents = async (opts: { limit?: number } = {}): Promise<ListResponse<Event>> => {
+  const limit = opts.limit ?? 500;
+  const res = await api.get<ListResponse<Record<string, unknown>>>(`/events/all?limit=${limit}`);
   return { items: res.items.map(mapApiEvent) };
 };
 

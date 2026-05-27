@@ -135,8 +135,7 @@ export async function pushRoutes(app: FastifyInstance) {
       data?: Record<string, string>;
     }
   }>('/send', { preHandler: [requireAuth] }, async (req, reply) => {
-    const user = req.user as any;
-    if (user.role !== 'admin') {
+    if (req.authUser!.role !== 'admin') {
       return reply.status(403).send({ error: 'Réservé aux admins' });
     }
 

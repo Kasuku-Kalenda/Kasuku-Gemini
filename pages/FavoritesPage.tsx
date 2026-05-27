@@ -1,8 +1,7 @@
 
 import React, { useMemo, useEffect, useState } from 'react';
 import { useFavorites } from '../hooks/useFavorites';
-import { EVENTS, ALL_TRAINING_MODULES } from '../constants';
-import { getTimelines } from '../services/api';
+import { getTimelines, getEvents, getModules } from '../services/api';
 import { EventCard } from '../components/EventCard';
 import { ModuleCard } from '../components/ModuleCard';
 import type { Event, TrainingModule, TimelineNarrative } from '../types';
@@ -24,20 +23,24 @@ export const FavoritesPage: React.FC<FavoritesPageProps> = ({
 }) => {
   const { items, toggle, exists } = useFavorites();
   const [allTimelines, setAllTimelines] = useState<TimelineNarrative[]>([]);
+  const [allEvents, setAllEvents]       = useState<Event[]>([]);
+  const [allModules, setAllModules]     = useState<TrainingModule[]>([]);
 
   useEffect(() => {
     getTimelines().then(setAllTimelines).catch(() => {});
+    getEvents({ limit: 500 }).then(setAllEvents).catch(() => {});
+    getModules({ limit: 500 }).then(r => setAllModules(r.items)).catch(() => {});
   }, []);
 
   const favoriteEvents = useMemo(() => {
     const eventIds = new Set(items.filter(i => i.type === 'event').map(i => i.id));
-    return EVENTS.filter(event => eventIds.has(event.id));
-  }, [items]);
+    return allEvents.filter(event => eventIds.has(event.id));
+  }, [items, allEvents]);
 
   const favoriteModules = useMemo(() => {
     const moduleIds = new Set(items.filter(i => i.type === 'module').map(i => i.id));
-    return ALL_TRAINING_MODULES.filter(module => moduleIds.has(module.id));
-  }, [items]);
+    return allModules.filter(module => moduleIds.has(module.id));
+  }, [items, allModules]);
 
   const favoriteTimelines = useMemo(() => {
     const ids = new Set(items.filter(i => i.type === 'timeline').map(i => i.id));
