@@ -86,7 +86,7 @@ export const AdminThemesPage: React.FC<AdminThemesPageProps> = ({ navigateTo }) 
             {filtered.map(theme => (
               <div
                 key={theme.id}
-                className="group relative bg-white rounded-2xl border border-muted shadow-sm hover:shadow-md transition-all overflow-hidden"
+                className="group relative bg-card rounded-2xl border border-border shadow-sm hover:shadow-md transition-all overflow-hidden"
               >
                 {/* Color bar */}
                 <div

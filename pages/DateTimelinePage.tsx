@@ -50,7 +50,7 @@ export const DateTimelinePage: React.FC<DateTimelinePageProps> = ({ onViewEvent,
     const accentColor = activeEvent.themes[0] ? (THEME_COLORS[activeEvent.themes[0].slug] || '#E67E22') : '#E67E22';
 
     return (
-        <div className="fixed inset-0 z-50 bg-[#FAF8F5] overflow-hidden flex flex-col h-screen select-none font-sans">
+        <div className="fixed inset-0 z-50 bg-light overflow-hidden flex flex-col h-screen select-none font-sans">
             {/* Ambient Dynamic Background */}
             <div 
                 className="absolute inset-0 opacity-10 blur-[150px] transition-colors duration-[1500ms] ease-in-out pointer-events-none"
@@ -164,7 +164,7 @@ export const DateTimelinePage: React.FC<DateTimelinePageProps> = ({ onViewEvent,
             </div>
 
             {/* Immersive Navigation Bar */}
-            <div className="p-10 sm:p-16 relative z-10 bg-gradient-to-t from-[#FAF8F5] via-[#FAF8F5]/90 to-transparent">
+            <div className="p-10 sm:p-16 relative z-10 bg-gradient-to-t from-light via-light/90 to-transparent">
                 <div className="max-w-4xl mx-auto space-y-10">
                     <div className="relative h-1.5 w-full bg-black/5 rounded-full overflow-visible">
                         <div 
@@ -180,7 +180,7 @@ export const DateTimelinePage: React.FC<DateTimelinePageProps> = ({ onViewEvent,
                                         ${i === activeIndex ? 'scale-150' : 'scale-100'}
                                     `}
                                 >
-                                    <div className={`h-4 w-4 rounded-full border-4 border-[#FAF8F5] shadow-xl transition-all duration-500 
+                                    <div className={`h-4 w-4 rounded-full border-4 border-light shadow-xl transition-all duration-500
                                         ${i <= activeIndex ? 'bg-primary' : 'bg-black/10'}
                                     `}></div>
                                     

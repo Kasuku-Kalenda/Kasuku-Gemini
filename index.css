@@ -4,6 +4,8 @@
 
 /* ── Theme color tokens (R G B — pour compatibilité opacité Tailwind) ──────── */
 :root {
+  color-scheme: light dark;
+
   /* Light mode */
   --color-light:            250 248 245;
   --color-dark:             44 62 80;

@@ -349,7 +349,7 @@ export const AdminImportPage: React.FC<AdminImportPageProps> = ({ navigateTo }) 
               type="button"
               onClick={() => { setMode(tab.key); setParsedRows([]); setResult(null); setFileName(''); }}
               className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                mode === tab.key ? 'bg-white shadow text-primary' : 'text-muted-foreground hover:text-primary'
+                mode === tab.key ? 'bg-card shadow text-primary' : 'text-muted-foreground hover:text-primary'
               }`}
             >
               {tab.label}

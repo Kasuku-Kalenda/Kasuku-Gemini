@@ -341,7 +341,7 @@ function QuizPlayer({ quiz, onPass, onClose }: QuizPlayerProps) {
 
     if (showResults) return (
         <div className="fixed inset-0 z-[200] bg-black/60 flex items-center justify-center p-4">
-            <div className="bg-white rounded-3xl shadow-2xl p-8 max-w-md w-full text-center">
+            <div className="bg-card rounded-3xl shadow-2xl p-8 max-w-md w-full text-center">
                 <div className="text-6xl mb-4">{passed ? '🏆' : '📚'}</div>
                 <h2 className="text-2xl font-black text-secondary mb-2">
                     {passed ? 'Félicitations !' : 'Presque !'}
@@ -370,7 +370,7 @@ function QuizPlayer({ quiz, onPass, onClose }: QuizPlayerProps) {
 
     return (
         <div className="fixed inset-0 z-[200] bg-black/60 flex items-center justify-center p-4">
-            <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden">
+            <div className="bg-card rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden">
                 {/* Header */}
                 <div className="bg-secondary px-6 py-4 flex items-center justify-between">
                     <div>
@@ -456,9 +456,9 @@ function CertificateModal({ module, onClose }: { module: any; onClose: () => voi
     const date = new Date().toLocaleDateString('fr-FR', { year: 'numeric', month: 'long', day: 'numeric' });
     return (
         <div className="fixed inset-0 z-[300] bg-black/70 flex items-center justify-center p-4" onClick={onClose}>
-            <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full p-2" onClick={e => e.stopPropagation()}>
+            <div className="bg-card rounded-3xl shadow-2xl max-w-lg w-full p-2" onClick={e => e.stopPropagation()}>
                 {/* Certificate */}
-                <div className="border-4 border-primary/30 rounded-2xl p-8 text-center bg-gradient-to-br from-primary/5 via-white to-accent/5">
+                <div className="border-4 border-primary/30 rounded-2xl p-8 text-center bg-gradient-to-br from-primary/5 via-card to-accent/5">
                     <div className="flex justify-center mb-4">
                         <img src="https://i.postimg.cc/8cYFbspt/Kasuku-logo.png" alt="Kasuku" className="h-16 w-16 rounded-full shadow" />
                     </div>
@@ -533,7 +533,7 @@ function LessonPlayer({ lesson }: { lesson: any }) {
         </div>
     );
     if (lesson.type === 'text' && lesson.content) return (
-        <div className="rounded-2xl bg-white border border-muted p-6 prose prose-slate max-w-none">
+        <div className="rounded-2xl bg-card border border-border p-6 prose prose-slate max-w-none">
             <div className="whitespace-pre-wrap text-secondary leading-relaxed">{lesson.content}</div>
         </div>
     );
@@ -643,7 +643,7 @@ function InternalCoursePlayer({
             <div className="flex flex-col lg:flex-row gap-6">
                 {/* ── Sidebar ── */}
                 <aside className={`w-full lg:w-72 shrink-0 lg:sticky top-4 self-start ${sidebarOpen ? 'block' : 'hidden lg:block'}`}>
-                    <div className="bg-white rounded-2xl border border-muted shadow-sm overflow-hidden">
+                    <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
                         <div className="px-4 py-3 bg-secondary text-white">
                             <h2 className="font-black text-sm">{module.title}</h2>
                             <div className="mt-2 h-1.5 bg-white/20 rounded-full overflow-hidden">
@@ -772,7 +772,7 @@ function InternalCoursePlayer({
                             <h3 className="font-bold text-secondary">🔗 Ressources complémentaires</h3>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 {module.resources.map((r: any) => (
-                                    <div key={r.id} className={`flex items-start gap-3 p-3.5 bg-white rounded-xl border border-muted hover:border-primary/30 hover:shadow-sm transition-all ${r.type === 'audio' ? 'flex-col' : ''}`}>
+                                    <div key={r.id} className={`flex items-start gap-3 p-3.5 bg-card rounded-xl border border-border hover:border-primary/30 hover:shadow-sm transition-all ${r.type === 'audio' ? 'flex-col' : ''}`}>
                                         {/* ── Audio : lecteur inline ── */}
                                         {r.type === 'audio' ? (
                                             <div className="w-full">
@@ -851,7 +851,7 @@ function InternalCoursePlayer({
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 {relatedEvents.map(ev => (
                                     <button key={ev.id} onClick={() => onNavigateToEvent(ev.id)}
-                                        className="flex items-start gap-3 p-3 bg-white rounded-xl border border-muted hover:border-primary/30 hover:bg-primary/5 transition-colors text-left group">
+                                        className="flex items-start gap-3 p-3 bg-card rounded-xl border border-border hover:border-primary/30 hover:bg-primary/5 transition-colors text-left group">
                                         {ev.media?.[0]?.url && (
                                             <img src={ev.media[0].url} alt="" className="w-11 h-11 rounded-lg object-cover shrink-0" referrerPolicy="no-referrer" />
                                         )}

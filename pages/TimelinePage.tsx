@@ -270,7 +270,7 @@ export const TimelinePage: React.FC<TimelinePageProps> = ({
         : '#E67E22';
 
     return (
-        <div className="fixed inset-0 z-50 bg-[#FAF8F5] overflow-hidden flex flex-col h-screen select-none font-sans">
+        <div className="fixed inset-0 z-50 bg-light overflow-hidden flex flex-col h-screen select-none font-sans">
 
             {/* Fond ambiant dynamique */}
             <div
@@ -501,7 +501,7 @@ export const TimelinePage: React.FC<TimelinePageProps> = ({
 
             {/* Barre de navigation chronologique */}
             <div
-              className="px-6 pt-6 sm:pt-10 relative z-10 bg-gradient-to-t from-[#FAF8F5] via-[#FAF8F5]/90 to-transparent flex-shrink-0"
+              className="px-6 pt-6 sm:pt-10 relative z-10 bg-gradient-to-t from-light via-light/90 to-transparent flex-shrink-0"
               style={{ paddingBottom: 'max(1.5rem, var(--sab, 0px))' }}
             >
                 <div className="max-w-4xl mx-auto space-y-6 sm:space-y-10">
@@ -518,7 +518,7 @@ export const TimelinePage: React.FC<TimelinePageProps> = ({
                                     onClick={() => setActiveIndex(i)}
                                     className={`no-min-h relative flex items-center justify-center p-2 transition-all duration-700 ${i === activeIndex ? 'scale-150' : 'scale-100'}`}
                                 >
-                                    <div className={`h-3.5 w-3.5 rounded-full border-4 border-[#FAF8F5] shadow-xl transition-all duration-500 ${i <= activeIndex ? 'bg-primary' : 'bg-black/10'}`} />
+                                    <div className={`h-3.5 w-3.5 rounded-full border-4 border-light shadow-xl transition-all duration-500 ${i <= activeIndex ? 'bg-primary' : 'bg-black/10'}`} />
                                     {(i === 0 || i === slides.length - 1 || i === activeIndex) && (
                                         <span className={`absolute -top-10 text-[10px] font-black whitespace-nowrap uppercase tracking-tighter transition-colors duration-500 ${i === activeIndex ? 'text-primary' : 'text-secondary/40'}`}>
                                             {s.originalType === 'intro' ? 'Intro' : (s.year || '…')}
