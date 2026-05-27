@@ -751,6 +751,35 @@ const MomentCard: React.FC<MomentCardProps> = ({
             </div>
           </div>
 
+          {/* Audio / Vidéo narratif */}
+          <div className="pt-2 border-t border-muted space-y-2">
+            <Label className="text-[10px] uppercase font-black tracking-widest text-muted-foreground">
+              Audio / Vidéo narratif <span className="normal-case font-normal text-muted-foreground/70">(optionnel)</span>
+            </Label>
+            <div className="grid sm:grid-cols-2 gap-2">
+              <div>
+                <p className="text-[10px] text-muted-foreground mb-1">🎙 URL audio (mp3, wav…)</p>
+                <Controller
+                  control={form.control}
+                  name={`moments.${index}.narrativeAudioUrl` as any}
+                  render={({ field }) => (
+                    <Input {...field} value={field.value ?? ''} placeholder="https://…/narration.mp3" className="text-xs h-8" />
+                  )}
+                />
+              </div>
+              <div>
+                <p className="text-[10px] text-muted-foreground mb-1">🎬 URL vidéo (mp4, YouTube…)</p>
+                <Controller
+                  control={form.control}
+                  name={`moments.${index}.narrativeVideoUrl` as any}
+                  render={({ field }) => (
+                    <Input {...field} value={field.value ?? ''} placeholder="https://…/video.mp4" className="text-xs h-8" />
+                  )}
+                />
+              </div>
+            </div>
+          </div>
+
           {/* Citation d'époque */}
           <div className="pt-2 border-t border-muted space-y-2">
             <Label className="text-[10px] uppercase font-black tracking-widest text-muted-foreground">
