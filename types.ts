@@ -256,7 +256,6 @@ export interface TimelineNarrative {
   subtitle?: string;
   type: TimelineType;
   summary: string;       // = stories.summary (anciennement shortDescription)
-  longDescription?: string;
   coverUrl: string;      // = stories.cover_url (anciennement thumbnail)
   periodLabel: string;
   status: TimelineStatus;

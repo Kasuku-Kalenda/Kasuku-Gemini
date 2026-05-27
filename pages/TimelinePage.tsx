@@ -120,7 +120,7 @@ const MomentResourceItem: React.FC<{ resource: MomentResource }> = ({ resource }
 const buildIntroSlide = (tl: TimelineNarrative): NarrativeSlide => ({
     id: `${tl.id}__intro`,
     title: tl.title,
-    description: tl.longDescription || tl.summary || '',
+    description: tl.summary || '',
     dateLabel: tl.periodLabel || '',
     year: undefined,
     sortTimestamp: -Infinity,   // toujours premier

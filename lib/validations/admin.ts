@@ -93,7 +93,7 @@ export const TimelineNarrativeSchema = z.object({
   subtitle: z.string().optional(),
   type: z.enum(['personnage', 'evenement']),
   shortDescription: z.string().min(10, 'Description courte requise'),
-  longDescription: z.string().optional(),
+  // longDescription supprimé : pas de colonne DB, contenu couvert par summary
   thumbnail: z.string().url('URL invalide'),
   periodLabel: z.string().min(2, 'Label de période requis'),
   status: z.enum(['draft', 'published']).default('draft'),

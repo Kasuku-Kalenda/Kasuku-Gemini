@@ -822,7 +822,6 @@ export function TimelineForm({ mode, initialData, onSave }: TimelineFormProps) {
     slug: initialData.slug ?? '',
     type: initialData.type ?? 'evenement',
     summary: initialData.summary ?? '',
-    longDescription: initialData.longDescription ?? '',
     coverUrl: initialData.coverUrl ?? '',
     periodLabel: initialData.periodLabel ?? '',
     status: initialData.status ?? 'draft',
@@ -842,7 +841,7 @@ export function TimelineForm({ mode, initialData, onSave }: TimelineFormProps) {
     })),
   } : {
     title: '', subtitle: '', slug: '', type: 'evenement',
-    summary: '', longDescription: '', coverUrl: '',
+    summary: '', coverUrl: '',
     periodLabel: '', status: 'draft', moments: [],
   };
 
@@ -894,7 +893,6 @@ export function TimelineForm({ mode, initialData, onSave }: TimelineFormProps) {
     const values: TimelineFormData = {
       ...rawValues,
       subtitle: norm(rawValues.subtitle),
-      longDescription: norm(rawValues.longDescription),
       moments: sortMomentsByDate(
         rawValues.moments.map((m, i) => ({
           ...m,
@@ -1038,10 +1036,6 @@ export function TimelineForm({ mode, initialData, onSave }: TimelineFormProps) {
               <E field="summary" />
               <span className="text-xs text-muted-foreground ml-auto">{(form.watch('summary') ?? '').length} / 200</span>
             </div>
-          </div>
-          <div>
-            <Label>Description longue <span className="text-muted-foreground text-xs">(optionnel)</span></Label>
-            <Textarea {...form.register('longDescription')} rows={3} placeholder="Description complète affichée sur la page du parcours…" />
           </div>
         </section>
 

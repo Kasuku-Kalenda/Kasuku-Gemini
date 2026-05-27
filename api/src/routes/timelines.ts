@@ -36,6 +36,7 @@ export async function timelinesRoutes(app: FastifyInstance) {
 
     const items = await sql`
       SELECT s.id, s.slug, s.lang, s.title, s.summary, s.cover_url,
+             s.period_label,
              s.contributors, s.computed_start_date, s.computed_end_date,
              s.published_at, s.created_at,
              COUNT(se.event_id)::int AS moment_count
@@ -68,6 +69,7 @@ export async function timelinesRoutes(app: FastifyInstance) {
 
     const items = await sql`
       SELECT s.id, s.slug, s.lang, s.title, s.type, s.status, s.cover_url,
+             s.period_label,
              s.computed_start_date, s.computed_end_date,
              s.published_at, s.created_at, s.updated_at,
              COUNT(se.event_id)::int AS moment_count
@@ -171,10 +173,11 @@ export async function timelinesRoutes(app: FastifyInstance) {
     const slug = await uniqueSlug('stories', String(body.title ?? ''));
 
     const [story] = await sql`
-      INSERT INTO stories (slug, lang, title, summary, cover_url, contributors, type, status, created_by, updated_by)
+      INSERT INTO stories (slug, lang, title, summary, cover_url, period_label, contributors, type, status, created_by, updated_by)
       VALUES (
         ${slug}, ${body.lang ?? 'fr'}, ${body.title},
         ${body.summary ?? null}, ${body.coverUrl ?? null},
+        ${body.periodLabel ?? null},
         ${JSON.stringify(body.contributors ?? [])},
         ${body.type ?? 'evenement'},
         ${body.status ?? 'draft'},
@@ -229,6 +232,7 @@ export async function timelinesRoutes(app: FastifyInstance) {
         title        = ${body.title},
         summary      = ${body.summary ?? null},
         cover_url    = ${body.coverUrl ?? null},
+        period_label = ${body.periodLabel ?? null},
         contributors = ${JSON.stringify(body.contributors ?? [])},
         type         = ${body.type ?? 'evenement'},
         status       = ${body.status ?? 'draft'},
