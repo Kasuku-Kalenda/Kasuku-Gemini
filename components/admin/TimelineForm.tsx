@@ -862,7 +862,7 @@ export function TimelineForm({ mode, initialData, onSave }: TimelineFormProps) {
       dateExact: m.dateExact ?? null,
       periodText: m.periodText ?? m.periodLabel ?? null,
       media: m.media ?? [],
-      resources: m.resources ?? [],
+      resources: m.resources ?? m.cta ?? [],
       eventId: m.eventId ?? null,
       quote: m.quote ?? null,
       quoteAuthor: m.quoteAuthor ?? null,
@@ -989,6 +989,8 @@ export function TimelineForm({ mode, initialData, onSave }: TimelineFormProps) {
       moments: result.data.moments.map((m: any) => ({
         ...m,
         narrativeText: m.narrative ?? null,
+        // resources[] (form) → cta (DB column)
+        cta: (m.resources ?? []).length > 0 ? m.resources : null,
         // sourceStoryEventId est déjà dans le schéma
       })),
     };

@@ -106,7 +106,7 @@ export async function timelinesRoutes(app: FastifyInstance) {
             'narrativeVideoUrl',  se.narrative_video_url,
             'quote',              se.quote,
             'quoteAuthor',        se.quote_author,
-            'cta',                se.cta
+            'resources',          COALESCE(se.cta, '[]'::jsonb)
           ) ORDER BY se.position ASC
         ) FILTER (WHERE e.id IS NOT NULL), '[]') AS moments
       FROM stories s
@@ -137,6 +137,7 @@ export async function timelinesRoutes(app: FastifyInstance) {
             'quote',              se.quote,
             'quoteAuthor',        se.quote_author,
             'cta',                se.cta,
+            'resources',          COALESCE(se.cta, '[]'::jsonb),
             'sourceStoryEventId', se.source_story_event_id,
             'dateExact',          TO_CHAR(e.start_date, 'YYYY-MM-DD'),
             'periodText',         e.display_date,
