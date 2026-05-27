@@ -10,6 +10,7 @@ import { SearchIcon } from '../components/icons/SearchIcon';
 import { ChevronLeftIcon } from '../components/icons/ChevronLeftIcon';
 import { ChevronRightIcon } from '../components/icons/ChevronRightIcon';
 import { FeaturedStories } from '../components/home/FeaturedStories';
+import { PeriodsSection } from '../components/PeriodsSection';
 import { normalizeMediaUrl } from '../utils/helpers';
 
 // ─── Fisher-Yates shuffle ─────────────────────────────────────────────────────
@@ -848,6 +849,10 @@ export const HomePage: React.FC<HomePageProps> = ({ onViewEvent, navigateToModul
               })
           }
         </div>
+
+        {/* Périodes & Siècles */}
+        <PeriodsSection onViewEvent={onViewEvent} />
+
       </div>
     </>
   );
