@@ -23,11 +23,15 @@ export interface Kalenda {
   region?: string;          // "Sénégal", "RDC", "Burundi"…
   themeLabel?: string;      // "Éducation", "Culture", "Formation"…
   coverUrl?: string;
-  // Sélection de contenus embarqués
-  eventIds: string[];
-  timelineIds: string[];
-  moduleIds: string[];
-  themeIds: string[];
+  // Compteurs (liste /all) — arrays (détail /:id)
+  eventCount?: number;
+  storyCount?: number;
+  moduleCount?: number;
+  themeCount?: number;
+  eventIds?: string[];
+  storyIds?: string[];
+  moduleIds?: string[];
+  themeIds?: string[];
   // Méta
   version: string;          // "1.0.0"
   status: KalendasStatus;
@@ -251,9 +255,9 @@ export interface TimelineNarrative {
   title: string;
   subtitle?: string;
   type: TimelineType;
-  shortDescription: string;
+  summary: string;       // = stories.summary (anciennement shortDescription)
   longDescription?: string;
-  thumbnail: string; // cover_image_url
+  coverUrl: string;      // = stories.cover_url (anciennement thumbnail)
   periodLabel: string;
   status: TimelineStatus;
   eventCount: number;

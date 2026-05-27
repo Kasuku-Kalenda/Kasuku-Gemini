@@ -74,10 +74,10 @@ const KalendaCard: React.FC<KalendaCardProps> = ({ kalenda: k, onEdit, onDelete,
 
       <div className="grid grid-cols-4 gap-1 text-center text-[10px]">
         {[
-          { label: 'Évén.',   count: k.eventIds.length },
-          { label: 'Récits',  count: k.timelineIds.length },
-          { label: 'Modules', count: k.moduleIds.length },
-          { label: 'Thèmes',  count: k.themeIds.length },
+          { label: 'Évén.',   count: k.eventCount ?? 0 },
+          { label: 'Récits',  count: k.storyCount ?? 0 },
+          { label: 'Modules', count: k.moduleCount ?? 0 },
+          { label: 'Thèmes',  count: k.themeCount ?? 0 },
         ].map(({ label, count }) => (
           <div key={label} className="bg-muted/50 rounded py-1">
             <div className="font-bold text-foreground">{count}</div>

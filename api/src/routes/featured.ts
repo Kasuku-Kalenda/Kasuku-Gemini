@@ -60,8 +60,6 @@ const SELECT_FEATURED = sql`
       (SELECT med.url FROM event_media em JOIN media med ON med.id = em.media_id
        WHERE em.event_id = e.id LIMIT 1),
       NULLIF(s.cover_url, ''),
-      (SELECT med.url FROM story_media sm JOIN media med ON med.id = sm.media_id
-       WHERE sm.story_id = s.id AND sm.is_cover = true LIMIT 1),
       (SELECT med.url FROM story_events se
        JOIN event_media em ON em.event_id = se.event_id AND em.is_cover = true
        JOIN media med ON med.id = em.media_id
@@ -85,8 +83,6 @@ const SELECT_FEATURED = sql`
     s.summary            AS "storySummary",
     COALESCE(
       NULLIF(s.cover_url, ''),
-      (SELECT med.url FROM story_media sm JOIN media med ON med.id = sm.media_id
-       WHERE sm.story_id = s.id AND sm.is_cover = true LIMIT 1),
       (SELECT med.url FROM story_events se
        JOIN event_media em ON em.event_id = se.event_id AND em.is_cover = true
        JOIN media med ON med.id = em.media_id
