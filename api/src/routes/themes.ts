@@ -8,7 +8,7 @@
 
 import type { FastifyInstance } from 'fastify';
 import sql from '../db';
-import { requireAdmin } from '../middleware/auth';
+import { requireAdmin, requireSuperAdmin } from '../middleware/auth';
 import { uniqueSlug } from '../utils/slug';
 
 export async function themesRoutes(app: FastifyInstance) {
@@ -73,8 +73,28 @@ export async function themesRoutes(app: FastifyInstance) {
   });
 
   // ── DELETE /:id ───────────────────────────────────────────────────────────
-  app.delete('/:id', { preHandler: requireAdmin }, async (req: any, reply) => {
-    await sql`DELETE FROM themes WHERE id = ${req.params.id}`;
+  app.delete('/:id', { preHandler: requireSuperAdmin }, async (req: any, reply) => {
+    const { id } = req.params;
+
+    // Vérifier que le thème existe
+    const [existing] = await sql`SELECT id FROM themes WHERE id = ${id}`;
+    if (!existing) return reply.status(404).send({ error: 'Thème introuvable' });
+
+    // Vérifier que le thème n'est pas utilisé avant de supprimer
+    const [usage] = await sql`
+      SELECT
+        (SELECT COUNT(*)::int FROM event_themes   WHERE theme_id = ${id}) AS events,
+        (SELECT COUNT(*)::int FROM module_themes  WHERE theme_id = ${id}) AS modules,
+        (SELECT COUNT(*)::int FROM kalenda_themes WHERE theme_id = ${id}) AS kalendas
+    `;
+    const total = (usage.events ?? 0) + (usage.modules ?? 0) + (usage.kalendas ?? 0);
+    if (total > 0) {
+      return reply.status(409).send({
+        error: `Ce thème est utilisé (${usage.events} événement(s), ${usage.modules} module(s), ${usage.kalendas} kalenda(s)). Retirez-le de ces contenus avant de le supprimer.`,
+      });
+    }
+
+    await sql`DELETE FROM themes WHERE id = ${id}`;
     return reply.send({ success: true });
   });
 }

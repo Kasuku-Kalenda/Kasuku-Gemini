@@ -223,9 +223,10 @@ async function importMoments(rows: Record<string, string>[]): Promise<ImportResu
       id:          `mom${crypto.randomUUID()}`,
       timelineId:  timelineBySlug[tlSlug].id,
       eventId:     ev.id,                          // ← résolu depuis le slug
-      title:       row['titre'] || ev.title,
-      narrative:   row['recit'],                   // mappé vers narrativeText côté API
-      timeType:    typeDuration === 'period' ? 'period' : 'date',
+      title:         row['titre'] || ev.title,
+      narrative:     row['recit'],
+      narrativeText: row['recit'],                  // clé attendue par l'API PUT /timelines/:id
+      timeType:      typeDuration === 'period' ? 'period' : 'date',
       dateExact:   row['dateexact'] || null,
       periodText:  row['texteperiode'] || row['texte_periode'] || null,
       position:    momentsByTimeline[tlSlug].length,

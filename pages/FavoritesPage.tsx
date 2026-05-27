@@ -130,9 +130,9 @@ export const FavoritesPage: React.FC<FavoritesPageProps> = ({
                 >
                   {/* Thumbnail */}
                   <div className="relative aspect-[16/9] overflow-hidden bg-muted">
-                    {tl.thumbnail ? (
+                    {tl.coverUrl ? (
                       <img
-                        src={tl.thumbnail}
+                        src={tl.coverUrl}
                         alt={tl.title}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                         referrerPolicy="no-referrer"
