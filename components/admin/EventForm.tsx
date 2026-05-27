@@ -208,17 +208,31 @@ export function EventForm({ mode, initialData, onSave, onCreated, compact = fals
     slug: initialData.slug ?? '',
     summary: initialData.summary ?? '',
     status: initialData.status ?? 'draft',
-    dateISO: initialData.dateISO ?? '',
+    dateISO: initialData.dateISO ?? initialData.startDate ?? '',
     year: initialData.year ?? undefined,
     period: initialData.period ?? '',
-    countryCode: initialData.countryCode ?? '',
-    themeIds: initialData.themes?.map((t: any) => t.id) ?? [],
+    countryCode: initialData.countryCode ?? initialData.primaryCountryCode ?? '',
+    themeIds: initialData.themes?.map((t: any) => t.id) ?? initialData.themeIds ?? [],
     media: initialData.media ?? [],
     sources: initialData.sources ?? [],
+    // Champs avancés
+    temporalType: initialData.temporalType ?? 'exact_date',
+    displayDate: initialData.displayDate ?? '',
+    endDate: initialData.endDate ?? '',
+    approxCentury: initialData.approxCentury ?? undefined,
+    approxDecade: initialData.approxDecade ?? undefined,
+    annualRecurrence: initialData.annualRecurrence ?? false,
+    reliability: initialData.reliability ?? 'confirmed',
+    content: initialData.content ?? '',
+    contributors: initialData.contributors ?? [],
   } : {
     title: '', slug: '', summary: '', status: 'draft',
     dateISO: '', year: undefined, period: '', countryCode: '',
     themeIds: [], media: [], sources: [],
+    temporalType: 'exact_date', displayDate: '', endDate: '',
+    approxCentury: undefined, approxDecade: undefined,
+    annualRecurrence: false, reliability: 'confirmed',
+    content: '', contributors: [],
   };
 
   const form = useForm<EventFormData>({ defaultValues: defaultValues as EventFormData });
@@ -605,6 +619,117 @@ export function EventForm({ mode, initialData, onSave, onCreated, compact = fals
             })}
           </div>
         </section>
+
+        {/* ── Section 6 : Paramètres avancés ───────────────────────────── */}
+        {!compact && (
+        <section className="space-y-4">
+          <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground border-b pb-2">
+            Paramètres avancés
+          </h2>
+
+          {/* Type temporel + fiabilité */}
+          <div className="grid md:grid-cols-2 gap-4">
+            <div>
+              <Label>Type temporel</Label>
+              <select
+                className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm mt-1 focus:outline-none focus:ring-2 focus:ring-ring"
+                {...form.register('temporalType')}
+              >
+                <option value="exact_date">📅 Date exacte</option>
+                <option value="date_range">📆 Période datée (début → fin)</option>
+                <option value="approximate">🔍 Approx. (siècle / décennie)</option>
+                <option value="unknown">❓ Date inconnue</option>
+              </select>
+            </div>
+            <div>
+              <Label>Fiabilité historique</Label>
+              <div className="flex gap-2 flex-wrap mt-1">
+                {([
+                  { v: 'confirmed', label: '✅ Confirmé',  cls: 'border-emerald-300 text-emerald-700 bg-emerald-50' },
+                  { v: 'probable',  label: '🟡 Probable',  cls: 'border-amber-300  text-amber-700  bg-amber-50'  },
+                  { v: 'contested', label: '🔴 Contesté',  cls: 'border-red-300    text-red-700    bg-red-50'    },
+                  { v: 'unknown',   label: '❓ Inconnu',   cls: 'border-slate-300  text-slate-600  bg-slate-50'  },
+                ] as const).map(opt => {
+                  const cur = form.watch('reliability');
+                  return (
+                    <button key={opt.v} type="button"
+                      onClick={() => form.setValue('reliability', opt.v)}
+                      className={`px-3 py-1 text-xs rounded-full border font-semibold transition-all ${
+                        cur === opt.v ? opt.cls + ' ring-2 ring-offset-1 ring-current' : 'border-border text-muted-foreground hover:border-primary/40'
+                      }`}>{opt.label}</button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Date de fin (pour date_range) */}
+          {form.watch('temporalType') === 'date_range' && (
+            <div className="grid md:grid-cols-2 gap-4">
+              <div>
+                <Label>Date de fin <span className="text-destructive">*</span></Label>
+                <input type="date" className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm mt-1 focus:outline-none focus:ring-2 focus:ring-ring"
+                  {...form.register('endDate')} />
+                <E field="endDate" />
+              </div>
+            </div>
+          )}
+
+          {/* Siècle / décennie (pour approximate) */}
+          {form.watch('temporalType') === 'approximate' && (
+            <div className="grid md:grid-cols-2 gap-4">
+              <div>
+                <Label>Siècle approximatif <span className="text-muted-foreground text-xs">(ex: 15 pour XVe)</span></Label>
+                <Input type="number" placeholder="ex: 15" min="-50" max="21"
+                  {...form.register('approxCentury', { setValueAs: v => (v === '' || v == null) ? undefined : parseInt(v, 10) })} />
+              </div>
+              <div>
+                <Label>Décennie approximative <span className="text-muted-foreground text-xs">(ex: 1960)</span></Label>
+                <Input type="number" placeholder="ex: 1960" min="-5000" max="2100"
+                  {...form.register('approxDecade', { setValueAs: v => (v === '' || v == null) ? undefined : parseInt(v, 10) })} />
+              </div>
+            </div>
+          )}
+
+          {/* Affichage de la date + récurrence */}
+          <div className="grid md:grid-cols-2 gap-4">
+            <div>
+              <Label>Texte de date affiché <span className="text-muted-foreground text-xs">(optionnel)</span></Label>
+              <Input placeholder="ex: Vers le XVe siècle, Été 1960…"
+                {...form.register('displayDate')} />
+              <p className="text-xs text-muted-foreground mt-1">Remplace l'affichage automatique de la date.</p>
+            </div>
+            <div className="flex items-start gap-3 pt-6">
+              <input type="checkbox" id="annualRecurrence" className="h-4 w-4 mt-0.5 rounded border-border accent-primary"
+                {...form.register('annualRecurrence')} />
+              <div>
+                <Label htmlFor="annualRecurrence" className="cursor-pointer">Récurrence annuelle</Label>
+                <p className="text-xs text-muted-foreground">Cochez si cet événement est célébré chaque année.</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Description longue */}
+          <div>
+            <Label>Description longue <span className="text-muted-foreground text-xs">(optionnel)</span></Label>
+            <Textarea rows={4} placeholder="Contexte détaillé, analyse, anecdotes…"
+              {...form.register('content')} />
+          </div>
+
+          {/* Contributeurs */}
+          <div>
+            <Label>Contributeurs <span className="text-muted-foreground text-xs">(noms séparés par virgule)</span></Label>
+            <Input
+              placeholder="ex: Jean Dupont, Marie Curie"
+              defaultValue={(form.getValues('contributors') ?? []).join(', ')}
+              onChange={e => {
+                const arr = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
+                form.setValue('contributors', arr);
+              }}
+            />
+          </div>
+        </section>
+        )}
 
         {/* ── Boutons d'action ──────────────────────────────────────────── */}
         <div className={`flex items-center gap-4 pt-4 border-t ${compact ? '' : 'sticky bottom-0 bg-background/95 backdrop-blur-sm py-4 -mx-6 px-6'}`}>

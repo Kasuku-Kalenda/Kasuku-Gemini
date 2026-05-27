@@ -39,6 +39,16 @@ export const eventFormSchema = z.object({
   themeIds: z.array(z.string()).default([]),
   media: z.array(mediaSchema).default([]),
   sources: z.array(sourceSchema).default([]),
+  // Champs avancés (correspondant aux colonnes DB)
+  temporalType: z.enum(['exact_date', 'date_range', 'approximate', 'unknown']).default('exact_date'),
+  displayDate: z.string().nullable().optional(),       // ex: "XVe siècle", "Vers 1450"
+  endDate: z.string().nullable().optional(),           // pour date_range
+  approxCentury: z.coerce.number().int().nullable().optional(),
+  approxDecade: z.coerce.number().int().nullable().optional(),
+  annualRecurrence: z.boolean().default(false),
+  reliability: z.enum(['confirmed', 'probable', 'contested', 'unknown']).default('confirmed'),
+  content: z.string().nullable().optional(),           // description longue
+  contributors: z.array(z.string()).default([]),
 });
 
 export const themeFormSchema = z.object({
