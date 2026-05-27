@@ -217,12 +217,13 @@ interface CloneSelection {
 
 interface EventPickerProps {
   allEvents: any[];
+  excludeEventIds?: string[]; // événements déjà utilisés dans ce récit (hors moment courant)
   onSelect: (ev: any, cloneFrom?: EventStoryEventItem) => void;
   onClose: () => void;
   onEventCreated: (ev: Event) => void;
 }
 
-const EventPicker: React.FC<EventPickerProps> = ({ allEvents, onSelect, onClose, onEventCreated }) => {
+const EventPicker: React.FC<EventPickerProps> = ({ allEvents, excludeEventIds = [], onSelect, onClose, onEventCreated }) => {
   const [step, setStep]               = useState<PickerStep>('list');
   const [search, setSearch]           = useState('');
   const [country, setCountry]         = useState('');
@@ -418,18 +419,32 @@ const EventPicker: React.FC<EventPickerProps> = ({ allEvents, onSelect, onClose,
         {!loadingSE && filtered.length === 0 && (
           <p className="text-center text-xs text-muted-foreground py-6 italic">Aucun événement trouvé.</p>
         )}
-        {!loadingSE && filtered.map((ev: any) => (
-          <button key={ev.id} type="button" onClick={() => handleEventClick(ev)}
-            className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-primary/5 text-left transition-colors group">
-            <span className="text-base shrink-0">📅</span>
-            <span className="flex-1 text-sm font-medium text-secondary line-clamp-1 group-hover:text-primary transition-colors">{ev.title}</span>
-            <span className="flex items-center gap-1.5 shrink-0">
-              {ev.countryCode && <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded font-mono">{ev.countryCode}</span>}
-              {(ev.dateISO || ev.year) && <span className="text-xs text-muted-foreground">{ev.dateISO ?? ev.year}</span>}
-            </span>
-            <span className="text-[10px] text-primary font-bold opacity-0 group-hover:opacity-100 transition-opacity shrink-0">← Lier</span>
-          </button>
-        ))}
+        {!loadingSE && filtered.map((ev: any) => {
+          const alreadyUsed = excludeEventIds.includes(ev.id);
+          return alreadyUsed ? (
+            // Événement déjà utilisé dans ce récit → affiché en grisé, non cliquable
+            <div key={ev.id}
+              className="w-full flex items-center gap-3 px-3 py-2.5 text-left opacity-50 cursor-not-allowed bg-muted/30"
+              title="Cet événement est déjà utilisé dans ce récit">
+              <span className="text-base shrink-0">📅</span>
+              <span className="flex-1 text-sm font-medium text-muted-foreground line-clamp-1">{ev.title}</span>
+              <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5 shrink-0">
+                Déjà dans ce récit
+              </span>
+            </div>
+          ) : (
+            <button key={ev.id} type="button" onClick={() => handleEventClick(ev)}
+              className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-primary/5 text-left transition-colors group">
+              <span className="text-base shrink-0">📅</span>
+              <span className="flex-1 text-sm font-medium text-secondary line-clamp-1 group-hover:text-primary transition-colors">{ev.title}</span>
+              <span className="flex items-center gap-1.5 shrink-0">
+                {ev.countryCode && <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded font-mono">{ev.countryCode}</span>}
+                {(ev.dateISO || ev.year) && <span className="text-xs text-muted-foreground">{ev.dateISO ?? ev.year}</span>}
+              </span>
+              <span className="text-[10px] text-primary font-bold opacity-0 group-hover:opacity-100 transition-opacity shrink-0">← Lier</span>
+            </button>
+          );
+        })}
       </div>
 
       <div className="flex items-center justify-between pt-1">
@@ -449,6 +464,7 @@ interface MomentCardProps {
   total: number;
   form: UseFormReturn<TimelineFormData>;
   allEvents: any[];
+  usedEventIds: string[]; // tous les eventIds déjà utilisés dans le récit (pour éviter les doublons)
   onEventCreated: (ev: any) => void;
   onRemove: () => void;
   onMoveUp: () => void;
@@ -458,7 +474,7 @@ interface MomentCardProps {
 }
 
 const MomentCard: React.FC<MomentCardProps> = ({
-  index, total, form, allEvents, onEventCreated,
+  index, total, form, allEvents, usedEventIds, onEventCreated,
   onRemove, onMoveUp, onMoveDown, canMoveUp, canMoveDown,
 }) => {
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -504,19 +520,23 @@ const MomentCard: React.FC<MomentCardProps> = ({
         form.setValue(`moments.${index}.quoteAuthor` as any, pending.cloneFrom.quoteAuthor ?? null, { shouldDirty: true });
         form.setValue(`moments.${index}.sourceStoryEventId` as any, pending.cloneFrom.id, { shouldDirty: true });
       });
+      // Clone: toujours forcer l'image de l'événement (qu'il y en ait déjà une ou non)
+      if (ev.media?.[0]?.url) {
+        form.setValue(`moments.${index}.media.0.url`, ev.media[0].url, { shouldDirty: true });
+        form.setValue(`moments.${index}.media.0.type`, ev.media[0].type ?? 'image', { shouldDirty: true });
+      }
     } else {
       // Fresh start: pre-fill narrative with event summary if narrative is empty
       const currentNarrative = form.getValues(`moments.${index}.narrative`);
       if ((!currentNarrative || currentNarrative.trim() === '') && ev.summary) {
         form.setValue(`moments.${index}.narrative`, ev.summary, { shouldDirty: true });
       }
-    }
-
-    // Image: pre-fill with event's first image if no image set
-    const currentImg = form.getValues(`moments.${index}.media.0.url`);
-    if (!currentImg && ev.media?.[0]?.url) {
-      form.setValue(`moments.${index}.media.0.url`, ev.media[0].url, { shouldDirty: true });
-      form.setValue(`moments.${index}.media.0.type`, ev.media[0].type ?? 'image', { shouldDirty: true });
+      // Fresh: ne pré-remplir l'image que si vide
+      const currentImg = form.getValues(`moments.${index}.media.0.url`);
+      if (!currentImg && ev.media?.[0]?.url) {
+        form.setValue(`moments.${index}.media.0.url`, ev.media[0].url, { shouldDirty: true });
+        form.setValue(`moments.${index}.media.0.type`, ev.media[0].type ?? 'image', { shouldDirty: true });
+      }
     }
     setPickerOpen(false);
   }, [form, index]);
@@ -659,6 +679,7 @@ const MomentCard: React.FC<MomentCardProps> = ({
         <div className="px-5 py-4 border-b bg-white">
           <EventPicker
             allEvents={allEvents}
+            excludeEventIds={usedEventIds.filter(id => id !== eventId)}
             onSelect={(ev, cloneFrom) => handleSelectEvent(ev, cloneFrom)}
             onClose={() => setPickerOpen(false)}
             onEventCreated={handleEventCreatedInModal}
@@ -1101,6 +1122,7 @@ export function TimelineForm({ mode, initialData, onSave }: TimelineFormProps) {
                   index={index} total={fields.length}
                   form={form}
                   allEvents={allEvents}
+                  usedEventIds={watchedMoments.map(m => m.eventId).filter(Boolean) as string[]}
                   onEventCreated={newEv => setAllEvents(prev => [newEv, ...prev])}
                   onRemove={() => remove(index)}
                   onMoveUp={() => move(index, index - 1)}
