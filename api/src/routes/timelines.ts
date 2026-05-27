@@ -40,7 +40,7 @@ export async function timelinesRoutes(app: FastifyInstance) {
              s.contributors, s.computed_start_date, s.computed_end_date,
              s.published_at, s.created_at,
              COUNT(se.event_id)::int AS "eventCount",
-             ARRAY_AGG(se.event_id ORDER BY se.position) FILTER (WHERE se.event_id IS NOT NULL) AS "eventIds"
+             COALESCE(ARRAY_AGG(se.event_id ORDER BY se.position) FILTER (WHERE se.event_id IS NOT NULL), ARRAY[]::uuid[]) AS "eventIds"
       FROM stories s
       LEFT JOIN story_events se ON se.story_id = s.id
       WHERE s.status = 'published' AND s.deleted_at IS NULL
