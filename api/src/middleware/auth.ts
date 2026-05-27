@@ -23,9 +23,17 @@ declare module 'fastify' {
 export async function requireAuth(req: FastifyRequest, reply: FastifyReply): Promise<void> {
   try {
     await req.jwtVerify();
-    const payload = req.user as { sub: string; email: string; role: string };
+    const payload = req.user as { sub: string; email: string; role: string; jti?: string };
     if (!payload?.sub) {
       return reply.status(401).send({ error: 'Token invalide' });
+    }
+
+    // Vérifier la blacklist Redis (logout / révocation)
+    if (payload.jti) {
+      const revoked = await (req.server as any).redis?.exists(`blacklist:${payload.jti}`);
+      if (revoked) {
+        return reply.status(401).send({ error: 'Session révoquée — reconnectez-vous' });
+      }
     }
 
     const [user] = await sql`
