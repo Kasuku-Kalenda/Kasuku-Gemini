@@ -4,6 +4,11 @@
 .env.*.local
 deploy/.env.prod
 
+# Dumps SQL — fichiers générés sur le serveur, jamais committer
+*.sql
+kasuku_data.sql
+kasuku_dump.sql
+
 # Logs
 logs
 *.log
