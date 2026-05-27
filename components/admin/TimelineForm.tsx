@@ -518,6 +518,8 @@ const MomentCard: React.FC<MomentCardProps> = ({
         form.setValue(`moments.${index}.narrative`, pending.cloneFrom.narrativeText ?? pending.ev.summary ?? '', { shouldDirty: true, shouldTouch: true });
         form.setValue(`moments.${index}.quote` as any, pending.cloneFrom.quote ?? null, { shouldDirty: true });
         form.setValue(`moments.${index}.quoteAuthor` as any, pending.cloneFrom.quoteAuthor ?? null, { shouldDirty: true });
+        form.setValue(`moments.${index}.narrativeAudioUrl` as any, pending.cloneFrom.narrativeAudioUrl ?? null, { shouldDirty: true });
+        form.setValue(`moments.${index}.narrativeVideoUrl` as any, pending.cloneFrom.narrativeVideoUrl ?? null, { shouldDirty: true });
         form.setValue(`moments.${index}.sourceStoryEventId` as any, pending.cloneFrom.id, { shouldDirty: true });
       });
       // Clone: toujours forcer l'image de l'événement (qu'il y en ait déjà une ou non)
@@ -819,9 +821,9 @@ export function TimelineForm({ mode, initialData, onSave }: TimelineFormProps) {
     subtitle: initialData.subtitle ?? '',
     slug: initialData.slug ?? '',
     type: initialData.type ?? 'evenement',
-    shortDescription: initialData.shortDescription ?? '',
+    summary: initialData.summary ?? '',
     longDescription: initialData.longDescription ?? '',
-    thumbnail: initialData.thumbnail ?? '',
+    coverUrl: initialData.coverUrl ?? '',
     periodLabel: initialData.periodLabel ?? '',
     status: initialData.status ?? 'draft',
     moments: (initialData.moments ?? []).map((m: any) => ({
@@ -840,7 +842,7 @@ export function TimelineForm({ mode, initialData, onSave }: TimelineFormProps) {
     })),
   } : {
     title: '', subtitle: '', slug: '', type: 'evenement',
-    shortDescription: '', longDescription: '', thumbnail: '',
+    summary: '', longDescription: '', coverUrl: '',
     periodLabel: '', status: 'draft', moments: [],
   };
 
@@ -920,8 +922,8 @@ export function TimelineForm({ mode, initialData, onSave }: TimelineFormProps) {
     const result = await timelineFormSchema.safeParseAsync(values);
     if (!result.success) {
       const humanLabels: Record<string, string> = {
-        title: 'Titre', slug: 'Slug', shortDescription: 'Description courte',
-        thumbnail: 'Image de couverture', periodLabel: 'Label de période',
+        title: 'Titre', slug: 'Slug', summary: 'Description courte',
+        coverUrl: 'Image de couverture', periodLabel: 'Label de période',
         status: 'Statut', type: 'Type',
       };
       const messages: string[] = [];
@@ -986,7 +988,7 @@ export function TimelineForm({ mode, initialData, onSave }: TimelineFormProps) {
     return err ? <p className="text-xs text-destructive mt-1" data-error="true">{err}</p> : null;
   };
 
-  const thumbnailValue = form.watch('thumbnail');
+  const coverUrlValue = form.watch('coverUrl');
 
   return (
     <div className="max-w-4xl mx-auto py-6 space-y-8">
@@ -1031,10 +1033,10 @@ export function TimelineForm({ mode, initialData, onSave }: TimelineFormProps) {
           </div>
           <div>
             <Label>Description courte <span className="text-destructive">*</span> <span className="text-muted-foreground text-xs">(10–200 car.)</span></Label>
-            <Textarea {...form.register('shortDescription')} rows={2} placeholder="Résumé affiché sur la carte du parcours…" />
+            <Textarea {...form.register('summary')} rows={2} placeholder="Résumé affiché sur la carte du parcours…" />
             <div className="flex justify-between mt-1">
-              <E field="shortDescription" />
-              <span className="text-xs text-muted-foreground ml-auto">{(form.watch('shortDescription') ?? '').length} / 200</span>
+              <E field="summary" />
+              <span className="text-xs text-muted-foreground ml-auto">{(form.watch('summary') ?? '').length} / 200</span>
             </div>
           </div>
           <div>
@@ -1084,8 +1086,8 @@ export function TimelineForm({ mode, initialData, onSave }: TimelineFormProps) {
               <E field="periodLabel" />
             </div>
           </div>
-          <ThumbnailInput value={thumbnailValue ?? ''} onChange={url => form.setValue('thumbnail', url, { shouldValidate: true })}
-            error={form.formState.errors.thumbnail?.message} label="Image de couverture *" />
+          <ThumbnailInput value={coverUrlValue ?? ''} onChange={url => form.setValue('coverUrl', url, { shouldValidate: true })}
+            error={form.formState.errors.coverUrl?.message} label="Image de couverture *" />
         </section>
 
         {/* ── Moments du récit ──────────────────────────────────────────────── */}

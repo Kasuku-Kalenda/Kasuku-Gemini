@@ -65,7 +65,7 @@ export const TimelineListingPage: React.FC<TimelineListingPageProps> = ({ onSele
   const filtered = useMemo(() => {
     let list = [...timelines];
     const q = search.trim().toLowerCase();
-    if (q) list = list.filter(tl => tl.title.toLowerCase().includes(q) || tl.shortDescription?.toLowerCase().includes(q));
+    if (q) list = list.filter(tl => tl.title.toLowerCase().includes(q) || tl.summary?.toLowerCase().includes(q));
     switch (sort) {
       case 'alpha-asc':  list.sort((a, b) => a.title.localeCompare(b.title)); break;
       case 'alpha-desc': list.sort((a, b) => b.title.localeCompare(a.title)); break;
@@ -78,7 +78,7 @@ export const TimelineListingPage: React.FC<TimelineListingPageProps> = ({ onSele
 
   const isFav = (tl: TimelineNarrative) => exists('timeline', tl.id);
   const toggleFav = (tl: TimelineNarrative) =>
-    toggle({ type: 'timeline', id: tl.id, slug: tl.slug, title: tl.title, thumbnail: tl.thumbnail });
+    toggle({ type: 'timeline', id: tl.id, slug: tl.slug, title: tl.title, thumbnail: tl.coverUrl });
 
   // ── Skeletons ──────────────────────────────────────────────────────────────
   const Skeletons = () => (
@@ -307,7 +307,7 @@ export const TimelineListingPage: React.FC<TimelineListingPageProps> = ({ onSele
                       onClick={() => onSelectTimeline(tl.slug)}
                     >
                       <div className="relative">
-                        <StackedCardIcon thumbnail={tl.thumbnail} count={tl.eventCount} />
+                        <StackedCardIcon thumbnail={tl.coverUrl} count={tl.eventCount} />
                         <div className="absolute top-2 right-8 z-10">
                           <SaveButton tl={tl} isFav={isFav(tl)} onToggle={() => toggleFav(tl)} dark />
                         </div>
@@ -320,7 +320,7 @@ export const TimelineListingPage: React.FC<TimelineListingPageProps> = ({ onSele
                         <h3 className="text-xl sm:text-2xl font-black text-secondary group-hover:text-primary transition-colors leading-tight">
                           {tl.title}
                         </h3>
-                        <p className="text-dark/70 text-sm leading-relaxed line-clamp-3 font-medium">{tl.shortDescription}</p>
+                        <p className="text-dark/70 text-sm leading-relaxed line-clamp-3 font-medium">{tl.summary}</p>
                         <div className="pt-2">
                           <span className="inline-flex items-center gap-2 rounded-full px-6 py-3 border border-secondary/10 hover:border-primary/40 hover:bg-primary/5 text-secondary hover:text-primary font-black text-[11px] uppercase tracking-[0.2em] transition-all group-hover:translate-x-2 cursor-pointer">
                             Lancer le parcours →
@@ -342,8 +342,8 @@ export const TimelineListingPage: React.FC<TimelineListingPageProps> = ({ onSele
                       onClick={() => onSelectTimeline(tl.slug)}
                     >
                       <div className="shrink-0 w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden bg-muted">
-                        {tl.thumbnail ? (
-                          <img src={tl.thumbnail} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" referrerPolicy="no-referrer" />
+                        {tl.coverUrl ? (
+                          <img src={tl.coverUrl} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" referrerPolicy="no-referrer" />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center bg-primary/10">
                             <TimelineIcon className="h-6 w-6 text-primary/50" />
@@ -357,7 +357,7 @@ export const TimelineListingPage: React.FC<TimelineListingPageProps> = ({ onSele
                         <p className="font-bold text-secondary leading-snug truncate group-hover:text-primary transition-colors">
                           {tl.title}
                         </p>
-                        <p className="text-xs text-muted-foreground line-clamp-1">{tl.shortDescription}</p>
+                        <p className="text-xs text-muted-foreground line-clamp-1">{tl.summary}</p>
                         <p className="text-[10px] text-muted-foreground">{tl.eventCount} moments</p>
                       </div>
                       <div className="shrink-0 flex items-center gap-1">
@@ -380,9 +380,9 @@ export const TimelineListingPage: React.FC<TimelineListingPageProps> = ({ onSele
                       className="group relative cursor-pointer rounded-[1.5rem] overflow-hidden aspect-[3/4] bg-muted shadow-md hover:shadow-xl transition-all"
                       onClick={() => onSelectTimeline(tl.slug)}
                     >
-                      {tl.thumbnail ? (
+                      {tl.coverUrl ? (
                         <img
-                          src={tl.thumbnail}
+                          src={tl.coverUrl}
                           alt={tl.title}
                           className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
                           referrerPolicy="no-referrer"
@@ -406,7 +406,7 @@ export const TimelineListingPage: React.FC<TimelineListingPageProps> = ({ onSele
                         <h3 className="text-white font-black text-lg leading-tight line-clamp-3 group-hover:text-primary/90 transition-colors">
                           {tl.title}
                         </h3>
-                        <p className="text-white/60 text-xs line-clamp-2">{tl.shortDescription}</p>
+                        <p className="text-white/60 text-xs line-clamp-2">{tl.summary}</p>
                       </div>
                     </div>
                   ))}

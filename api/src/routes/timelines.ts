@@ -189,11 +189,11 @@ export async function timelinesRoutes(app: FastifyInstance) {
         if (!m.eventId) continue;
         await sql`
           INSERT INTO story_events (
-            story_id, event_id, position,
+            story_id, event_id, position, lang,
             narrative_text, narrative_audio_url, narrative_video_url,
             quote, quote_author, cta, source_story_event_id
           ) VALUES (
-            ${story.id}, ${m.eventId}, ${m.position ?? i},
+            ${story.id}, ${m.eventId}, ${m.position ?? i}, ${story.lang ?? 'fr'},
             ${m.narrativeText ?? null}, ${m.narrativeAudioUrl ?? null}, ${m.narrativeVideoUrl ?? null},
             ${m.quote ?? null}, ${m.quoteAuthor ?? null},
             ${m.cta ? JSON.stringify(m.cta) : null},
@@ -244,11 +244,11 @@ export async function timelinesRoutes(app: FastifyInstance) {
         if (!m.eventId) continue;
         await sql`
           INSERT INTO story_events (
-            story_id, event_id, position,
+            story_id, event_id, position, lang,
             narrative_text, narrative_audio_url, narrative_video_url,
             quote, quote_author, cta, source_story_event_id
           ) VALUES (
-            ${id}, ${m.eventId}, ${m.position ?? i},
+            ${id}, ${m.eventId}, ${m.position ?? i}, ${story.lang ?? 'fr'},
             ${m.narrativeText ?? null}, ${m.narrativeAudioUrl ?? null}, ${m.narrativeVideoUrl ?? null},
             ${m.quote ?? null}, ${m.quoteAuthor ?? null},
             ${m.cta ? JSON.stringify(m.cta) : null},

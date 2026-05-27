@@ -158,7 +158,7 @@ async function importEvents(rows: Record<string, string>[]): Promise<ImportResul
         year,
         period:      row['periode']  || undefined,
         countryCode: row['codepays'] || undefined,
-        themes,
+        themeIds: themes.map(t => t.id),
         media: row['imageurl'] ? [{ type: 'image', url: row['imageurl'], caption: row['imagelegende'] || undefined }] : [],
         sources: row['sourcelabel'] && row['sourceurl'] ? [{ label: row['sourcelabel'], url: row['sourceurl'] }] : [],
         timelineId:   timeline?.id,

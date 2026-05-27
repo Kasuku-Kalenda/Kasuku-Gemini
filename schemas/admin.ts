@@ -180,10 +180,10 @@ export const timelineFormSchema = z.object({
   subtitle: z.string().optional().nullable(),
   slug: z.string().min(3),
   type: z.enum(['personnage', 'evenement']),
-  shortDescription: z.string().min(10).max(200),
+  summary: z.string().min(10).max(200),
   longDescription: z.string().optional().nullable(),
   // Accepte : https://, http://, data: (base64), /, blob:
-  thumbnail: z.string().min(1, "Une image de couverture est requise").refine(
+  coverUrl: z.string().min(1, "Une image de couverture est requise").refine(
     v => v.startsWith('data:') || v.startsWith('http://') || v.startsWith('https://') || v.startsWith('/') || v.startsWith('blob:'),
     { message: "URL invalide — utilisez https:// ou chargez un fichier" }
   ),

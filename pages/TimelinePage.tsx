@@ -120,11 +120,11 @@ const MomentResourceItem: React.FC<{ resource: MomentResource }> = ({ resource }
 const buildIntroSlide = (tl: TimelineNarrative): NarrativeSlide => ({
     id: `${tl.id}__intro`,
     title: tl.title,
-    description: tl.longDescription || tl.shortDescription || '',
+    description: tl.longDescription || tl.summary || '',
     dateLabel: tl.periodLabel || '',
     year: undefined,
     sortTimestamp: -Infinity,   // toujours premier
-    media: tl.thumbnail ? [{ id: 'intro-thumb', type: 'image' as const, url: tl.thumbnail }] : [],
+    media: tl.coverUrl ? [{ id: 'intro-thumb', type: 'image' as const, url: tl.coverUrl }] : [],
     themes: [],
     resources: [],
     originalType: 'intro',
@@ -167,7 +167,7 @@ export const TimelinePage: React.FC<TimelinePageProps> = ({
                     ? m.media!
                     : (m as any).thumbnailUrl
                         ? [{ id: 'event-thumb', type: 'image' as const, url: (m as any).thumbnailUrl }]
-                        : tl.thumbnail ? [{ id: 'fallback', type: 'image' as const, url: tl.thumbnail }] : [],
+                        : tl.coverUrl ? [{ id: 'fallback', type: 'image' as const, url: tl.coverUrl }] : [],
                 themes: [],
                 resources: m.resources ?? [],
                 originalType: 'moment' as const,
@@ -190,7 +190,7 @@ export const TimelinePage: React.FC<TimelinePageProps> = ({
                 sortTimestamp: toSortTs(e.dateISO, e.year, e.period),
                 media: (e.media ?? []).length > 0
                     ? e.media!
-                    : tl.thumbnail ? [{ id: 'fallback', type: 'image' as const, url: tl.thumbnail }] : [],
+                    : tl.coverUrl ? [{ id: 'fallback', type: 'image' as const, url: tl.coverUrl }] : [],
                 themes: e.themes,
                 resources: [],      // les événements du calendrier n'ont pas de ressources de moment
                 originalType: 'event' as const,

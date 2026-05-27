@@ -148,7 +148,7 @@ export const FavoritesPage: React.FC<FavoritesPageProps> = ({
                       className="no-min-h absolute top-3 right-3 p-2 rounded-full bg-black/40 backdrop-blur-sm text-white hover:bg-black/60 transition-colors active:scale-90"
                       onClick={e => {
                         e.stopPropagation();
-                        toggle({ type: 'timeline', id: tl.id, slug: tl.slug, title: tl.title, thumbnail: tl.thumbnail });
+                        toggle({ type: 'timeline', id: tl.id, slug: tl.slug, title: tl.title, thumbnail: tl.coverUrl });
                       }}
                       aria-label="Retirer des sauvegardes"
                     >
@@ -164,7 +164,7 @@ export const FavoritesPage: React.FC<FavoritesPageProps> = ({
                     <h3 className="font-bold text-secondary leading-snug line-clamp-2 group-hover:text-primary transition-colors">
                       {tl.title}
                     </h3>
-                    <p className="text-xs text-muted-foreground line-clamp-2">{tl.shortDescription}</p>
+                    <p className="text-xs text-muted-foreground line-clamp-2">{tl.summary}</p>
                     <p className="text-[10px] text-muted-foreground font-semibold">{tl.eventCount} moments</p>
                   </div>
                 </div>

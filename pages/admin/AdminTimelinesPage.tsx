@@ -72,7 +72,7 @@ export const AdminTimelinesPage: React.FC<AdminTimelinesPageProps> = ({ navigate
                             header: "Parcours",
                             accessor: (t) => (
                                 <div className="flex items-center gap-3">
-                                    <img src={t.thumbnail} alt="" className="w-12 h-10 rounded-lg object-cover bg-muted" />
+                                    <img src={t.coverUrl} alt="" className="w-12 h-10 rounded-lg object-cover bg-muted" />
                                     <div>
                                         <div className="font-bold text-secondary">{t.title}</div>
                                         <div className="text-[10px] text-muted-foreground font-mono uppercase tracking-tighter">{t.slug}</div>
