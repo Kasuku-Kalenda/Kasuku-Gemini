@@ -175,22 +175,33 @@ async function importEvents(rows: Record<string, string>[]): Promise<ImportResul
 
 // ─── Validation et import moments ────────────────────────────────────────────
 
-function validateMomentRow(row: Record<string, string>, timelineSlugs: Set<string>): string[] {
+function validateMomentRow(row: Record<string, string>, timelineSlugs: Set<string>, eventSlugs: Set<string>): string[] {
   const errors: string[] = [];
   const tlSlug = row['slugtimeline'] || row['slug_timeline'] || '';
+  const evSlug = row['slugevenement'] || row['slug_evenement'] || row['slugevent'] || '';
   if (!tlSlug) errors.push('slugTimeline requis');
   else if (!timelineSlugs.has(tlSlug)) errors.push(`Timeline "${tlSlug}" introuvable`);
-  if (!row['titre'] || row['titre'].length < 3) errors.push('Titre requis (min 3 car.)');
-  if (!row['recit'] || row['recit'].length < 20) errors.push('Récit requis (min 20 car.)');
+  if (!evSlug) errors.push('slugEvenement requis — chaque moment doit référencer un événement existant');
+  else if (!eventSlugs.has(evSlug)) errors.push(`Événement "${evSlug}" introuvable`);
+  if (!row['recit'] || row['recit'].length < 10) errors.push('Récit requis (min 10 car.)');
   if (row['dateexact'] && !/^\d{4}-\d{2}-\d{2}$/.test(row['dateexact'])) errors.push('dateExact format invalide (AAAA-MM-JJ)');
   return errors;
 }
 
 async function importMoments(rows: Record<string, string>[]): Promise<ImportResult> {
-  const { items: allTimelines } = await adminApi.listTimelines();
+  // Charger timelines ET événements pour résoudre les slugs
+  const [{ items: allTimelines }, eventsRes] = await Promise.all([
+    adminApi.listTimelines(),
+    adminApi.listEvents({ limit: 5000 }),
+  ]);
+
   const timelineBySlug: Record<string, TimelineNarrative> = {};
   allTimelines.forEach(t => { timelineBySlug[t.slug] = t; });
   const timelineSlugs = new Set(Object.keys(timelineBySlug));
+
+  const eventBySlug: Record<string, Event> = {};
+  (eventsRes.items ?? []).forEach((e: Event) => { if (e.slug) eventBySlug[e.slug] = e; });
+  const eventSlugs = new Set(Object.keys(eventBySlug));
 
   // Grouper les moments par timeline
   const momentsByTimeline: Record<string, TimelineNarrative['moments']> = {};
@@ -199,25 +210,28 @@ async function importMoments(rows: Record<string, string>[]): Promise<ImportResu
   let imported = 0;
 
   for (const row of rows) {
-    const errs = validateMomentRow(row, timelineSlugs);
-    if (errs.length > 0) { skipped++; continue; }
+    const errs = validateMomentRow(row, timelineSlugs, eventSlugs);
+    if (errs.length > 0) { skipped++; importErrors.push(...errs); continue; }
 
     const tlSlug = row['slugtimeline'] || row['slug_timeline'] || '';
+    const evSlug = row['slugevenement'] || row['slug_evenement'] || row['slugevent'] || '';
     if (!momentsByTimeline[tlSlug]) momentsByTimeline[tlSlug] = [];
 
+    const ev = eventBySlug[evSlug];
     const typeDuration = (row['typeduration'] || row['type_date'] || 'date') as 'date' | 'period';
     const moment: TimelineNarrative['moments'][0] = {
-      id: `mom${crypto.randomUUID()}`,
-      timelineId: timelineBySlug[tlSlug].id,
-      title: row['titre'],
-      narrative: row['recit'],
-      timeType: typeDuration === 'period' ? 'period' : 'date',
-      dateExact: row['dateexact'] || null,
-      periodText: row['texteperiode'] || row['texte_periode'] || null,
-      position: momentsByTimeline[tlSlug].length,
+      id:          `mom${crypto.randomUUID()}`,
+      timelineId:  timelineBySlug[tlSlug].id,
+      eventId:     ev.id,                          // ← résolu depuis le slug
+      title:       row['titre'] || ev.title,
+      narrative:   row['recit'],                   // mappé vers narrativeText côté API
+      timeType:    typeDuration === 'period' ? 'period' : 'date',
+      dateExact:   row['dateexact'] || null,
+      periodText:  row['texteperiode'] || row['texte_periode'] || null,
+      position:    momentsByTimeline[tlSlug].length,
       media: row['imageurl'] ? [{
         id: `med${crypto.randomUUID()}`,
-        type: 'image',
+        type: 'image' as const,
         url: row['imageurl'],
         caption: row['imagelegende'] || undefined,
       }] : [],
@@ -231,18 +245,18 @@ async function importMoments(rows: Record<string, string>[]): Promise<ImportResu
   for (const [slug, newMoments] of Object.entries(momentsByTimeline)) {
     const tl = timelineBySlug[slug];
     if (!tl) continue;
-    const merged = [...(tl.moments ?? []), ...newMoments];
-    // Tri chronologique
+    // Charger les moments existants depuis le détail de la timeline
+    const tlDetail = await adminApi.getTimeline(tl.id);
+    const existing = tlDetail?.moments ?? [];
+    const merged = [...existing, ...newMoments];
     const sorted = merged.sort((a, b) => {
       const ta = a.dateExact ? new Date(a.dateExact + 'T12:00:00Z').getTime() : Infinity;
       const tb = b.dateExact ? new Date(b.dateExact + 'T12:00:00Z').getTime() : Infinity;
       return ta - tb;
     }).map((m, i) => ({ ...m, position: i }));
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await adminApi.updateTimeline(tl.id, {
       ...tl,
       moments: sorted as TimelineNarrative['moments'],
-      eventCount: sorted.length,
     } as any);
   }
 
@@ -415,14 +429,15 @@ export const AdminImportPage: React.FC<AdminImportPageProps> = ({ navigateTo }) 
                 <thead><tr className="border-b"><th className="py-1 pr-4 font-bold">Colonne</th><th className="py-1 font-bold">Description</th><th className="py-1 pl-4 font-bold">Requis ?</th></tr></thead>
                 <tbody className="text-muted-foreground">
                   {[
-                    ['slugTimeline', 'Slug du parcours cible', '✅ Oui'],
-                    ['titre', 'Titre du moment', '✅ Oui'],
-                    ['recit', 'Récit du moment (min 20 car.)', '✅ Oui'],
-                    ['typeDuration', '"date" ou "period"', '—'],
-                    ['dateExact', 'Date précise (AAAA-MM-JJ)', '—'],
-                    ['textePeriode', 'Texte de période (ex: Été 1944)', '—'],
-                    ['imageUrl', 'URL de l\'illustration', '—'],
-                    ['imageLegende', 'Légende de l\'image', '—'],
+                    ['slugTimeline',  'Slug du parcours cible',                         '✅ Oui'],
+                    ['slugEvenement', 'Slug de l\'événement à lier (doit exister)',      '✅ Oui'],
+                    ['recit',         'Récit narratif du moment (min 10 car.)',          '✅ Oui'],
+                    ['titre',         'Titre du moment (optionnel, hérite de l\'évén.)', '—'],
+                    ['typeDuration',  '"date" ou "period"',                              '—'],
+                    ['dateExact',     'Date précise (AAAA-MM-JJ)',                       '—'],
+                    ['textePeriode',  'Texte de période (ex: Été 1944)',                 '—'],
+                    ['imageUrl',      'URL de l\'illustration',                          '—'],
+                    ['imageLegende',  'Légende de l\'image',                             '—'],
                   ].map(([col, desc, req]) => (
                     <tr key={col} className="border-b border-muted">
                       <td className="py-1 pr-4 font-mono text-primary">{col}</td>

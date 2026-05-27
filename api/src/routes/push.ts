@@ -7,16 +7,41 @@
 import type { FastifyInstance } from 'fastify';
 import sql from '../db';
 import { requireAuth } from '../middleware/auth';
+import { GoogleAuth } from 'google-auth-library';
 
 // ─── FCM via HTTP v1 API ──────────────────────────────────────────────────────
-// Utilise FIREBASE_PROJECT_ID + GOOGLE_APPLICATION_CREDENTIALS (service account)
+// Utilise GOOGLE_APPLICATION_CREDENTIALS (chemin vers le JSON du service account)
+// ou FIREBASE_SERVICE_ACCOUNT_JSON (contenu JSON inline)
+
+let _auth: GoogleAuth | null = null;
 
 async function getAccessToken(): Promise<string> {
-  // En production : utiliser google-auth-library
-  // Pour l'instant : token depuis variable d'env (généré manuellement ou via CI)
-  const token = process.env.FIREBASE_SERVER_KEY;
-  if (!token) throw new Error('FIREBASE_SERVER_KEY non défini');
-  return token;
+  // Initialiser GoogleAuth une seule fois
+  if (!_auth) {
+    const inlineJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
+    if (inlineJson) {
+      // Credentials inline (pratique pour Docker/CI)
+      const credentials = JSON.parse(inlineJson);
+      _auth = new GoogleAuth({
+        credentials,
+        scopes: ['https://www.googleapis.com/auth/firebase.messaging'],
+      });
+    } else if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+      // Fichier JSON service account (chemin dans l'env)
+      _auth = new GoogleAuth({
+        scopes: ['https://www.googleapis.com/auth/firebase.messaging'],
+      });
+    } else {
+      throw new Error(
+        'FCM auth manquante : définir FIREBASE_SERVICE_ACCOUNT_JSON (JSON inline) ' +
+        'ou GOOGLE_APPLICATION_CREDENTIALS (chemin fichier service account)'
+      );
+    }
+  }
+  const client = await _auth.getClient();
+  const token = await client.getAccessToken();
+  if (!token.token) throw new Error('Impossible d\'obtenir un token OAuth2 Google');
+  return token.token;
 }
 
 async function sendFcmNotification(token: string, title: string, body: string, data?: Record<string, string>) {
