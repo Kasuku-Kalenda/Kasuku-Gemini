@@ -46,6 +46,7 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({
   const [isLoading, setIsLoading]                 = useState(true);
   const [isLoadingDate, setIsLoadingDate]          = useState(false);
   const [selectedEra, setSelectedEra]              = useState<number | null>(null);
+  const [showAllEras, setShowAllEras]              = useState(false);
   const [themes, setThemes]                 = useState<Theme[]>([]);
   const [countries, setCountries]           = useState<{ code: string; name: string }[]>([]);
   const [filters, setFilters]               = useState<Filters>({ query: '', theme: '', country: '', year: '' });
@@ -174,6 +175,8 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({
   );
 
   // ─── Groupement des événements approximatifs par siècle ───────────────────
+  const FEATURED_ERAS = 5;
+
   const approximateByEra = useMemo(() => {
     const groups = new Map<number, Event[]>();
     for (const evt of approximateEvents) {
@@ -185,6 +188,14 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({
       .sort(([a], [b]) => b - a)
       .map(([era, events]) => ({ era, events }));
   }, [approximateEvents]);
+
+  // Triées par richesse décroissante — les 5 premières sont mises en avant
+  const sortedEras   = useMemo(
+    () => [...approximateByEra].sort((a, b) => b.events.length - a.events.length),
+    [approximateByEra],
+  );
+  const visibleEras  = showAllEras ? sortedEras : sortedEras.slice(0, FEATURED_ERAS);
+  const hiddenCount  = Math.max(0, sortedEras.length - FEATURED_ERAS);
 
   const formattedDate = selectedDate
     ? formatDate(selectedDate, { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' })
@@ -284,7 +295,7 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({
 
               {/* Grille de cartes siècle */}
               <div className="p-3 grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-                {approximateByEra.map(({ era, events }, eraIdx) => {
+                {visibleEras.map(({ era, events }, eraIdx) => {
                   const isSelected = selectedEra === era;
                   const coverImg   = events.find(e => e.media[0]?.url)?.media[0]?.url;
                   const mainTheme  = events.find(e => e.themes?.[0])?.themes?.[0];
@@ -353,6 +364,22 @@ export const CalendarPage: React.FC<CalendarPageProps> = ({
                   );
                 })}
               </div>
+
+              {/* Bouton collapse — visible si des périodes sont cachées */}
+              {hiddenCount > 0 && (
+                <div className="px-3 pb-3">
+                  <button
+                    onClick={() => { setShowAllEras(v => !v); if (showAllEras) setSelectedEra(null); }}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-border/60 text-[11px] font-black uppercase tracking-widest text-muted-foreground hover:text-primary hover:border-primary/30 hover:bg-primary/5 transition-all"
+                  >
+                    {showAllEras ? (
+                      <>Réduire ↑</>
+                    ) : (
+                      <>Voir {hiddenCount} autre{hiddenCount > 1 ? 's' : ''} période{hiddenCount > 1 ? 's' : ''} →</>
+                    )}
+                  </button>
+                </div>
+              )}
 
               {/* Panel événements — s'affiche sous la grille quand un siècle est sélectionné */}
               <AnimatePresence initial={false}>
