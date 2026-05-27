@@ -28,7 +28,20 @@ function signTokens(app: FastifyInstance, userId: string, email: string, role: s
 export async function authRoutes(app: FastifyInstance) {
 
   // ── POST /login ───────────────────────────────────────────────────────────
-  app.post<{ Body: LoginBody }>('/login', async (req, reply) => {
+  // Rate limit strict : 10 tentatives / 15 min / IP — anti brute-force
+  app.post<{ Body: LoginBody }>('/login', {
+    config: {
+      rateLimit: {
+        max: 10,
+        timeWindow: '15 minutes',
+        errorResponseBuilder: () => ({
+          statusCode: 429,
+          error: 'Too Many Requests',
+          message: 'Trop de tentatives de connexion. Réessayez dans 15 minutes.',
+        }),
+      },
+    },
+  }, async (req, reply) => {
     const { email, password } = req.body ?? {};
     if (!email || !password) {
       return reply.status(400).send({ error: 'Email et mot de passe requis' });
