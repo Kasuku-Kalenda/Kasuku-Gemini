@@ -8,7 +8,7 @@ export const Footer: React.FC = () => {
   return (
     <footer>
       {/* ── Desktop footer complet ───────────────────────── */}
-      <div className="hidden md:block bg-dark text-white/70">
+      <div className="hidden md:block bg-[#2C3E50] text-white/70">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-6">
           <div className="grid grid-cols-3 gap-8 items-start">
 
@@ -53,8 +53,8 @@ export const Footer: React.FC = () => {
 
       {/* ── Mobile — ligne crédit discrète uniquement ────── */}
       <div className="md:hidden py-3 px-4 flex items-center justify-center gap-2 opacity-40">
-        <ParrotIcon className="h-4 w-4 text-dark shrink-0" />
-        <p className="text-[11px] text-dark/70 leading-none">
+        <ParrotIcon className="h-4 w-4 text-secondary shrink-0" />
+        <p className="text-[11px] text-secondary/70 leading-none">
           Kasuku · La mémoire vivante de l'Afrique ·{' '}
           <a href="https://afrikia.org" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
             Afrikia

@@ -39,7 +39,7 @@ export async function timelinesRoutes(app: FastifyInstance) {
              s.period_label,
              s.contributors, s.computed_start_date, s.computed_end_date,
              s.published_at, s.created_at,
-             COUNT(se.event_id)::int AS moment_count
+             COUNT(se.event_id)::int AS "eventCount"
       FROM stories s
       LEFT JOIN story_events se ON se.story_id = s.id
       WHERE s.status = 'published' AND s.deleted_at IS NULL
@@ -72,7 +72,7 @@ export async function timelinesRoutes(app: FastifyInstance) {
              s.period_label,
              s.computed_start_date, s.computed_end_date,
              s.published_at, s.created_at, s.updated_at,
-             COUNT(se.event_id)::int AS moment_count
+             COUNT(se.event_id)::int AS "eventCount"
       FROM stories s
       LEFT JOIN story_events se ON se.story_id = s.id
       WHERE s.deleted_at IS NULL
