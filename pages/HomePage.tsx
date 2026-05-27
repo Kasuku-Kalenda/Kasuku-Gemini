@@ -791,16 +791,20 @@ export const HomePage: React.FC<HomePageProps> = ({ onViewEvent, navigateToModul
             </button>
             <button
               onClick={() => handleModeSwitch('shorts')}
-              className={`no-min-h px-3 py-2.5 text-sm font-medium transition-colors flex items-center gap-1.5 relative ${
-                mode === 'shorts' ? 'bg-primary text-white' : 'text-muted-foreground hover:bg-muted'
+              className={`no-min-h px-3 py-2.5 text-sm font-bold transition-all flex items-center gap-1.5 relative ${
+                mode === 'shorts'
+                  ? 'bg-primary text-white'
+                  : 'text-foreground hover:bg-muted'
               }`}
               aria-label={canReturnToShorts ? 'Reprendre Shorts' : 'Mode Shorts'}
             >
-              {/* Icône cartes empilées — suggère du contenu swipeable */}
-              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
-                <rect x="5" y="8" width="14" height="13" rx="2" />
-                <path d="M8 8V6a2 2 0 012-2h4a2 2 0 012 2v2" opacity="0.5" />
-                <path d="M3 11h2M19 11h2" opacity="0.4" strokeLinecap="round" />
+              {/* Éclair YouTube Shorts — rempli pour être bien visible */}
+              <svg
+                className={`h-4 w-4 flex-shrink-0 ${mode === 'shorts' ? 'fill-white' : 'fill-primary'}`}
+                viewBox="0 0 24 24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path d="M13 2 4.5 13.5H11L10 22l9.5-12H13.5L13 2z" />
               </svg>
               <span className="hidden sm:inline">
                 {canReturnToShorts ? 'Reprendre' : 'Shorts'}
