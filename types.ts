@@ -167,8 +167,9 @@ export interface TrainingModule {
 }
 
 // ─── Champs natifs PostgreSQL (retournés par l'API après transform camelCase) ─
-export type TemporalType = 'exact_date' | 'year_only' | 'period' | 'century' | 'decade';
-export type ReliabilityType = 'confirmed' | 'probable' | 'uncertain' | 'legendary';
+// Valeurs alignées sur les enums PostgreSQL temporal_type et reliability_type
+export type TemporalType   = 'exact_date' | 'date_range' | 'approximate' | 'unknown';
+export type ReliabilityType = 'confirmed' | 'probable' | 'contested' | 'unknown';
 export type ContentStatus = 'draft' | 'published' | 'archived';
 
 // MODÈLE CALENDRIER
