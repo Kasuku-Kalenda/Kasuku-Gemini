@@ -94,6 +94,7 @@ export async function timelinesRoutes(app: FastifyInstance) {
         COALESCE(JSON_AGG(
           JSONB_BUILD_OBJECT(
             'id',                 e.id,
+            'eventId',            se.event_id,
             'slug',               e.slug,
             'title',              e.title,
             'summary',            e.summary,
@@ -107,7 +108,17 @@ export async function timelinesRoutes(app: FastifyInstance) {
             'narrativeVideoUrl',  se.narrative_video_url,
             'quote',              se.quote,
             'quoteAuthor',        se.quote_author,
-            'resources',          COALESCE(se.cta, '[]'::jsonb)
+            'resources',          COALESCE(se.cta, '[]'::jsonb),
+            'media',              COALESCE((
+              SELECT JSON_AGG(JSONB_BUILD_OBJECT('type', sub.type, 'url', sub.url, 'caption', sub.alt_text))
+              FROM (
+                SELECT m.type, m.url, m.alt_text
+                FROM event_media em JOIN media m ON m.id = em.media_id
+                WHERE em.event_id = e.id
+                ORDER BY em.position
+                LIMIT 1
+              ) sub
+            ), '[]'::json)
           ) ORDER BY se.position ASC
         ) FILTER (WHERE e.id IS NOT NULL), '[]') AS moments
       FROM stories s
