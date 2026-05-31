@@ -40,11 +40,22 @@ Format :
 
 ## DIRECTIVE 3 — INVARIANTS DU PROJET
 
-- **Staging avant prod** — Tout changement passe par `staging.kasuku.afrikia.org` avant `kasuku.afrikia.org`
-- **Jamais Coolify Redeploy** — Gestion manuelle uniquement via SSH sur `root@77.42.76.120`
-- **Symlink `.env`** — Toujours vérifier `ls -la /opt/kasuku-staging/.env` avant un `docker compose up`
-- **Restart nginx après redeploy** — `docker compose restart nginx` sinon Traefik perd la route (504)
-- **Ne jamais casser ce qui marche** — lire le fichier avant d'éditer, vérifier le build avant de commit
+- **Dossier de déploiement unique** — Tout tourne depuis `/opt/kasuku` sur `root@77.42.76.120`. ⚠️ `/opt/kasuku-staging` est un checkout ABANDONNÉ (drift nginx non commité, ne PAS l'utiliser).
+- **3 projets compose dans `/opt/kasuku`** (orchestrés par Coolify / `coolify-proxy` = Traefik) :
+  - `kasuku-staging` → `docker-compose.staging.yml` → `staging.kasuku.afrikia.org`
+  - `kasuku-prod` → `docker-compose.coolify.yml` → `kasuku.afrikia.org`
+- **Staging avant prod** — Tout changement passe par `staging.kasuku.afrikia.org` avant `kasuku.afrikia.org`.
+- **Jamais Coolify Redeploy** — Le bouton Redeploy de l'UI Coolify est interdit. Rebuild manuel via SSH uniquement (commandes ci-dessous).
+- **Symlink `.env`** — `/opt/kasuku/.env` est un symlink → `.env.prod`. Compose interpole les secrets depuis `.env` (`${POSTGRES_PASSWORD}`, `${JWT_SECRET}`, `${POSTGRES_DB:-kasuku_db}`…). Vérifier `ls -la /opt/kasuku/.env` avant tout `docker compose up`. Pour déployer staging, passer explicitement `--env-file .env.staging` (ne PAS reposer sur le symlink).
+- **Commande de déploiement par-env** (chirurgical, `--no-deps` = ne rebuild que les services changés) :
+  ```bash
+  cd /opt/kasuku
+  docker compose --env-file .env.<env> -f docker-compose.<env>.yml -p kasuku-<env> up -d --build --no-deps <services>
+  docker compose --env-file .env.<env> -f docker-compose.<env>.yml -p kasuku-<env> restart nginx
+  # <env> = staging | prod ; <fichier> staging.yml ou coolify.yml ; <services> = api frontend …
+  ```
+- **Restart nginx après redeploy** — `docker compose ... restart nginx` sinon Traefik perd la route (504).
+- **Ne jamais casser ce qui marche** — lire le fichier avant d'éditer, vérifier le build avant de commit. Ne jamais dumper les VALEURS de secrets (masquer).
 - **postgres.js ne transforme pas les noms de colonnes** — utiliser des alias SQL en camelCase avec guillemets si nécessaire (ex: `COUNT(x) AS "eventCount"`)
 
 ---
@@ -56,7 +67,7 @@ Format :
 | API | Fastify + postgres.js | Node 20 |
 | Frontend public | React 18 + Vite + Tailwind CSS | — |
 | Frontend immersif | Next.js (submodule `kasuku-immersive/`) | 15 |
-| Base de données | PostgreSQL | 15 |
+| Base de données | PostgreSQL | 16-alpine |
 | Cache / Blacklist | Redis | 7 |
 | Auth | JWT (`@fastify/jwt`) + blacklist JTI Redis | — |
 | Déploiement | Docker Compose + Traefik + nginx | — |

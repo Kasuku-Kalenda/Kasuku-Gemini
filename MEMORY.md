@@ -5,6 +5,37 @@
 
 ---
 
+# SESSION END — 2026-05-31 — Déploiement PROD #17 (endpoint média moments) + topologie serveur corrigée
+
+- **Travaillé sur :**
+  - Déploiement en prod du lot backend `f49d81d` (expose `media` + `eventId` sur les moments de `GET /api/v1/timelines/slug/:slug`) — requis par le carrousel des récits de l'app native
+  - **Vérification exhaustive AVANT tout déploiement** (demande user : « vérifie avant tout ») + nettoyage d'un stack Docker orphelin
+
+- **Terminé :**
+  - ✅ **Topologie réelle découverte (≠ doc !)** : tout tourne depuis **`/opt/kasuku`** (PAS `/opt/kasuku-staging`, qui est un checkout abandonné, branche `staging`, HEAD `1bd58c3`, +97/-56 drift nginx jamais commité). Orchestration **Coolify** (`coolify-proxy` = Traefik). **3 projets compose** dans `/opt/kasuku` :
+    - `kasuku-staging` → `docker-compose.staging.yml`
+    - `kasuku-prod` → `docker-compose.coolify.yml`
+    - `kasuku` (orphelin/cassé) → `docker-compose.yml`
+  - ✅ **Diagnostic** : `/opt/kasuku` déjà sur `origin/main` (`8a18e66`, propre). Staging **déjà à jour** (rebuild 31/05 15:32 depuis `8a18e66`). Prod **en retard** : image du 27/05 (code `1bd58c3`, avant `f49d81d`). Confirmé **fonctionnellement** (A/B sur slug réel `seed-story-independances-africaines-1960`) : prod sans `media`/`eventId`, staging avec.
+  - ✅ **Déploiement prod** (manuel SSH, sans Coolify Redeploy) :
+    `docker compose --env-file .env.prod -f docker-compose.coolify.yml -p kasuku-prod up -d --build --no-deps api frontend` puis `... restart nginx`. **Pas de git pull** (déjà à jour), **aucune migration** dans le lot.
+  - ✅ **Vérif post-deploy** : prod renvoie désormais `media` + `eventId` (URL image Wikimedia réelle constatée). #17 prod **OK**.
+  - ✅ **Stack orphelin `kasuku` nettoyé** (`down` sans `-v`) : sa `postgres-migrate` bouclait en crash (cherchait `kasuku_db` inexistant — seul `kasuku_staging_db` présent sur sa pg), son `api` coincée en `Created`, + postgres/redis/minio/frontend en double. Staging & prod intacts et sains après coup.
+
+- **Décisions / invariants (À RÉPERCUTER dans CLAUDE.md) :**
+  - 🔧 **Le bon dossier de déploiement est `/opt/kasuku`** (l'invariant `DIRECTIVE 3` qui dit `/opt/kasuku-staging` est **périmé**)
+  - Déploiement = `docker compose --env-file .env.<env> -f docker-compose.<env>.yml -p kasuku-<env> up -d --build --no-deps <services>` + `restart nginx` (anti-504). Rebuild **ciblé** des seuls services changés (blast radius minimal)
+  - Le compose **interpole les secrets depuis l'`.env`** (`${POSTGRES_PASSWORD}`, `${JWT_SECRET}`…). `/opt/kasuku/.env -> .env.prod`. **Pour déployer staging : basculer `.env -> .env.staging` OU passer `--env-file .env.staging`** explicitement
+  - Postgres réel = **`postgres:16-alpine`** (la doc dit 15)
+
+- **En cours / Prochaine session :**
+  1. ✅ FAIT (ce commit) : `CLAUDE.md` DIRECTIVE 3 corrigée (`/opt/kasuku-staging` → `/opt/kasuku` + commandes compose par-env + symlink `.env`), DIRECTIVE 4 Postgres 15 → 16-alpine
+  2. Optionnel : purger le volume orphelin restant `kasuku_*` (`kasuku_staging_db`) via `docker volume rm` si on veut récupérer l'espace
+  3. Tester le ressenti tactile natif (ripple + haptiques `medium`) sur Android physique
+  4. Suite board polish natif : #3 pull-to-refresh, #4 virtualisation FlatList, #5 expo-image…
+
+---
+
 # SESSION END — 2026-05-31 — App native (kasukuNative/) · Ressenti natif au toucher (ripple + haptics)
 
 - **Travaillé sur :**

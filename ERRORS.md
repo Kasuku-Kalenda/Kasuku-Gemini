@@ -3,6 +3,13 @@
 > Consulter ce fichier avant de suggérir une approche sur une tâche similaire.
 > Ajouter une entrée dès qu'une approche échoue plus de 2 fois consécutives.
 
+## 2026-05-27 — 504 après recreation de container staging
+
+- **Tâche :** Redeploy frontend staging après `docker compose up -d`
+- **Échoué :** `docker restart kasuku-staging-nginx-1` ne suffit pas — Traefik (coolify-proxy) perd ses routes quand un container est recréé
+- **Marché :** `docker restart coolify-proxy` — force Traefik à redécouvrir les containers
+- **Retenir :** Après toute recreation de container (`Recreated` dans les logs), faire : `docker restart coolify-proxy && docker restart kasuku-staging-nginx-1`
+
 ---
 
 ## 2026-05 — gh CLI non authentifié en session
