@@ -23,15 +23,16 @@
 
 - **Terminé :** Audit complet + preuves ; correctif backend code-complet + commité localement (`df90cfa`) ; build EXIT 0. Aucune modif native nécessaire (`app/event/[id].tsx` rend déjà galerie + carte PARCOURS ; `calendar.tsx` rend déjà l'icône récit).
 
-- **En cours / en attente :** **Déploiement NON fait** — attente autorisation explicite. Séquence prévue : staging (`up -d --build --no-deps api` + restart/recreate nginx), valider `GET /events/<uuid>` enrichi par curl, puis prod.
+- **Déploiement STAGING fait + validé (2026-06-02) :** autorisé « staging seulement ». `up -d --build --no-deps api` + `docker restart coolify-proxy` + `up -d --force-recreate --no-deps nginx`. ⚠️ Le serveur `/opt/kasuku` était déjà à `de6c675` (= origin/main) : une **session concurrente** avait poussé mes commits `df90cfa`/`1fc1ce1` + ajouté `de6c675 debug(api): log POST /events body` (logging temporaire, n'altère pas mon helper). Build COPY src/npm build **CACHED** (image de6c675 déjà construite par la session concurrente). Validation curl : `GET /events/<uuid>` → HTTP 200 enrichi (`mediaItems`:1, `thumbnailUrl`, `timelineSlug`, `themes:[Histoire]`) ; slug endpoint non régressé ; 404 OK ; api healthy. **PROD : NON déployée** (l'utilisateur vérifie d'abord dans Expo Go).
 
 - **Décisions :**
   - Le correctif backend résout à la fois Feature 2 ET Feature 1(b). Feature 1(a) = décision contenu (lier un récit à un événement daté) OU décision produit (surfacer les événements approximatifs dans le calendrier — plus gros périmètre, non retenu sans demande).
   - `/:id` garde son périmètre de sélection (pas de filtre `status='published'`, drafts accessibles par id) ; seules les colonnes sont enrichies.
 
 - **Prochaine session :**
-  - Sur autorisation : déployer staging→prod, valider par curl, vérifier rendu Expo Go (image + carte « Lire le récit »).
+  - Après vérif Expo Go OK : déployer en PROD (`docker-compose.coolify.yml -p kasuku-prod`, même séquence proxy/nginx) **sur autorisation explicite**.
   - Proposer à l'utilisateur : lier au moins un récit à un événement daté pour faire apparaître l'icône récit sur le calendrier.
+  - ⚠️ Session concurrente active sur ce repo (debug `de6c675` sur POST /events) — coordonner avant tout `git push` / déploiement prod.
 
 ---
 
