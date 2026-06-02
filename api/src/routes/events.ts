@@ -160,6 +160,18 @@ export async function eventsRoutes(app: FastifyInstance) {
            JOIN media m ON m.id = em2.media_id
            WHERE em2.event_id = e.id AND em2.is_cover = true
            LIMIT 1) AS thumbnail_url,
+        -- Flags legers recit/module pour le badge des cartes (liste). EXISTS =
+        -- sous-requete scalaire booleenne, pas besoin de GROUP BY. NB: db.ts applique
+        -- transform.column.from -> ces alias has_timeline/has_module arrivent en
+        -- hasTimeline/hasModule cote JS (camelCase). Lire le snake_case = undefined.
+        EXISTS (
+          SELECT 1 FROM story_events se
+          JOIN stories s ON s.id = se.story_id
+          WHERE se.event_id = e.id AND s.status = 'published'
+        ) AS has_timeline,
+        EXISTS (
+          SELECT 1 FROM event_modules em WHERE em.event_id = e.id
+        ) AS has_module,
         p.name AS primary_place_name,
         COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
           'id', t.id, 'slug', t.slug, 'name', t.name, 'color', t.color
