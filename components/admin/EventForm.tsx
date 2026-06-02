@@ -288,12 +288,14 @@ export function EventForm({ mode, initialData, onSave, onCreated, compact = fals
     setGlobalError(null);
     setIsSaving(true);
 
-    // Normalisation : "" → null + supprime les médias sans URL (upload échoué)
+    // Normalisation : "" → null (chaque champ date/optionnel) + filtre médias sans URL
     const values: EventFormData = {
       ...rawValues,
-      dateISO: norm(rawValues.dateISO),
+      dateISO:     norm(rawValues.dateISO),
+      endDate:     norm(rawValues.endDate),
+      displayDate: norm(rawValues.displayDate),
       countryCode: norm(rawValues.countryCode),
-      period: norm(rawValues.period),
+      period:      norm(rawValues.period),
       media: (rawValues.media ?? []).filter(m => m.url && m.url.trim() !== ''),
     };
 

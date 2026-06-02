@@ -393,12 +393,11 @@ export async function eventsRoutes(app: FastifyInstance) {
 
     const slug = await uniqueSlug('events', String(body.title ?? ''));
 
-    // TEMP DEBUG — à supprimer après diagnostic
-    req.log.info({
-      startDate: body.startDate, startDateType: typeof body.startDate,
-      endDate: body.endDate, displayDate: body.displayDate,
-      annualRecurrence: body.annualRecurrence, annualRecurrenceType: typeof body.annualRecurrence,
-    }, 'POST /events body debug');
+    // Normalise les champs date : "" (chaîne vide HTML) doit devenir null,
+    // car `"" ?? null` = "" et postgres.js appelle new Date("").toISOString() → RangeError
+    const startDate   = body.startDate   || null;
+    const endDate     = body.endDate     || null;
+    const displayDate = body.displayDate || null;
 
     const [event] = await sql`
       INSERT INTO events (
@@ -414,7 +413,7 @@ export async function eventsRoutes(app: FastifyInstance) {
         ${body.summary ?? null}, ${body.content ?? null},
         ${JSON.stringify(body.contributors ?? [])},
         ${body.temporalType ?? 'exact_date'},
-        ${body.startDate ?? null}, ${body.endDate ?? null}, ${body.displayDate ?? null},
+        ${startDate}, ${endDate}, ${displayDate},
         ${body.approxCentury ?? null}, ${body.approxDecade ?? null},
         ${body.annualRecurrence ?? false},
         ${body.primaryCountryCode ?? null}, ${body.primaryPlaceId ?? null},
@@ -459,6 +458,11 @@ export async function eventsRoutes(app: FastifyInstance) {
       ? await uniqueSlug('events', String(body.title), id)
       : existing.slug;
 
+    // Même normalisation "" → null que dans le POST
+    const startDateU   = body.startDate   || null;
+    const endDateU     = body.endDate     || null;
+    const displayDateU = body.displayDate || null;
+
     const [event] = await sql`
       UPDATE events SET
         slug                 = ${slug},
@@ -468,9 +472,9 @@ export async function eventsRoutes(app: FastifyInstance) {
         content              = ${body.content ?? null},
         contributors         = ${JSON.stringify(body.contributors ?? [])},
         temporal_type        = ${body.temporalType ?? 'exact_date'},
-        start_date           = ${body.startDate ?? null},
-        end_date             = ${body.endDate ?? null},
-        display_date         = ${body.displayDate ?? null},
+        start_date           = ${startDateU},
+        end_date             = ${endDateU},
+        display_date         = ${displayDateU},
         approx_century       = ${body.approxCentury ?? null},
         approx_decade        = ${body.approxDecade ?? null},
         annual_recurrence    = ${body.annualRecurrence ?? false},
