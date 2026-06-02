@@ -357,14 +357,25 @@ export async function eventsRoutes(app: FastifyInstance) {
     return reply.send(event);
   });
 
-  // ── GET /:id — détail par ID ──────────────────────────────────────────────
+  // ── GET /:id — détail par ID (ou slug en fallback) ───────────────────────
   app.get('/:id', async (req: any, reply) => {
-    const [event] = await sql`
-      SELECT e.*, p.name AS primary_place_name
-      FROM events e
-      LEFT JOIN places p ON p.id = e.primary_place_id
-      WHERE e.id = ${req.params.id} AND e.deleted_at IS NULL
-    `;
+    const { id } = req.params;
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+
+    const [event] = isUUID
+      ? await sql`
+          SELECT e.*, p.name AS primary_place_name
+          FROM events e
+          LEFT JOIN places p ON p.id = e.primary_place_id
+          WHERE e.id = ${id}::uuid AND e.deleted_at IS NULL
+        `
+      : await sql`
+          SELECT e.*, p.name AS primary_place_name
+          FROM events e
+          LEFT JOIN places p ON p.id = e.primary_place_id
+          WHERE e.slug = ${id} AND e.deleted_at IS NULL
+        `;
+
     if (!event) return reply.status(404).send({ error: 'Événement introuvable' });
     return reply.send(event);
   });

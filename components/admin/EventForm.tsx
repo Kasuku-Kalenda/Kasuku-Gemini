@@ -84,17 +84,29 @@ const MediaInput: React.FC<MediaInputProps> = ({ index, form, onRemove }) => {
     if (currentUrl && !currentUrl.startsWith('data:')) setPreview(currentUrl);
   }, [currentUrl]);
 
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
   const handleFile = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setUploading(true);
+    setUploadError(null);
+    // Réinitialise l'input pour permettre de re-sélectionner le même fichier
+    e.target.value = '';
     try {
       const { url } = await uploadFile(file, 'events');
       form.setValue(`media.${index}.url`, url, { shouldValidate: true });
       form.setValue(`media.${index}.type`, file.type.startsWith('video') ? 'video' : 'image');
+      form.clearErrors(`media.${index}.url`);
       setPreview(url);
-    } catch {
-      alert('Erreur lors de l\'upload. Vérifiez votre connexion et réessayez.');
+      setUploadError(null);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Erreur inconnue';
+      setUploadError(`Échec de l'upload : ${msg}. Réessayez ou utilisez un lien URL.`);
+      // Réinitialiser l'URL si elle était vide pour ne pas bloquer la soumission sans image
+      if (!form.getValues(`media.${index}.url`)) {
+        form.setValue(`media.${index}.url`, '');
+      }
     } finally {
       setUploading(false);
     }
@@ -126,14 +138,14 @@ const MediaInput: React.FC<MediaInputProps> = ({ index, form, onRemove }) => {
         <button
           type="button"
           onClick={() => setInputMode('url')}
-          className={`px-3 py-1 text-xs rounded-md transition-colors ${inputMode === 'url' ? 'bg-white shadow text-primary font-medium' : 'text-muted-foreground'}`}
+          className={`px-3 py-1 text-xs rounded-md transition-colors ${inputMode === 'url' ? 'bg-card shadow text-primary font-medium' : 'text-muted-foreground'}`}
         >
           🔗 Lien URL
         </button>
         <button
           type="button"
           onClick={() => { setInputMode('upload'); fileRef.current?.click(); }}
-          className={`px-3 py-1 text-xs rounded-md transition-colors ${inputMode === 'upload' ? 'bg-white shadow text-primary font-medium' : 'text-muted-foreground'}`}
+          className={`px-3 py-1 text-xs rounded-md transition-colors ${inputMode === 'upload' ? 'bg-card shadow text-primary font-medium' : 'text-muted-foreground'}`}
         >
           {uploading ? '⏳ Chargement…' : '📁 Téléverser'}
         </button>
@@ -150,8 +162,17 @@ const MediaInput: React.FC<MediaInputProps> = ({ index, form, onRemove }) => {
               setPreview(e.target.value);
             }}
           />
-          {urlError && <p className="text-xs text-destructive mt-1">{urlError}</p>}
         </div>
+      )}
+
+      {/* Erreurs visibles quel que soit le mode */}
+      {uploadError && (
+        <p className="text-xs text-destructive mt-1 bg-destructive/10 rounded-lg px-3 py-2">
+          ⚠️ {uploadError}
+        </p>
+      )}
+      {urlError && !uploadError && (
+        <p className="text-xs text-destructive mt-1">{urlError}</p>
       )}
 
       {/* Input fichier (caché) */}
@@ -267,12 +288,13 @@ export function EventForm({ mode, initialData, onSave, onCreated, compact = fals
     setGlobalError(null);
     setIsSaving(true);
 
-    // Normalisation : "" → null
+    // Normalisation : "" → null + supprime les médias sans URL (upload échoué)
     const values: EventFormData = {
       ...rawValues,
       dateISO: norm(rawValues.dateISO),
       countryCode: norm(rawValues.countryCode),
       period: norm(rawValues.period),
+      media: (rawValues.media ?? []).filter(m => m.url && m.url.trim() !== ''),
     };
 
     // Validation Zod manuelle — plus fiable qu'un resolver
