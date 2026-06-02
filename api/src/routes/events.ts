@@ -236,9 +236,15 @@ export async function eventsRoutes(app: FastifyInstance) {
       const key = `${String(month).padStart(2, '0')}-${String(row.day).padStart(2, '0')}`;
       days[key] = {
         count:       row.count,
-        hasTimeline: Boolean(row.has_timeline),
-        hasModule:   Boolean(row.has_module),
-        themeColors: (row.theme_colors as string[] | null)?.slice(0, 3) ?? ['#94a3b8'],
+        // ⚠️ db.ts applique transform.column.from (snake_case → camelCase) sur les
+        // colonnes de résultat : les alias SQL `has_timeline`/`has_module`/`theme_colors`
+        // arrivent ici en `hasTimeline`/`hasModule`/`themeColors`. Lire le snake_case
+        // renvoyait undefined → Boolean(undefined)=false (icônes récit/module JAMAIS
+        // affichées sur la grille) + couleurs de thème toujours en repli gris. `count`/
+        // `day` n'ont pas d'underscore → inchangés par le transform, d'où le bug masqué.
+        hasTimeline: Boolean(row.hasTimeline),
+        hasModule:   Boolean(row.hasModule),
+        themeColors: (row.themeColors as string[] | null)?.slice(0, 3) ?? ['#94a3b8'],
       };
     }
 
