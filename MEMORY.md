@@ -5,6 +5,60 @@
 
 ---
 
+# SESSION END — 2026-06-02 — Audit natif : image événement + récit depuis le calendrier
+
+- **Travaillé sur :** Deux symptômes signalés depuis l'app native (Expo Go → staging) :
+  1. Sur une date dont l'événement a un récit, pas d'icône récit sous la date + impossible de lire le récit en ouvrant la date.
+  2. À l'ouverture d'un événement (« État Indépendant du Congo »), aucune image ; veut aussi voir/écouter les ressources.
+
+- **Audit (preuves curl staging) :**
+  - `GET /events/slug/:slug` → payload enrichi (`mediaItems`, `timelineSlug`, `themes`, `thumbnailUrl`).
+  - `GET /events/:id` (UUID) → **payload nu** : pas de clé `mediaItems`, `timelineSlug=null`, `themes=null`, `thumbnailUrl=null`. ⚠️ C'est le chemin qu'emprunte l'app native (calendrier/cartes/moments ouvrent par UUID).
+  - `calendar-days?month=<1..12>` (entier nu, PAS `YYYY-MM` — `parseInt("2026-06")=2026` casse la requête) → éphéméride perpétuelle clé `MM-DD`. Scan 12 mois : ~48 jours datés/an AVEC points de thèmes, mais `hasTimeline=0` ET `hasModule=0` PARTOUT.
+
+- **Conclusions :**
+  - **Feature 2 = vrai bug backend** → corrigé. `/:id` renvoyait `SELECT e.*, p.name`. Factorisé la requête enrichie de `/slug/:slug` dans `selectEventDetail(where: postgres.Fragment)`, réutilisée par `/slug/:slug` et les deux branches de `/:id`. Commit local **`df90cfa`** (NON poussé). `tsc --noEmit` EXIT 0.
+  - **Feature 1(b)** (« lire le récit depuis la date ») = **même bug** : la carte « Lire le récit » (PARCOURS) ne s'affiche que si l'événement a `timelineSlug`, justement absent via `/:id`. Réglé par le même correctif.
+  - **Feature 1(a)** (icône récit sur la grille) = **écart de CONTENU, pas de bug code**. Le calendrier (natif + `calendar-days`) est correct, mais **aucun événement daté n'a de récit** ; tous les événements porteurs de récit sont *approximatifs* (`start_date=NULL`, ex. « L'Année de l'Afrique — 1960 ») donc exclus de l'éphéméride. L'icône s'allumera automatiquement dès qu'un récit sera lié à un événement DATÉ (action admin/contenu).
+
+- **Terminé :** Audit complet + preuves ; correctif backend code-complet + commité localement (`df90cfa`) ; build EXIT 0. Aucune modif native nécessaire (`app/event/[id].tsx` rend déjà galerie + carte PARCOURS ; `calendar.tsx` rend déjà l'icône récit).
+
+- **En cours / en attente :** **Déploiement NON fait** — attente autorisation explicite. Séquence prévue : staging (`up -d --build --no-deps api` + restart/recreate nginx), valider `GET /events/<uuid>` enrichi par curl, puis prod.
+
+- **Décisions :**
+  - Le correctif backend résout à la fois Feature 2 ET Feature 1(b). Feature 1(a) = décision contenu (lier un récit à un événement daté) OU décision produit (surfacer les événements approximatifs dans le calendrier — plus gros périmètre, non retenu sans demande).
+  - `/:id` garde son périmètre de sélection (pas de filtre `status='published'`, drafts accessibles par id) ; seules les colonnes sont enrichies.
+
+- **Prochaine session :**
+  - Sur autorisation : déployer staging→prod, valider par curl, vérifier rendu Expo Go (image + carte « Lire le récit »).
+  - Proposer à l'utilisateur : lier au moins un récit à un événement daté pour faire apparaître l'icône récit sur le calendrier.
+
+---
+
+# SESSION END — 2026-06-02 — Fix création d'événement (EventForm + events route)
+
+- **Travaillé sur :** Bugs bloquants dans la création d'événement admin (EventForm + API)
+- **Terminé :**
+  - ✅ **EventForm Bug 1** : erreur d'upload masquée en mode upload → ajout état `uploadError`, affiché hors du bloc `{inputMode === 'url'}`, toujours visible
+  - ✅ **EventForm Bug 2** : échec silencieux à la soumission si media avec URL vide après upload raté → filtre dans `onSubmit` : `media: rawValues.media.filter(m => m.url && m.url.trim() !== '')`
+  - ✅ **EventForm Bug 3** : `GET /api/v1/events/:id` crashait avec `PostgresError: invalid input syntax for type uuid` quand on passait un slug → détection UUID par regex, fallback sur `WHERE e.slug = $id` si non-UUID
+  - ✅ **Commit** : `b4e1828` — "fix(admin): repair event creation"
+  - ✅ **Déploiement staging** : `up -d --build --no-deps api frontend` + `coolify-proxy restart` + `force-recreate nginx` → 200 confirmé
+  - ✅ **Vérif slug fallback** : `GET /api/v1/events/seed-annee-afrique-1960` → HTTP 200, slug correct
+
+- **En cours :** Rien de bloquant
+
+- **Décisions :**
+  - Séquence de redéploiement corrigée après recreation de containers : `docker restart coolify-proxy` + `docker compose ... up -d --force-recreate --no-deps nginx` (PAS `restart nginx`)
+  - ERRORS.md mis à jour avec cette correction
+
+- **Prochaine session :**
+  - Vérifier la création d'événement de bout en bout depuis l'interface admin (image upload → save → apparaît dans le calendrier)
+  - Déployer les fixes en prod
+  - Issues sécurité S1-S4 en attente (helmet, JWT_SECRET validation, rate limit Redis, durée access token 15min)
+
+---
+
 # SESSION END — 2026-05-31 — Déploiement PROD #17 (endpoint média moments) + topologie serveur corrigée
 
 - **Travaillé sur :**

@@ -3,6 +3,16 @@
 > Consulter ce fichier avant de suggérir une approche sur une tâche similaire.
 > Ajouter une entrée dès qu'une approche échoue plus de 2 fois consécutives.
 
+## 2026-06-02 — 504 persistant même après restart coolify-proxy + nginx
+
+- **Tâche :** Redeploy api+frontend staging après `docker compose up -d --no-deps api frontend`
+- **Échoué :** `docker restart coolify-proxy && docker compose restart nginx` → Traefik découvre le service, répon 200 une fois, puis repasse 504 immédiatement après
+- **Marché :** `docker compose --env-file .env.staging -f docker-compose.staging.yml -p kasuku-staging up -d --force-recreate --no-deps nginx` — recréer nginx force Traefik à obtenir le nouvel IP du container et à mettre à jour son routing de manière stable
+- **Retenir :** Après recreation de api/frontend, la séquence correcte est :
+  1. `docker restart coolify-proxy`
+  2. `docker compose ... up -d --force-recreate --no-deps nginx` (PAS `restart nginx`)
+  Un simple restart de nginx ne suffit pas ; il faut une recreation pour que Traefik pickup l'IP stable
+
 ## 2026-05-27 — 504 après recreation de container staging
 
 - **Tâche :** Redeploy frontend staging après `docker compose up -d`
