@@ -11,10 +11,66 @@
 
 import type { FastifyInstance } from 'fastify';
 import sql from '../db';
+import type postgres from 'postgres';
 import { requireAdmin } from '../middleware/auth';
 import { parsePagination, paginate } from '../utils/pagination';
 import { uniqueSlug } from '../utils/slug';
 import { findBase64Fields } from '../utils/validation';
+
+// ─── Détail enrichi d'un événement ───────────────────────────────────────────
+// Galerie média + couverture, thèmes, récit (story/timeline) lié, personnes et
+// modules. Factorisé pour que GET /slug/:slug ET GET /:id renvoient EXACTEMENT le
+// même contrat. Auparavant /:id ne renvoyait que l'événement nu (SELECT e.*, p.name) :
+// dès qu'on ouvrait un événement par UUID (cartes, calendrier, moments de récit),
+// l'image, le récit lié et les thèmes étaient absents. `where` est un fragment SQL
+// (e.id = … | e.slug = …) interpolé en toute sécurité par postgres.js.
+function selectEventDetail(where: postgres.Fragment) {
+  return sql`
+    SELECT e.*,
+      p.name AS primary_place_name,
+      -- Image de couverture (pour les cartes)
+      (SELECT mx.url FROM event_media emx
+         JOIN media mx ON mx.id = emx.media_id
+         WHERE emx.event_id = e.id AND emx.is_cover = true
+         LIMIT 1) AS thumbnail_url,
+      -- Tous les médias ordonnés (pour la galerie + formulaire admin)
+      (SELECT COALESCE(JSON_AGG(
+         JSONB_BUILD_OBJECT(
+           'id', mx.id, 'type', mx.type, 'url', mx.url,
+           'caption', mx.alt_text, 'credit', mx.credit,
+           'isCover', emx.is_cover, 'position', emx.position
+         ) ORDER BY emx.position
+       ), '[]')
+       FROM event_media emx JOIN media mx ON mx.id = emx.media_id
+       WHERE emx.event_id = e.id) AS media_items,
+      -- Premier récit (story/timeline) lié à cet événement
+      MIN(s.slug)       AS timeline_slug,
+      MIN(s.title)      AS timeline_title,
+      MIN(s.cover_url)  AS timeline_thumbnail,
+      COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
+        'id', t.id, 'slug', t.slug, 'name', t.name, 'color', t.color
+      )) FILTER (WHERE t.id IS NOT NULL), '[]') AS themes,
+      COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
+        'id', pe.id, 'slug', pe.slug, 'name', pe.name, 'photoUrl', pe.photo_url, 'role', ep.role
+      )) FILTER (WHERE pe.id IS NOT NULL), '[]') AS people,
+      COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
+        'id', mo.id, 'slug', mo.slug, 'title', mo.title, 'level', mo.level,
+        'durationMin', mo.duration_minutes, 'summary', mo.summary
+      )) FILTER (WHERE mo.id IS NOT NULL), '[]') AS modules
+    FROM events e
+    LEFT JOIN places        p  ON p.id  = e.primary_place_id
+    LEFT JOIN story_events  se ON se.event_id = e.id
+    LEFT JOIN stories       s  ON s.id  = se.story_id AND s.status = 'published'
+    LEFT JOIN event_themes  et ON et.event_id = e.id
+    LEFT JOIN themes        t  ON t.id  = et.theme_id
+    LEFT JOIN event_people  ep ON ep.event_id = e.id
+    LEFT JOIN people        pe ON pe.id = ep.person_id
+    LEFT JOIN event_modules em ON em.event_id = e.id
+    LEFT JOIN modules       mo ON mo.id = em.module_id AND mo.status = 'published'
+    WHERE ${where}
+    GROUP BY e.id, p.name
+  `;
+}
 
 // ─── Helper : synchronise les médias d'un événement ──────────────────────────
 // Supprime les liens event_media existants, réinsère dans media + event_media.
@@ -306,52 +362,9 @@ export async function eventsRoutes(app: FastifyInstance) {
 
   // ── GET /slug/:slug — détail par slug ─────────────────────────────────────
   app.get('/slug/:slug', async (req: any, reply) => {
-    const [event] = await sql`
-      SELECT e.*,
-        p.name AS primary_place_name,
-        -- Image de couverture (pour les cartes)
-        (SELECT mx.url FROM event_media emx
-           JOIN media mx ON mx.id = emx.media_id
-           WHERE emx.event_id = e.id AND emx.is_cover = true
-           LIMIT 1) AS thumbnail_url,
-        -- Tous les médias ordonnés (pour la galerie + formulaire admin)
-        (SELECT COALESCE(JSON_AGG(
-           JSONB_BUILD_OBJECT(
-             'id', mx.id, 'type', mx.type, 'url', mx.url,
-             'caption', mx.alt_text, 'credit', mx.credit,
-             'isCover', emx.is_cover, 'position', emx.position
-           ) ORDER BY emx.position
-         ), '[]')
-         FROM event_media emx JOIN media mx ON mx.id = emx.media_id
-         WHERE emx.event_id = e.id) AS media_items,
-        -- Premier récit (story/timeline) lié à cet événement
-        MIN(s.slug)       AS timeline_slug,
-        MIN(s.title)      AS timeline_title,
-        MIN(s.cover_url)  AS timeline_thumbnail,
-        COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
-          'id', t.id, 'slug', t.slug, 'name', t.name, 'color', t.color
-        )) FILTER (WHERE t.id IS NOT NULL), '[]') AS themes,
-        COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
-          'id', pe.id, 'slug', pe.slug, 'name', pe.name, 'photoUrl', pe.photo_url, 'role', ep.role
-        )) FILTER (WHERE pe.id IS NOT NULL), '[]') AS people,
-        COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
-          'id', mo.id, 'slug', mo.slug, 'title', mo.title, 'level', mo.level,
-          'durationMin', mo.duration_minutes, 'summary', mo.summary
-        )) FILTER (WHERE mo.id IS NOT NULL), '[]') AS modules
-      FROM events e
-      LEFT JOIN places        p  ON p.id  = e.primary_place_id
-      LEFT JOIN story_events  se ON se.event_id = e.id
-      LEFT JOIN stories       s  ON s.id  = se.story_id AND s.status = 'published'
-      LEFT JOIN event_themes  et ON et.event_id = e.id
-      LEFT JOIN themes        t  ON t.id  = et.theme_id
-      LEFT JOIN event_people  ep ON ep.event_id = e.id
-      LEFT JOIN people        pe ON pe.id = ep.person_id
-      LEFT JOIN event_modules em ON em.event_id = e.id
-      LEFT JOIN modules       mo ON mo.id = em.module_id AND mo.status = 'published'
-      WHERE e.slug = ${req.params.slug}
-        AND e.status = 'published' AND e.deleted_at IS NULL
-      GROUP BY e.id, p.name
-    `;
+    const [event] = await selectEventDetail(
+      sql`e.slug = ${req.params.slug} AND e.status = 'published' AND e.deleted_at IS NULL`,
+    );
 
     if (!event) return reply.status(404).send({ error: 'Événement introuvable' });
     return reply.send(event);
@@ -363,18 +376,8 @@ export async function eventsRoutes(app: FastifyInstance) {
     const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
     const [event] = isUUID
-      ? await sql`
-          SELECT e.*, p.name AS primary_place_name
-          FROM events e
-          LEFT JOIN places p ON p.id = e.primary_place_id
-          WHERE e.id = ${id}::uuid AND e.deleted_at IS NULL
-        `
-      : await sql`
-          SELECT e.*, p.name AS primary_place_name
-          FROM events e
-          LEFT JOIN places p ON p.id = e.primary_place_id
-          WHERE e.slug = ${id} AND e.deleted_at IS NULL
-        `;
+      ? await selectEventDetail(sql`e.id = ${id}::uuid AND e.deleted_at IS NULL`)
+      : await selectEventDetail(sql`e.slug = ${id} AND e.deleted_at IS NULL`);
 
     if (!event) return reply.status(404).send({ error: 'Événement introuvable' });
     return reply.send(event);
