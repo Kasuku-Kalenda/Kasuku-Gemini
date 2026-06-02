@@ -5,6 +5,31 @@
 
 ---
 
+# SESSION END — 2026-06-02 (suite) — Repères récit/module partout (A/B/C)
+
+- **Travaillé sur :** Rendre visible d'un coup d'œil la présence d'un récit/module à 3 endroits demandés par l'utilisateur : **(A)** sous la date dans la grille calendrier, **(B)** en haut de l'écran de détail événement, **(C)** badge sur les cartes d'événement en liste.
+
+- **Bug découvert (corrige la conclusion erronée du bloc précédent) :** `calendar-days` lisait `row.has_timeline`/`has_module`/`theme_colors` en snake_case, mais `db.ts` applique `transform.column.from` (snake→camel) → ces colonnes arrivent en `hasTimeline`/`hasModule`/`themeColors`. Lire le snake_case = `undefined` → icônes récit/module JAMAIS allumées + couleurs de thème toujours grises. Ce n'était **PAS** un manque de contenu. Détail dans ERRORS.md 2026-06-02.
+
+- **Terminé :**
+  - **(A)** Backend `calendar-days` : lecture camelCase (commit `aa5d01c`). Déployé staging + validé : `month=3` → `03-06` (Ghana) `hasTimeline:true themeColors:[#3498DB]`, `03-01`/`03-12` aussi. **Aucune modif native** (calendar.tsx affichait déjà les icônes, elles ne recevaient jamais `true`).
+  - **(C)** Backend `GET /events` (liste) : 2 sous-requêtes `EXISTS` scalaires → `hasTimeline` (≥1 story **publiée** liée) + `hasModule` (event_modules lié), sans GROUP BY supplémentaire (commit `f233163`). Déployé staging + validé : 8/8 items portent les flags, « Indépendance du Ghana » `hasTimeline:true`.
+  - **(B+C) Natif** (commit local `7f3e26b`, **NON poussé**) : `Event.hasTimeline/hasModule` (type + mapper, dérivés des flags liste OU de `timelineSlug`/`modules` au détail) ; `EventCard` = pastille overlay coin haut-gauche (récit=accent, module=secondary) ; `event/[id]` = chips Récit/Module sous les thèmes, **tappables** (→ timeline / module). `tsc --noEmit` EXIT 0 (web ET natif).
+
+- **Décisions :**
+  - Définition « a un récit » = ≥1 story **publiée** liée (cohérence carte↔détail = ce qui est réellement ouvrable). `calendar-days` garde son check plus large (existence de `story_events`) — identique en pratique sur les données réelles, **non modifié** (ne rien casser).
+  - Badge carte = coin overlay (choix utilisateur) ; détail = chips sous les thèmes (avant cover/résumé).
+  - **`hasModule` non vérifiable visuellement sur staging** : **0 module et 0 `event_modules`** en base staging → badge module jamais affiché là-bas (code symétrique au récit, prouvé par le chemin récit). À tester en liant un module en admin.
+
+- **⚠️ Hazard doc à trancher :** CLAUDE.md DIRECTIVE 3 + ancienne entrée ERRORS « eventCount » affirment « postgres.js ne transforme pas snake→camel ». **FAUX pour ce projet** : `db.ts` ajoute `transform.column.from` qui camelCase TOUTES les colonnes de résultat — c'est exactement ce qui a causé le bug `calendar-days`. Corrigé dans ERRORS.md (2026-06-02). **Recommandation : corriger la ligne de CLAUDE.md** (on lit camelCase ; les alias quotés ne sont pas nécessaires).
+
+- **Prochaine session / en attente :**
+  - **PROD : NON déployée** (tenue jusqu'à demande explicite + coordination session concurrente). Staging porte `aa5d01c` + `f233163`.
+  - **Natif `7f3e26b` : commit LOCAL**, à pousser sur demande (l'app tourne déjà en Expo Go sur le code local → l'utilisateur voit les changements sans push).
+  - Tester le badge **module** après création d'un module lié en admin (staging n'a aucun module).
+
+---
+
 # SESSION END — 2026-06-02 — Audit natif : image événement + récit depuis le calendrier
 
 - **Travaillé sur :** Deux symptômes signalés depuis l'app native (Expo Go → staging) :
@@ -14,12 +39,12 @@
 - **Audit (preuves curl staging) :**
   - `GET /events/slug/:slug` → payload enrichi (`mediaItems`, `timelineSlug`, `themes`, `thumbnailUrl`).
   - `GET /events/:id` (UUID) → **payload nu** : pas de clé `mediaItems`, `timelineSlug=null`, `themes=null`, `thumbnailUrl=null`. ⚠️ C'est le chemin qu'emprunte l'app native (calendrier/cartes/moments ouvrent par UUID).
-  - `calendar-days?month=<1..12>` (entier nu, PAS `YYYY-MM` — `parseInt("2026-06")=2026` casse la requête) → éphéméride perpétuelle clé `MM-DD`. Scan 12 mois : ~48 jours datés/an AVEC points de thèmes, mais `hasTimeline=0` ET `hasModule=0` PARTOUT.
+  - `calendar-days?month=<1..12>` (entier nu, PAS `YYYY-MM` — `parseInt("2026-06")=2026` casse la requête) → éphéméride perpétuelle clé `MM-DD`. Scan 12 mois : ~48 jours datés/an AVEC points de thèmes, mais `hasTimeline=0` ET `hasModule=0` PARTOUT. ⚠️ CORRECTION 2026-06-02 : ce « `hasTimeline=0` partout » était LE BUG lui-même (lecture snake_case dans le handler), PAS la réalité des données — voir bloc « (suite) ».
 
 - **Conclusions :**
   - **Feature 2 = vrai bug backend** → corrigé. `/:id` renvoyait `SELECT e.*, p.name`. Factorisé la requête enrichie de `/slug/:slug` dans `selectEventDetail(where: postgres.Fragment)`, réutilisée par `/slug/:slug` et les deux branches de `/:id`. Commit local **`df90cfa`** (NON poussé). `tsc --noEmit` EXIT 0.
   - **Feature 1(b)** (« lire le récit depuis la date ») = **même bug** : la carte « Lire le récit » (PARCOURS) ne s'affiche que si l'événement a `timelineSlug`, justement absent via `/:id`. Réglé par le même correctif.
-  - **Feature 1(a)** (icône récit sur la grille) = **écart de CONTENU, pas de bug code**. Le calendrier (natif + `calendar-days`) est correct, mais **aucun événement daté n'a de récit** ; tous les événements porteurs de récit sont *approximatifs* (`start_date=NULL`, ex. « L'Année de l'Afrique — 1960 ») donc exclus de l'éphéméride. L'icône s'allumera automatiquement dès qu'un récit sera lié à un événement DATÉ (action admin/contenu).
+  - **Feature 1(a)** (icône récit sur la grille) — ⚠️ **CONCLUSION ERRONÉE, corrigée le 2026-06-02.** J'avais conclu « écart de contenu, aucun événement daté n'a de récit » : **FAUX.** En réalité `calendar-days` avait un **bug de lecture camelCase** (il lisait `row.has_timeline`/`has_module`/`theme_colors` alors que `db.ts` les transforme en `hasTimeline`/`hasModule`/`themeColors`) → flags toujours `undefined`→`false`, couleurs grises. Ex. « Indépendance du Ghana » (1957-03-06) EST daté ET a 2 récits publiés. Corrigé (commit `aa5d01c`) + déployé staging : `03-06` → `hasTimeline:true themeColors:[#3498DB]`. Voir le bloc de session « (suite) » en tête de fichier + ERRORS.md 2026-06-02.
 
 - **Terminé :** Audit complet + preuves ; correctif backend code-complet + commité localement (`df90cfa`) ; build EXIT 0. Aucune modif native nécessaire (`app/event/[id].tsx` rend déjà galerie + carte PARCOURS ; `calendar.tsx` rend déjà l'icône récit).
 

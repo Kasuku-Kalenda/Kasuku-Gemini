@@ -58,12 +58,21 @@
 
 ---
 
+## 2026-06-02 — calendar-days : icônes récit/module jamais affichées (lecture snake_case)
+
+- **Tâche :** Afficher l'icône récit/module sous chaque date de la grille calendrier (app native). `GET /events/calendar-days` doit renvoyer `hasTimeline`/`hasModule`/`themeColors` par jour.
+- **Échoué (>2×) :** D'abord diagnostiqué à tort comme un « manque de contenu » (aucun événement daté n'aurait de récit) → **FAUX**. Le handler construisait l'objet jour en lisant `row.has_timeline`, `row.has_module`, `row.theme_colors` (snake_case) → toujours `undefined` → `Boolean(undefined)=false` (icônes jamais allumées) + repli couleur grise. La requête SQL était pourtant correcte (vérifiée en base : `has_timeline=t` pour le 6 mars / Ghana).
+- **Marché :** Lire les colonnes en **camelCase** : `row.hasTimeline`, `row.hasModule`, `row.themeColors` (commit `aa5d01c`). Cause racine : `api/src/db.ts` configure `transform.column.from = col => col.replace(/_([a-z])/g, …)` qui renomme **TOUTES** les colonnes de résultat snake_case → camelCase. Les colonnes d'un seul mot sans underscore (`count`, `day`) ne changent pas → bug masqué (seuls les flags/couleurs disparaissaient).
+- **Retenir (ANNULE l'ancienne note « eventCount » ci-dessous) :** ⚠️ Dans CE projet, `postgres.js` **TRANSFORME** snake_case → camelCase sur les résultats (custom `transform.column.from` dans `db.ts`). Côté JS on lit **TOUJOURS du camelCase**, quel que soit l'alias SQL : `SELECT … AS has_timeline` arrive en `row.hasTimeline`. Ne **JAMAIS** lire `row.snake_case` (= `undefined`). L'affirmation « postgres.js ne transforme pas » (CLAUDE.md DIRECTIVE 3 + entrée eventCount) est FAUSSE pour ce repo → à corriger dans CLAUDE.md.
+
+---
+
 ## 2026-05 — postgres.js retourne les colonnes en snake_case
 
 - **Tâche :** Récupérer `eventCount` depuis l'API timelines
 - **Échoué :** `tl.eventCount` retournait `undefined` → NaN dans les calculs. La colonne SQL s'appelait `moment_count`
 - **Marché :** Utiliser un alias SQL avec guillemets : `COUNT(se.event_id)::int AS "eventCount"` pour forcer le nom camelCase
-- **Retenir :** `postgres.js` ne transforme PAS automatiquement snake_case → camelCase. Si le frontend attend du camelCase, utiliser des alias SQL entre guillemets doubles
+- **Retenir :** ⚠️ **CORRIGÉ 2026-06-02 — cette note est TROMPEUSE.** `db.ts` ajoute un `transform.column.from` qui camelCase TOUTES les colonnes de résultat → l'alias quoté `"eventCount"` est en fait inutile (`AS moment_count` arriverait déjà en `momentCount`). Le vrai piège est l'INVERSE : ne pas lire `row.snake_case` côté JS (= `undefined`). Voir entrée 2026-06-02 ci-dessus.
 
 ---
 
