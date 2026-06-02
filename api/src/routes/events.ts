@@ -393,6 +393,13 @@ export async function eventsRoutes(app: FastifyInstance) {
 
     const slug = await uniqueSlug('events', String(body.title ?? ''));
 
+    // TEMP DEBUG — à supprimer après diagnostic
+    req.log.info({
+      startDate: body.startDate, startDateType: typeof body.startDate,
+      endDate: body.endDate, displayDate: body.displayDate,
+      annualRecurrence: body.annualRecurrence, annualRecurrenceType: typeof body.annualRecurrence,
+    }, 'POST /events body debug');
+
     const [event] = await sql`
       INSERT INTO events (
         slug, lang, title, summary, content, contributors,
