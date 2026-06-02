@@ -56,7 +56,7 @@ Format :
   ```
 - **Restart nginx après redeploy** — `docker compose ... restart nginx` sinon Traefik perd la route (504).
 - **Ne jamais casser ce qui marche** — lire le fichier avant d'éditer, vérifier le build avant de commit. Ne jamais dumper les VALEURS de secrets (masquer).
-- **postgres.js ne transforme pas les noms de colonnes** — utiliser des alias SQL en camelCase avec guillemets si nécessaire (ex: `COUNT(x) AS "eventCount"`)
+- **postgres.js TRANSFORME les noms de colonnes en camelCase** — `api/src/db.ts` configure `transform.column.from` (snake_case → camelCase) sur TOUTES les colonnes de résultat. Côté JS on lit donc **toujours du camelCase**, quel que soit l'alias SQL : `SELECT … AS has_timeline` arrive en `row.hasTimeline`. Ne JAMAIS lire `row.snake_case` (= `undefined`). Les colonnes d'un seul mot sans underscore (`count`, `day`) sont inchangées. Les alias SQL quotés en camelCase (`AS "eventCount"`) sont donc inutiles (mais inoffensifs). Voir ERRORS.md 2026-06-02.
 
 ---
 
