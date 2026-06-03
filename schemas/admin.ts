@@ -191,7 +191,7 @@ export const timelineFormSchema = z.object({
   title: z.string().min(3),
   subtitle: z.string().optional().nullable(),
   slug: z.string().min(3),
-  type: z.enum(['personnage', 'evenement']),
+  type: z.enum(['personnage', 'evenement', 'thematique']),
   summary: z.string().min(10).max(200),
   // Accepte : https://, http://, data: (base64), /, blob:
   coverUrl: z.string().min(1, "Une image de couverture est requise").refine(

@@ -224,7 +224,7 @@ export interface Event {
 }
 
 // MODÈLE NARRATIF COMPLET
-export type TimelineType = 'personnage' | 'evenement';
+export type TimelineType = 'personnage' | 'evenement' | 'thematique';
 export type TimelineStatus = 'draft' | 'published';
 export type TimeType = 'date' | 'period';
 

@@ -70,11 +70,17 @@ export async function modulesRoutes(app: FastifyInstance) {
 
     const items = await sql`
       SELECT m.id, m.slug, m.lang, m.title, m.status, m.level,
-             m.duration_minutes, m.published_at, m.created_at, m.updated_at
+             m.thumbnail_url, m.duration_minutes, m.published_at, m.created_at, m.updated_at,
+             COALESCE(
+               ARRAY_AGG(em.event_id) FILTER (WHERE em.event_id IS NOT NULL),
+               ARRAY[]::uuid[]
+             ) AS event_ids
       FROM modules m
+      LEFT JOIN event_modules em ON em.module_id = m.id
       WHERE m.deleted_at IS NULL
         AND (${search} = '' OR m.search_vector @@ plainto_tsquery('french', unaccent(${search})))
         AND (${status} = '' OR m.status::text = ${status})
+      GROUP BY m.id
       ORDER BY m.updated_at DESC
       LIMIT ${pg.limit} OFFSET ${pg.offset}
     `;
@@ -138,6 +144,14 @@ export async function modulesRoutes(app: FastifyInstance) {
       `;
     }
 
+    if (Array.isArray(body.eventIds) && body.eventIds.length > 0) {
+      await sql`
+        INSERT INTO event_modules (event_id, module_id)
+        SELECT UNNEST(${body.eventIds}::uuid[]), ${module.id}
+        ON CONFLICT DO NOTHING
+      `;
+    }
+
     return reply.status(201).send(module);
   });
 
@@ -179,6 +193,17 @@ export async function modulesRoutes(app: FastifyInstance) {
         await sql`
           INSERT INTO module_themes (module_id, theme_id)
           SELECT ${id}, UNNEST(${body.themeIds}::uuid[])
+          ON CONFLICT DO NOTHING
+        `;
+      }
+    }
+
+    if (Array.isArray(body.eventIds)) {
+      await sql`DELETE FROM event_modules WHERE module_id = ${id}`;
+      if (body.eventIds.length > 0) {
+        await sql`
+          INSERT INTO event_modules (event_id, module_id)
+          SELECT UNNEST(${body.eventIds}::uuid[]), ${id}
           ON CONFLICT DO NOTHING
         `;
       }

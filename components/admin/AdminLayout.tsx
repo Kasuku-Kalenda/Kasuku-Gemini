@@ -59,10 +59,14 @@ const navItems = [
   { view: 'adminEvents', label: 'Événements Calendrier', icon: <ContentIcon className="h-5 w-5" /> },
   { view: 'adminModules', label: 'Modules', icon: <ModulesIcon className="h-5 w-5" /> },
   { view: 'adminThemes', label: 'Thèmes', icon: <ThemeIcon className="h-5 w-5" /> },
+  { view: 'adminPeople', label: 'Personnages', icon: <UsersIcon className="h-5 w-5" /> },
   { view: 'adminKalenda', label: 'Kalenda (Paquets)', icon: <span className="h-5 w-5 flex items-center justify-center text-base">📦</span> },
   { view: 'adminImport', label: 'Import en masse', icon: <span className="h-5 w-5 flex items-center justify-center text-base">⬆️</span> },
   { view: 'adminSync', label: 'Synchronisation', icon: <SyncIcon className="h-5 w-5" /> },
-  // Moodle admin nav items removed — management done directly in module form
+  { view: 'adminMoodleInstances', label: 'Instances Moodle', icon: <span className="h-5 w-5 flex items-center justify-center text-base">🔗</span> },
+  { view: 'adminMoodleCourses', label: 'Cours Moodle', icon: <span className="h-5 w-5 flex items-center justify-center text-base">📚</span> },
+  { view: 'adminMoodlePackages', label: 'Paquets offline', icon: <span className="h-5 w-5 flex items-center justify-center text-base">📦</span> },
+  { view: 'adminMoodleMaps', label: 'Mappings cours', icon: <span className="h-5 w-5 flex items-center justify-center text-base">🗺️</span> },
 ] as const;
 
 

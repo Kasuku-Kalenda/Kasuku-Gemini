@@ -39,6 +39,8 @@ const MoodleCourseFormPage     = React.lazy(() => import('../pages/admin/moodle/
 const MoodlePackageFormPage    = React.lazy(() => import('../pages/admin/moodle/forms/MoodlePackageFormPage').then(m => ({ default: m.MoodlePackageFormPage })));
 const MoodleMapFormPage        = React.lazy(() => import('../pages/admin/moodle/forms/MoodleMapFormPage').then(m => ({ default: m.MoodleMapFormPage })));
 const MoodlePackageUploadPage  = React.lazy(() => import('../pages/admin/moodle/forms/MoodlePackageUploadPage').then(m => ({ default: m.MoodlePackageUploadPage })));
+const AdminPeoplePage          = React.lazy(() => import('../pages/admin/AdminPeoplePage').then(m => ({ default: m.AdminPeoplePage })));
+const PersonFormPage           = React.lazy(() => import('../pages/admin/forms/PersonFormPage').then(m => ({ default: m.PersonFormPage })));
 
 // ── Fallback ──────────────────────────────────────────────────────────────────
 const PageLoader = () => (
@@ -140,6 +142,13 @@ export const AdminApp: React.FC = () => {
         return <MoodleMapFormPage mode="create" onSave={goToList('adminMoodleMaps')} />;
       case 'adminEditMoodleMap':
         return <MoodleMapFormPage mode="edit" id={payload.id ?? null} onSave={goToList('adminMoodleMaps')} />;
+
+      case 'adminPeople':
+        return <AdminPeoplePage navigateTo={legacyNavigateTo as any} />;
+      case 'adminNewPerson':
+        return <PersonFormPage mode="create" onSave={goToList('adminPeople')} />;
+      case 'adminEditPerson':
+        return <PersonFormPage mode="edit" id={payload.id ?? null} onSave={goToList('adminPeople')} />;
 
       case 'adminKalenda':
         return <AdminKalendaPage navigateTo={legacyNavigateTo as any} />;

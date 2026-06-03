@@ -92,7 +92,8 @@ export async function peopleRoutes(app: FastifyInstance) {
   });
 
   app.delete('/:id', { preHandler: requireAdmin }, async (req: any, reply) => {
-    await sql`DELETE FROM people WHERE id = ${req.params.id}`;
+    const [person] = await sql`DELETE FROM people WHERE id = ${req.params.id} RETURNING id`;
+    if (!person) return reply.status(404).send({ error: 'Personne introuvable' });
     return reply.send({ success: true });
   });
 }

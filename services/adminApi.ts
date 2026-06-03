@@ -8,7 +8,7 @@ import type { Event, TrainingModule, Theme, FeaturedItem, Kalenda, MoodleInstanc
 import type { EventFormData, ModuleFormData, ThemeFormData, FeaturedFormData, TimelineFormData } from '../schemas/admin';
 import type { MoodleInstanceFormData, MoodleCourseFormData, MoodlePackageFormData, MoodleMapFormData } from '../schemas/moodle';
 
-interface ListResponse<T> { items: T[] }
+interface ListResponse<T> { items: T[]; total?: number }
 
 // ─── Timelines ─────────────────────────────────────────────────────────────────
 
@@ -22,8 +22,8 @@ const deleteTimeline = async (id: string): Promise<boolean> => { await api.delet
 
 const listEvents = async (opts: { limit?: number } = {}): Promise<ListResponse<Event>> => {
   const limit = opts.limit ?? 500;
-  const res = await api.get<ListResponse<Record<string, unknown>>>(`/events/all?limit=${limit}`);
-  return { items: res.items.map(mapApiEvent) };
+  const res = await api.get<{ items: Record<string, unknown>[]; total?: number }>(`/events/all?limit=${limit}`);
+  return { items: res.items.map(mapApiEvent), total: res.total };
 };
 
 const getEvent = async (id: string): Promise<Event | null> => {
@@ -84,11 +84,43 @@ const deleteTheme = async (id: string): Promise<boolean> => { await api.delete(`
 
 // ─── Modules ───────────────────────────────────────────────────────────────────
 
-const listModules  = async (): Promise<ListResponse<TrainingModule>> => api.get('/modules?limit=200');
+const listModules  = async (): Promise<ListResponse<TrainingModule>> => api.get('/modules/all?limit=200');
 const getModule    = async (id: string): Promise<TrainingModule | null> => { try { return await api.get<TrainingModule>(`/modules/${id}`); } catch { return null; } };
 const createModule = async (data: ModuleFormData): Promise<TrainingModule> => api.post('/modules', data);
 const updateModule = async (id: string, data: ModuleFormData): Promise<TrainingModule> => api.put(`/modules/${id}`, data);
 const deleteModule = async (id: string): Promise<boolean> => { await api.delete(`/modules/${id}`); return true; };
+
+// ─── People ────────────────────────────────────────────────────────────────────
+
+export interface PersonFormData {
+  name: string;
+  nationality?: string | null;
+  bio?: string | null;
+  photoUrl?: string | null;
+  wikipediaUrl?: string | null;
+  birthDate?: string | null;
+  deathDate?: string | null;
+}
+
+export interface PersonItem {
+  id: string;
+  slug: string;
+  name: string;
+  nationality?: string | null;
+  bio?: string | null;
+  photoUrl?: string | null;
+  wikipediaUrl?: string | null;
+  birthDate?: string | null;
+  deathDate?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+const listPeople  = async (): Promise<ListResponse<PersonItem>> => api.get('/people?limit=200');
+const getPerson   = async (id: string): Promise<PersonItem | null> => { try { return await api.get<PersonItem>(`/people/${id}`); } catch { return null; } };
+const createPerson = async (data: PersonFormData): Promise<PersonItem> => api.post('/people', data);
+const updatePerson = async (id: string, data: PersonFormData): Promise<PersonItem> => api.put(`/people/${id}`, data);
+const deletePerson = async (id: string): Promise<boolean> => { await api.delete(`/people/${id}`); return true; };
 
 // ─── Featured ──────────────────────────────────────────────────────────────────
 
@@ -155,6 +187,7 @@ export const adminApi = {
     listEvents, getEvent, createEvent, updateEvent, deleteEvent, getEventStoryEvents,
     listThemes, getTheme, createTheme, updateTheme, deleteTheme,
     listModules, getModule, createModule, updateModule, deleteModule,
+    listPeople, getPerson, createPerson, updatePerson, deletePerson,
     listFeatured, getFeatured, createFeatured, updateFeatured, deleteFeatured,
     listTimelines, getTimeline, createTimeline, updateTimeline, deleteTimeline,
     listKalendas, getKalenda, createKalenda, updateKalenda, deleteKalenda, publishKalenda,

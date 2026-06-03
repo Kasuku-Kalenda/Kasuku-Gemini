@@ -113,9 +113,9 @@ export const AdminEventsPage: React.FC<AdminEventsPageProps> = ({ navigateTo }) 
       if (status)          params.set('status',  status);
       if (country)         params.set('country', country.toUpperCase());
       if (theme)           params.set('theme',   theme);
-      if (orphan)          params.set('orphan',  '1');
-      if (noModule)        params.set('noModule','1');
-      if (featured)        params.set('featured','1');
+      if (orphan)          params.set('orphan',   'true');
+      if (noModule)        params.set('noModule', 'true');
+      if (featured)        params.set('featured', 'true');
 
       const data = await api.get<{ items: EventRow[]; total: number }>(
         `/events/all?${params.toString()}`
