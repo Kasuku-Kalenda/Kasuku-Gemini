@@ -3,6 +3,7 @@ import { adminApi, type PersonItem, type PersonFormData } from '../../../service
 import { AdminLayout } from '../../../components/admin/AdminLayout';
 import { Button } from '../../../components/ui/Button';
 import { ArrowLeftIcon } from '../../../components/icons/ArrowLeftIcon';
+import { ImageUploadInput } from '../../../components/admin/ImageUploadInput';
 
 interface Props {
   mode: 'create' | 'edit';
@@ -135,28 +136,23 @@ export const PersonFormPage: React.FC<Props> = ({ mode, id, onSave }) => {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-semibold mb-1">Nationalité (code ISO)</label>
-              <input
-                value={form.nationality ?? ''}
-                onChange={set('nationality')}
-                maxLength={2}
-                placeholder="ex: CM, SN, CD"
-                className="w-full border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 uppercase"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold mb-1">URL photo</label>
-              <input
-                value={form.photoUrl ?? ''}
-                onChange={set('photoUrl')}
-                type="url"
-                placeholder="https://…"
-                className="w-full border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
-              />
-            </div>
+          <div>
+            <label className="block text-sm font-semibold mb-1">Nationalité (code ISO)</label>
+            <input
+              value={form.nationality ?? ''}
+              onChange={set('nationality')}
+              maxLength={2}
+              placeholder="ex: CM, SN, CD"
+              className="w-full border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 uppercase"
+            />
           </div>
+
+          <ImageUploadInput
+            label="Photo"
+            folder="avatars"
+            value={form.photoUrl ?? ''}
+            onChange={url => setForm(prev => ({ ...prev, photoUrl: url }))}
+          />
 
           <div className="grid grid-cols-2 gap-4">
             <div>

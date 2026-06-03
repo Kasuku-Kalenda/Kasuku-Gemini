@@ -3,7 +3,6 @@ import { useForm, useFieldArray, useWatch, Controller } from 'react-hook-form';
 import { timelineFormSchema, TimelineFormData } from '../../schemas/admin';
 import { adminApi, type EventStoryEventItem } from '../../services/adminApi';
 import { uploadFile } from '../../services/apiClient';
-import { EventForm } from './EventForm';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Label } from '../ui/Label';
@@ -208,7 +207,7 @@ const MomentResources: React.FC<MomentResourcesProps> = ({ momentIndex, form }) 
 
 // ─── Event Picker (inline dans MomentCard) ────────────────────────────────────
 
-type PickerStep = 'list' | 'clone' | 'create';
+type PickerStep = 'list' | 'clone';
 
 interface CloneSelection {
   storyEvent: EventStoryEventItem;
@@ -220,10 +219,9 @@ interface EventPickerProps {
   excludeEventIds?: string[]; // événements déjà utilisés dans ce récit (hors moment courant)
   onSelect: (ev: any, cloneFrom?: EventStoryEventItem) => void;
   onClose: () => void;
-  onEventCreated: (ev: Event) => void;
 }
 
-const EventPicker: React.FC<EventPickerProps> = ({ allEvents, excludeEventIds = [], onSelect, onClose, onEventCreated }) => {
+const EventPicker: React.FC<EventPickerProps> = ({ allEvents, excludeEventIds = [], onSelect, onClose }) => {
   const [step, setStep]               = useState<PickerStep>('list');
   const [search, setSearch]           = useState('');
   const [country, setCountry]         = useState('');
@@ -341,45 +339,6 @@ const EventPicker: React.FC<EventPickerProps> = ({ allEvents, excludeEventIds = 
     );
   }
 
-  // ── Step: create — modale plein écran avec EventForm complet ────────────────
-  if (step === 'create') {
-    return (
-      <div className="fixed inset-0 z-[200] bg-black/60 flex items-start justify-center overflow-y-auto py-8 px-4">
-        <div className="bg-background w-full max-w-3xl rounded-2xl shadow-2xl relative">
-          {/* Header modale */}
-          <div className="flex items-center justify-between px-6 pt-5 pb-3 border-b">
-            <div>
-              <h2 className="text-lg font-bold text-secondary">✨ Créer un événement dans le calendrier</h2>
-              <p className="text-xs text-muted-foreground mt-0.5">L'événement sera lié à ce moment une fois créé.</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setStep('list')}
-              className="p-2 rounded-full hover:bg-muted text-muted-foreground"
-            >
-              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M18 6 6 18M6 6l12 12"/>
-              </svg>
-            </button>
-          </div>
-
-          {/* Formulaire complet */}
-          <div className="px-6 pb-6">
-            <EventForm
-              mode="create"
-              compact
-              onSave={() => setStep('list')}
-              onCreated={(ev) => {
-                onEventCreated(ev);
-                setStep('list');
-              }}
-            />
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   // ── Step: list (default) ─────────────────────────────────────────────────────
   return (
     <div className="border-2 border-primary/20 rounded-2xl bg-white shadow-lg p-4 space-y-3">
@@ -447,13 +406,7 @@ const EventPicker: React.FC<EventPickerProps> = ({ allEvents, excludeEventIds = 
         })}
       </div>
 
-      <div className="flex items-center justify-between pt-1">
-        <p className="text-xs text-muted-foreground">{filtered.length} sur {allEvents.length} événements</p>
-        <button type="button" onClick={() => setStep('create')}
-          className="text-xs font-bold text-primary hover:underline flex items-center gap-1">
-          + Créer un nouvel événement
-        </button>
-      </div>
+      <p className="text-xs text-muted-foreground pt-1">{filtered.length} sur {allEvents.length} événements</p>
     </div>
   );
 };
@@ -465,7 +418,6 @@ interface MomentCardProps {
   form: UseFormReturn<TimelineFormData>;
   allEvents: any[];
   usedEventIds: string[]; // tous les eventIds déjà utilisés dans le récit (pour éviter les doublons)
-  onEventCreated: (ev: any) => void;
   onRemove: () => void;
   onMoveUp: () => void;
   onMoveDown: () => void;
@@ -474,11 +426,10 @@ interface MomentCardProps {
 }
 
 const MomentCard: React.FC<MomentCardProps> = ({
-  index, total, form, allEvents, usedEventIds, onEventCreated,
+  index, total, form, allEvents, usedEventIds,
   onRemove, onMoveUp, onMoveDown, canMoveUp, canMoveDown,
 }) => {
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [createModalOpen, setCreateModalOpen] = useState(false);
   const mediaFileRef = useRef<HTMLInputElement>(null);
   // Ref for pending clone — avoids state timing issues with useEffect
   const pendingCloneRef = useRef<{ ev: any; cloneFrom: EventStoryEventItem } | null>(null);
@@ -547,12 +498,6 @@ const MomentCard: React.FC<MomentCardProps> = ({
   const handleUnlink = useCallback(() => {
     form.setValue(`moments.${index}.eventId` as any, null);
   }, [form, index]);
-
-  // Appelé quand un événement vient d'être créé dans la modale EventForm
-  const handleEventCreatedInModal = useCallback((newEvent: Event) => {
-    onEventCreated(newEvent);
-    handleSelectEvent(newEvent);
-  }, [handleSelectEvent, onEventCreated]);
 
   const handleMediaFile = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file) return;
@@ -632,47 +577,9 @@ const MomentCard: React.FC<MomentCardProps> = ({
           <p className="text-sm text-muted-foreground text-center">
             Chaque moment doit être lié à un événement du calendrier.
           </p>
-          <div className="flex gap-3 flex-wrap justify-center">
-            <Button type="button" onClick={() => setPickerOpen(true)}
-              className="gap-2">
-              📅 Sélectionner un événement existant
-            </Button>
-            <Button type="button" variant="outline" onClick={() => setCreateModalOpen(true)}>
-              ✨ Créer un nouvel événement
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {/* Modale de création d'événement (accès direct sans passer par le picker) */}
-      {createModalOpen && (
-        <div className="fixed inset-0 z-[200] bg-black/60 flex items-start justify-center overflow-y-auto py-8 px-4">
-          <div className="bg-background w-full max-w-3xl rounded-2xl shadow-2xl relative">
-            <div className="flex items-center justify-between px-6 pt-5 pb-3 border-b">
-              <div>
-                <h2 className="text-lg font-bold text-secondary">✨ Créer un événement dans le calendrier</h2>
-                <p className="text-xs text-muted-foreground mt-0.5">L'événement sera lié à ce moment une fois créé.</p>
-              </div>
-              <button type="button" onClick={() => setCreateModalOpen(false)}
-                className="p-2 rounded-full hover:bg-muted text-muted-foreground">
-                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M18 6 6 18M6 6l12 12"/>
-                </svg>
-              </button>
-            </div>
-            <div className="px-6 pb-6">
-              <EventForm
-                mode="create"
-                compact
-                onSave={() => setCreateModalOpen(false)}
-                onCreated={(ev) => {
-                  onEventCreated(ev);
-                  handleSelectEvent(ev);
-                  setCreateModalOpen(false);
-                }}
-              />
-            </div>
-          </div>
+          <Button type="button" onClick={() => setPickerOpen(true)} className="gap-2">
+            📅 Sélectionner un événement existant
+          </Button>
         </div>
       )}
 
@@ -684,7 +591,6 @@ const MomentCard: React.FC<MomentCardProps> = ({
             excludeEventIds={usedEventIds.filter(id => id !== eventId)}
             onSelect={(ev, cloneFrom) => handleSelectEvent(ev, cloneFrom)}
             onClose={() => setPickerOpen(false)}
-            onEventCreated={handleEventCreatedInModal}
           />
         </div>
       )}
@@ -1124,7 +1030,7 @@ export function TimelineForm({ mode, initialData, onSave }: TimelineFormProps) {
                 🎬 Moments du récit
                 <span className="bg-primary/10 text-primary text-xs font-bold px-2 py-0.5 rounded-full">{fields.length}</span>
               </h2>
-              <p className="text-xs text-muted-foreground mt-0.5">Chaque moment = un événement du calendrier (existant ou à créer).</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Chaque moment = un événement du calendrier existant.</p>
             </div>
             {fields.length > 1 && (
               <Button type="button" size="sm" variant="outline" onClick={handleSortByDate} className="text-primary border-primary/30">
@@ -1137,7 +1043,7 @@ export function TimelineForm({ mode, initialData, onSave }: TimelineFormProps) {
             <div className="border-2 border-dashed rounded-2xl p-10 text-center">
               <p className="text-4xl mb-3">🎭</p>
               <p className="font-bold text-secondary mb-1">Aucun moment créé</p>
-              <p className="text-sm text-muted-foreground mb-4">Sélectionnez des événements existants du calendrier ou créez-en de nouveaux.</p>
+              <p className="text-sm text-muted-foreground mb-4">Sélectionnez des événements existants du calendrier pour composer ce parcours.</p>
               <Button type="button" variant="outline" onClick={() => append(buildDefaultMoment())}>
                 + Ajouter le premier moment
               </Button>
@@ -1151,7 +1057,6 @@ export function TimelineForm({ mode, initialData, onSave }: TimelineFormProps) {
                   form={form}
                   allEvents={allEvents}
                   usedEventIds={watchedMoments.map(m => m.eventId).filter(Boolean) as string[]}
-                  onEventCreated={newEv => setAllEvents(prev => [newEv, ...prev])}
                   onRemove={() => remove(index)}
                   onMoveUp={() => move(index, index - 1)}
                   onMoveDown={() => move(index, index + 1)}

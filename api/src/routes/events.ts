@@ -56,17 +56,22 @@ function selectEventDetail(where: postgres.Fragment) {
       COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
         'id', mo.id, 'slug', mo.slug, 'title', mo.title, 'level', mo.level,
         'durationMin', mo.duration_minutes, 'summary', mo.summary
-      )) FILTER (WHERE mo.id IS NOT NULL), '[]') AS modules
+      )) FILTER (WHERE mo.id IS NOT NULL), '[]') AS modules,
+      COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
+        'id', hi.id, 'title', hi.title, 'category', hi.category
+      )) FILTER (WHERE hi.id IS NOT NULL), '[]') AS heritage_items
     FROM events e
-    LEFT JOIN places        p  ON p.id  = e.primary_place_id
-    LEFT JOIN story_events  se ON se.event_id = e.id
-    LEFT JOIN stories       s  ON s.id  = se.story_id AND s.status = 'published'
-    LEFT JOIN event_themes  et ON et.event_id = e.id
-    LEFT JOIN themes        t  ON t.id  = et.theme_id
-    LEFT JOIN event_people  ep ON ep.event_id = e.id
-    LEFT JOIN people        pe ON pe.id = ep.person_id
-    LEFT JOIN event_modules em ON em.event_id = e.id
-    LEFT JOIN modules       mo ON mo.id = em.module_id AND mo.status = 'published'
+    LEFT JOIN places              p   ON p.id  = e.primary_place_id
+    LEFT JOIN story_events        se  ON se.event_id = e.id
+    LEFT JOIN stories             s   ON s.id  = se.story_id AND s.status = 'published'
+    LEFT JOIN event_themes        et  ON et.event_id = e.id
+    LEFT JOIN themes              t   ON t.id  = et.theme_id
+    LEFT JOIN event_people        ep  ON ep.event_id = e.id
+    LEFT JOIN people              pe  ON pe.id = ep.person_id
+    LEFT JOIN event_modules       em  ON em.event_id = e.id
+    LEFT JOIN modules             mo  ON mo.id = em.module_id AND mo.status = 'published'
+    LEFT JOIN event_heritage_items ehi ON ehi.event_id = e.id
+    LEFT JOIN heritage_items      hi  ON hi.id = ehi.heritage_item_id AND hi.deleted_at IS NULL
     WHERE ${where}
     GROUP BY e.id, p.name
   `;
@@ -515,6 +520,28 @@ export async function eventsRoutes(app: FastifyInstance) {
         await sql`
           INSERT INTO event_themes (event_id, theme_id)
           SELECT ${id}, UNNEST(${body.themeIds}::uuid[])
+          ON CONFLICT DO NOTHING
+        `;
+      }
+    }
+
+    if (Array.isArray(body.personIds)) {
+      await sql`DELETE FROM event_people WHERE event_id = ${id}`;
+      if (body.personIds.length > 0) {
+        await sql`
+          INSERT INTO event_people (event_id, person_id)
+          SELECT ${id}, UNNEST(${body.personIds}::uuid[])
+          ON CONFLICT DO NOTHING
+        `;
+      }
+    }
+
+    if (Array.isArray(body.heritageItemIds)) {
+      await sql`DELETE FROM event_heritage_items WHERE event_id = ${id}`;
+      if (body.heritageItemIds.length > 0) {
+        await sql`
+          INSERT INTO event_heritage_items (event_id, heritage_item_id)
+          SELECT ${id}, UNNEST(${body.heritageItemIds}::uuid[])
           ON CONFLICT DO NOTHING
         `;
       }

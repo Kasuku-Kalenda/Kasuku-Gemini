@@ -3,6 +3,7 @@ import { adminApi, type HeritageFormData, type HeritageResourceInput } from '../
 import { AdminLayout } from '../../../components/admin/AdminLayout';
 import { Button } from '../../../components/ui/Button';
 import { ArrowLeftIcon } from '../../../components/icons/ArrowLeftIcon';
+import { ImageUploadInput } from '../../../components/admin/ImageUploadInput';
 import type { HeritageCategory, HeritageResourceType } from '../../../types';
 
 interface Props {
@@ -251,16 +252,12 @@ export const HeritageItemFormPage: React.FC<Props> = ({ mode, id, onSave }) => {
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-semibold mb-1">URL de couverture</label>
-            <input
-              value={form.coverUrl ?? ''}
-              onChange={set('coverUrl')}
-              type="url"
-              placeholder="https://…"
-              className="w-full border rounded-lg px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
-            />
-          </div>
+          <ImageUploadInput
+            label="Image de couverture"
+            folder="misc"
+            value={form.coverUrl ?? ''}
+            onChange={url => setForm(prev => ({ ...prev, coverUrl: url }))}
+          />
 
           <div>
             <label className="block text-sm font-semibold mb-1">Résumé</label>

@@ -90,9 +90,7 @@ export const EventDetailDrawer: React.FC<DrawerProps> = ({ eventId, onClose, onE
 
     setLoading(true);
     Promise.all([
-      api.get<EventDetail>(`/events/slug/${eventId}`).catch(() =>
-        api.get<EventDetail>(`/events/${eventId}`)
-      ),
+      api.get<EventDetail>(`/events/${eventId}`),
       api.get<{ items: StoryEventItem[] }>(`/events/${eventId}/story-events`)
         .catch(() => ({ items: [] })),
     ]).then(([ev, se]) => {

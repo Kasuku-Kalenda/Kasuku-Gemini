@@ -209,6 +209,8 @@ export interface Event {
 
   // ── Relations (normalisées par le mapper) ─────────────────────────────────
   themes: Theme[];
+  people?: Array<{ id: string; slug?: string; name: string; photoUrl?: string | null; role?: string | null }>;
+  heritageItems?: Array<{ id: string; title: string; category?: string }>;
   media: Media[];                      // construit depuis thumbnailUrl
   sources: Source[];                   // construit depuis sourceLabel/sourceUrl
   trainingModules?: TrainingModule[];  // construit depuis modules[]

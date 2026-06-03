@@ -98,6 +98,8 @@ export function mapApiEvent(raw: Record<string, unknown>): Event {
 
     // ── Relations normalisées ────────────────────────────────────────────────
     themes:          Array.isArray(raw.themes) ? (raw.themes as Event['themes']) : [],
+    people:          Array.isArray(raw.people) ? (raw.people as any[]) : [],
+    heritageItems:   Array.isArray(raw.heritageItems) ? (raw.heritageItems as any[]) : [],
     media,
     sources,
     trainingModules,
@@ -140,5 +142,7 @@ export function serializeEventForApi(data: Record<string, unknown>): Record<stri
     featuredPosition:    data.featuredPosition ?? null,
     status:              data.status ?? 'draft',
     themeIds:            data.themeIds ?? [],
+    personIds:           data.personIds ?? [],
+    heritageItemIds:     data.heritageItemIds ?? [],
   };
 }

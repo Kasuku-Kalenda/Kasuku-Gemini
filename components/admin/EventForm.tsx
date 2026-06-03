@@ -220,6 +220,8 @@ interface EventFormProps {
 
 export function EventForm({ mode, initialData, onSave, onCreated, compact = false }: EventFormProps) {
   const [themes, setThemes] = useState<any[]>([]);
+  const [allPeople, setAllPeople] = useState<any[]>([]);
+  const [allHeritage, setAllHeritage] = useState<any[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [globalError, setGlobalError] = useState<string | null>(null);
   const titleRef = useRef<boolean>(false);
@@ -234,6 +236,8 @@ export function EventForm({ mode, initialData, onSave, onCreated, compact = fals
     period: initialData.period ?? '',
     countryCode: initialData.countryCode ?? initialData.primaryCountryCode ?? '',
     themeIds: initialData.themes?.map((t: any) => t.id) ?? initialData.themeIds ?? [],
+    personIds: initialData.people?.map((p: any) => p.id) ?? [],
+    heritageItemIds: initialData.heritageItems?.map((h: any) => h.id) ?? [],
     media: initialData.media ?? [],
     sources: initialData.sources ?? [],
     // Champs avancés
@@ -249,7 +253,7 @@ export function EventForm({ mode, initialData, onSave, onCreated, compact = fals
   } : {
     title: '', slug: '', summary: '', status: 'draft',
     dateISO: '', year: undefined, period: '', countryCode: '',
-    themeIds: [], media: [], sources: [],
+    themeIds: [], personIds: [], heritageItemIds: [], media: [], sources: [],
     temporalType: 'exact_date', displayDate: '', endDate: '',
     approxCentury: undefined, approxDecade: undefined,
     annualRecurrence: false, reliability: 'confirmed',
@@ -265,6 +269,8 @@ export function EventForm({ mode, initialData, onSave, onCreated, compact = fals
 
   useEffect(() => {
     adminApi.listThemes().then(res => setThemes(res.items));
+    adminApi.listPeople().then(res => setAllPeople(res.items)).catch(() => {});
+    adminApi.listHeritage().then(res => setAllHeritage(res.items)).catch(() => {});
   }, []);
 
   // Auto-slug depuis le titre (seulement en mode create et si slug non modifié manuellement)
@@ -280,6 +286,16 @@ export function EventForm({ mode, initialData, onSave, onCreated, compact = fals
   const toggleTheme = (id: string) => {
     const current = form.getValues('themeIds') ?? [];
     form.setValue('themeIds', current.includes(id) ? current.filter(t => t !== id) : [...current, id]);
+  };
+
+  const togglePerson = (id: string) => {
+    const current = form.getValues('personIds') ?? [];
+    form.setValue('personIds', current.includes(id) ? current.filter(p => p !== id) : [...current, id]);
+  };
+
+  const toggleHeritage = (id: string) => {
+    const current = form.getValues('heritageItemIds') ?? [];
+    form.setValue('heritageItemIds', current.includes(id) ? current.filter(h => h !== id) : [...current, id]);
   };
 
   // ─── Soumission — validation manuelle avec Zod ────────────────────────────
@@ -583,7 +599,74 @@ export function EventForm({ mode, initialData, onSave, onCreated, compact = fals
           )}
         </section>
 
-        {/* ── Section 4 : Médias ────────────────────────────────────────── */}
+        {/* ── Section 4 : Personnages liés ─────────────────────────────── */}
+        {!compact && (
+        <section className="space-y-3">
+          <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground border-b pb-2">
+            Personnages liés
+          </h2>
+          {allPeople.length === 0 ? (
+            <p className="text-sm text-muted-foreground italic">Chargement…</p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {allPeople.map((person: any) => {
+                const selected = (form.watch('personIds') ?? []).includes(person.id);
+                return (
+                  <button
+                    key={person.id}
+                    type="button"
+                    onClick={() => togglePerson(person.id)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all border ${
+                      selected
+                        ? 'bg-secondary text-white border-secondary shadow-sm'
+                        : 'bg-background text-muted-foreground border-border hover:border-secondary/50 hover:text-secondary'
+                    }`}
+                  >
+                    {person.photoUrl && (
+                      <img src={person.photoUrl} alt="" className="h-4 w-4 rounded-full object-cover" />
+                    )}
+                    {person.name}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </section>
+        )}
+
+        {/* ── Section 5 : Patrimoine culturel lié ──────────────────────── */}
+        {!compact && (
+        <section className="space-y-3">
+          <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground border-b pb-2">
+            Patrimoine culturel lié
+          </h2>
+          {allHeritage.length === 0 ? (
+            <p className="text-sm text-muted-foreground italic">Aucun élément de patrimoine.</p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {allHeritage.map((item: any) => {
+                const selected = (form.watch('heritageItemIds') ?? []).includes(item.id);
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => toggleHeritage(item.id)}
+                    className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all border ${
+                      selected
+                        ? 'bg-primary text-white border-primary shadow-sm'
+                        : 'bg-background text-muted-foreground border-border hover:border-primary/50 hover:text-primary'
+                    }`}
+                  >
+                    🏺 {item.title}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </section>
+        )}
+
+        {/* ── Section 6 (Médias) ───────────────────────────────────────── */}
         <section className="space-y-4">
           <div className="flex items-center justify-between border-b pb-2">
             <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground">

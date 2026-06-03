@@ -37,6 +37,8 @@ export const eventFormSchema = z.object({
     .refine(v => !v || v.length === 2, { message: "Code pays : 2 lettres (ex: SN)" })
     .nullable().optional(),
   themeIds: z.array(z.string()).default([]),
+  personIds: z.array(z.string()).default([]),
+  heritageItemIds: z.array(z.string()).default([]),
   media: z.array(mediaSchema).default([]),
   sources: z.array(sourceSchema).default([]),
   // Champs avancés (correspondant aux colonnes DB)
