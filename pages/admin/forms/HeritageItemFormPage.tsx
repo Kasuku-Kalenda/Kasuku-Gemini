@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { adminApi, type HeritageFormData, type HeritageResourceInput } from '../../../services/adminApi';
+import { uploadFile } from '../../../services/apiClient';
 import { AdminLayout } from '../../../components/admin/AdminLayout';
 import { Button } from '../../../components/ui/Button';
 import { ArrowLeftIcon } from '../../../components/icons/ArrowLeftIcon';
@@ -39,11 +40,13 @@ const EMPTY: HeritageFormData = {
 };
 
 export const HeritageItemFormPage: React.FC<Props> = ({ mode, id, onSave }) => {
-  const [form, setForm]         = useState<HeritageFormData>(EMPTY);
-  const [loading, setLoading]   = useState(mode === 'edit');
-  const [saving, setSaving]     = useState(false);
-  const [error, setError]       = useState<string | null>(null);
-  const [notFound, setNotFound] = useState(false);
+  const [form, setForm]             = useState<HeritageFormData>(EMPTY);
+  const [loading, setLoading]       = useState(mode === 'edit');
+  const [saving, setSaving]         = useState(false);
+  const [error, setError]           = useState<string | null>(null);
+  const [notFound, setNotFound]     = useState(false);
+  const [uploadingRes, setUploadingRes] = useState<Record<number, boolean>>({});
+  const fileRefs = useRef<Map<number, HTMLInputElement>>(new Map());
 
   useEffect(() => {
     if (mode === 'edit' && id) {
@@ -284,56 +287,91 @@ export const HeritageItemFormPage: React.FC<Props> = ({ mode, id, onSave }) => {
             {(form.resources ?? []).length === 0 && (
               <p className="text-xs text-muted-foreground italic">Aucune ressource.</p>
             )}
-            {(form.resources ?? []).map((r, i) => (
-              <div key={i} className="border rounded-lg p-3 space-y-2 mb-2 bg-muted/20">
-                <div className="grid grid-cols-3 gap-2">
-                  <div>
-                    <label className="block text-xs font-medium mb-0.5">Type</label>
-                    <select
-                      value={r.type}
-                      onChange={e => updateResource(i, 'type', e.target.value)}
-                      className="w-full border rounded px-2 py-1 text-xs bg-background focus:outline-none focus:ring-1 focus:ring-primary/30"
-                    >
-                      {RESOURCE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                    </select>
+            {(form.resources ?? []).map((r, i) => {
+              const accept = r.type === 'audio' ? 'audio/*' : r.type === 'video' ? 'video/*' : r.type === 'image' ? 'image/*' : r.type === 'pdf' ? '.pdf,application/pdf' : undefined;
+              const isUploading = uploadingRes[i] ?? false;
+              return (
+                <div key={i} className="border rounded-lg p-3 space-y-2 mb-2 bg-muted/20">
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <label className="block text-xs font-medium mb-0.5">Type</label>
+                      <select
+                        value={r.type}
+                        onChange={e => updateResource(i, 'type', e.target.value)}
+                        className="w-full border rounded px-2 py-1 text-xs bg-background focus:outline-none focus:ring-1 focus:ring-primary/30"
+                      >
+                        {RESOURCE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                      </select>
+                    </div>
+                    <div className="col-span-2">
+                      <label className="block text-xs font-medium mb-0.5">URL <span className="text-destructive">*</span></label>
+                      <div className="flex gap-1">
+                        <input
+                          value={r.url}
+                          onChange={e => updateResource(i, 'url', e.target.value)}
+                          placeholder="https://…"
+                          className="flex-1 border rounded px-2 py-1 text-xs bg-background focus:outline-none focus:ring-1 focus:ring-primary/30"
+                        />
+                        {r.type !== 'link' && accept && (
+                          <>
+                            <button
+                              type="button"
+                              title="Téléverser un fichier"
+                              disabled={isUploading}
+                              onClick={() => fileRefs.current.get(i)?.click()}
+                              className="border rounded px-2 py-1 text-xs bg-background hover:border-primary/40 shrink-0 disabled:opacity-50"
+                            >
+                              {isUploading ? '⏳' : '📁'}
+                            </button>
+                            <input
+                              type="file"
+                              accept={accept}
+                              className="hidden"
+                              ref={el => { if (el) fileRefs.current.set(i, el); else fileRefs.current.delete(i); }}
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0]; if (!file) return;
+                                setUploadingRes(prev => ({ ...prev, [i]: true }));
+                                try {
+                                  const { url } = await uploadFile(file, 'misc');
+                                  updateResource(i, 'url', url);
+                                  if (!r.title) updateResource(i, 'title', file.name.replace(/\.[^/.]+$/, ''));
+                                } catch { alert('Erreur lors de l\'upload. Réessayez.'); }
+                                finally { setUploadingRes(prev => ({ ...prev, [i]: false })); }
+                              }}
+                            />
+                          </>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                  <div className="col-span-2">
-                    <label className="block text-xs font-medium mb-0.5">URL <span className="text-destructive">*</span></label>
-                    <input
-                      value={r.url}
-                      onChange={e => updateResource(i, 'url', e.target.value)}
-                      placeholder="https://…"
-                      className="w-full border rounded px-2 py-1 text-xs bg-background focus:outline-none focus:ring-1 focus:ring-primary/30"
-                    />
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs font-medium mb-0.5">Titre</label>
+                      <input
+                        value={r.title ?? ''}
+                        onChange={e => updateResource(i, 'title', e.target.value)}
+                        className="w-full border rounded px-2 py-1 text-xs bg-background focus:outline-none focus:ring-1 focus:ring-primary/30"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium mb-0.5">Crédit</label>
+                      <input
+                        value={r.credit ?? ''}
+                        onChange={e => updateResource(i, 'credit', e.target.value)}
+                        className="w-full border rounded px-2 py-1 text-xs bg-background focus:outline-none focus:ring-1 focus:ring-primary/30"
+                      />
+                    </div>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => removeResource(i)}
+                    className="text-xs text-destructive hover:underline"
+                  >
+                    Supprimer cette ressource
+                  </button>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-xs font-medium mb-0.5">Titre</label>
-                    <input
-                      value={r.title ?? ''}
-                      onChange={e => updateResource(i, 'title', e.target.value)}
-                      className="w-full border rounded px-2 py-1 text-xs bg-background focus:outline-none focus:ring-1 focus:ring-primary/30"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium mb-0.5">Crédit</label>
-                    <input
-                      value={r.credit ?? ''}
-                      onChange={e => updateResource(i, 'credit', e.target.value)}
-                      className="w-full border rounded px-2 py-1 text-xs bg-background focus:outline-none focus:ring-1 focus:ring-primary/30"
-                    />
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => removeResource(i)}
-                  className="text-xs text-destructive hover:underline"
-                >
-                  Supprimer cette ressource
-                </button>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           <div className="flex justify-end gap-3 pt-2">

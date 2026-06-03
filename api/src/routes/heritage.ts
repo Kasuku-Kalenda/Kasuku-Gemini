@@ -27,10 +27,10 @@ async function enrichedDetail(id: string) {
       COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
         'id', p.id, 'slug', p.slug, 'name', p.name, 'photoUrl', p.photo_url
       )) FILTER (WHERE p.id IS NOT NULL), '[]') AS people,
-      COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
+      COALESCE(JSON_AGG(JSONB_BUILD_OBJECT(
         'id', r.id, 'type', r.type, 'url', r.url, 'title', r.title,
         'credit', r.credit, 'position', r.position
-      ) ORDER BY JSONB_BUILD_OBJECT('position', r.position)) FILTER (WHERE r.id IS NOT NULL), '[]') AS resources
+      ) ORDER BY r.position) FILTER (WHERE r.id IS NOT NULL), '[]') AS resources
     FROM heritage_items h
     LEFT JOIN heritage_themes ht  ON ht.heritage_item_id = h.id
     LEFT JOIN themes t            ON t.id = ht.theme_id
