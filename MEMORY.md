@@ -5,6 +5,90 @@
 
 ---
 
+# SESSION END — 2026-06-03 (session 2) — Corrections admin P1/P2/P3 (issues #53-#65)
+
+- **Travaillé sur :** Corrections complètes des bugs admin identifiés lors de l'audit 2026-06-03. Phases 1, 2 et 3 toutes traitées dans cette session.
+
+- **Terminé :**
+  - ✅ **P1 #53** — Filtres orphan/noModule/featured : `'1'` → `'true'` dans AdminEventsPage.tsx
+  - ✅ **P1 #55** — `adminApi.listModules()` : `/modules?limit=200` → `/modules/all?limit=200`
+  - ✅ **P1 #56** — POST/PUT `/modules` : ajout gestion `event_modules` (liaison événements↔modules)
+  - ✅ **P1 #61** — GET `/modules/all` : ajout `thumbnail_url` + `event_ids` (ARRAY_AGG LEFT JOIN event_modules)
+  - ✅ **P2 #57** — AdminTimelinesPage : suppression `listEvents()` fantôme + colonne "Évén. liés" (champ `timelineId` inexistant)
+  - ✅ **P2 #58** — Type `'thematique'` : ajouté à `TimelineType` (types.ts), Zod schema (schemas/admin.ts), select TimelineForm.tsx + badge AdminTimelinesPage
+  - ✅ **P2 #59** — DELETE `/people` : ajout `RETURNING id` + 404 si non trouvé
+  - ✅ **P2 #60** — Interface admin Personnages : AdminPeoplePage.tsx + PersonFormPage.tsx + adminApi CRUD + nav + router + AppView
+  - ✅ **P3 #62** — Suppression dead code AdminEventEditorPage.tsx + AdminEventEditor.tsx
+  - ✅ **P3 #63** — Dashboard compteurs : utilisation `totalItems` (champ réel de la pagination API)
+  - ✅ **P3 #64** — Menu nav : ajout Personnages + 4 pages Moodle
+  - ✅ **P3 #65** — Colonne "Source" récits supprimée (champ fantôme)
+
+- **Commits :**
+  - `1f70001` — fix(admin): corrections audit P1/P2/P3 — closes #53 #55 #56 #57 #58 #59 #60 #61 #62 #63 #64 #65
+  - `3c83754` — fix(admin): corriger totalItems (pagination utilise totalItems, pas total)
+
+- **Déployé :** staging (api + frontend) — validé curl :
+  - `orphan=true` → totalItems=50 ✓ ; `modules/all` → endpoint admin (0 modules en staging, normal) ✓ ; `DELETE /people/<inexistant>` → HTTP 404 ✓
+
+- **Non corrigé dans cette session :**
+  - **Issue #66** (Heritage Items) — feature complexe (migration SQL + API + admin), reportée à une session dédiée
+  - **build frontend** : erreurs TypeScript pré-existantes dans `AdminTimelineEditor.tsx`, `FeaturedStories.tsx` et le submodule `kasuku-immersive/` (non causées par nos changements)
+
+- **Décisions :**
+  - Pagination API retourne `totalItems` (pas `total`) — `ListResponse<T>` dans adminApi.ts a maintenant `totalItems?: number`
+  - La table `people` n'a pas de `deleted_at` → fix minimal (RETURNING + 404), sans soft-delete ni migration
+  - `listEvents()` côté admin charge toujours 500 items pour le "Recent events" du dashboard, mais le COUNT utilise `totalItems` (évite le plafonnement)
+
+- **Prochaine session :**
+  - Issue #66 — Heritage Items : migration 022 + API `/heritage` + admin complet
+  - Tester visuellement les corrections admin sur staging (filtres events, liste modules, formulaire type thématique, page Personnages)
+  - Vérifier `hasModule` badge sur un événement après liaison event↔module via le formulaire admin
+
+---
+
+# SESSION END — 2026-06-03 — Audit admin exhaustif (rapport + 13 issues identifiées)
+
+- **Travaillé sur :** Audit complet du panel admin Kasuku : DB, API, frontend, navigation.
+  Entités couvertes : events, stories (timelines), modules, people, heritage (à créer), dashboard.
+
+- **Terminé :**
+  - ✅ Lecture exhaustive : migrations 005/008/009/010/012/017/021, routes API events/timelines/modules/people, services adminApi/mappers, schemas, pages admin, composants, AdminLayout, AdminApp, TimelineForm (1200L)
+  - ✅ Rapport d'audit complet rédigé dans la session (13 issues documentées)
+  - ✅ MEMORY.md mis à jour
+
+- **Bugs critiques identifiés (non corrigés — corrections déférées à la prochaine session) :**
+  - **P1 #1** — Filtres orphan/noModule/featured inopérants : `AdminEventsPage.tsx:116-118` envoie `'1'` mais API attend `'true'`
+  - **P1 #2** — `adminApi.listModules()` appelle endpoint PUBLIC `/modules` (pas `/modules/all`) → brouillons invisibles
+  - **P1 #3** — POST/PUT `/modules` n'insère pas dans `event_modules` → liaison événements perdue
+  - **P2 #4** — "Évén. liés" récits: filtre sur `e.timelineId` (champ fantôme) + requête 500 events inutile
+  - **P2 #5** — Type récit `'thematique'` absent du schéma Zod → inaccessible
+  - **P2 #6** — DELETE `/people` = hard-delete sans RETURNING ni 404
+  - **P2 #7** — Aucune UI admin pour les personnages (people) malgré API CRUD complète
+  - **P2 #8** — GET `/modules/all` manque `thumbnail_url` et `event_ids`
+  - **P2 #9** — `AdminEventEditorPage.tsx` orphelin (dead code, import cassé)
+  - **P3 #10** — Dashboard compteurs plafonnés/sous-estimés
+  - **P3 #11** — Vues Moodle absentes du menu nav
+  - **P3 #12** — Colonne "Source" récits toujours vide (champ inexistant dans l'API)
+  - **P3 #13** — Heritage Items entièrement à créer (DB + API + admin)
+
+- **Décisions :**
+  - Heritage Items : recommandation migration `022_heritage_items.sql` + pivots `heritage_themes/people/story_heritage_items`.
+    Champ `summary` (pas `description`) pour cohérence. Soft-delete (`deleted_at`).
+    **Règle métier confirmée (2026-06-03) :**
+    (1) Un heritage item peut exister SEUL — aucun lien obligatoire à un événement, un récit ou un module.
+    (2) Il peut OPTIONNELLEMENT être lié à un événement, un récit ET/OU un module (pivots `event_heritage_items`, `story_heritage_items`, `module_heritage_items` — tous facultatifs).
+    (3) Il peut avoir des ressources complémentaires (audio, image, vidéo) — table dédiée `heritage_resources (id, heritage_item_id, type, url, title, credit, position)` (Option B choisie pour évolutivité : permet de filtrer/compter par type, d'ajouter des métadonnées sans migration). Ne PAS utiliser JSONB.
+  - `AdminEventEditorPage.tsx` (orphelin) vs `EventFormPage` (utilisé) : ne jamais modifier l'orphelin
+  - `timelineFormSchema.type` doit inclure `'thematique'` (migration 017 le supporte déjà)
+
+- **En cours / Prochaine session :**
+  - Créer les 13 issues GitHub après validation humaine du rapport
+  - Corrections P1 en priorité : filtres events (#1), endpoint modules (#2 + #3)
+  - Puis P2 : récits (#4 #5), people (#6 #7), modules (#8)
+  - Heritage Items : feature session dédiée
+
+---
+
 # SESSION END — 2026-06-02 (suite) — Repères récit/module partout (A/B/C)
 
 - **Travaillé sur :** Rendre visible d'un coup d'œil la présence d'un récit/module à 3 endroits demandés par l'utilisateur : **(A)** sous la date dans la grille calendrier, **(B)** en haut de l'écran de détail événement, **(C)** badge sur les cartes d'événement en liste.

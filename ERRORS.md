@@ -3,6 +3,23 @@
 > Consulter ce fichier avant de suggérir une approche sur une tâche similaire.
 > Ajouter une entrée dès qu'une approche échoue plus de 2 fois consécutives.
 
+## 2026-06-03 — API pagination : champ `totalItems` pas `total`
+
+- **Tâche :** Exposer le nombre total d'enregistrements (Dashboard compteurs, etc.) depuis les endpoints paginés de l'API.
+- **Échoué :** Utiliser `res.total` dans `adminApi.ts` → `undefined` à chaque fois. Hypothèse initiale que le champ s'appelait `total`.
+- **Marché :** Le helper `paginate()` de l'API (`api/src/utils/pagination.ts`) retourne `{ items, page, totalPages, totalItems }` — le champ est **`totalItems`**, jamais `total`. Côté frontend, lire `(res as any).totalItems` ou ajouter `totalItems?: number` à `ListResponse<T>`.
+- **Retenir :** Ne JAMAIS supposer que la pagination retourne `total`. Vérifier dans `pagination.ts` : le champ est `totalItems`. Toujours utiliser `totalItems ?? items.length` comme fallback.
+
+## 2026-06-03 — EAS Build Android : `npm ci` échoue (peer react-dom + lockfile élagué)
+
+- **Tâche :** Produire un APK Android distribuable à des testeurs éloignés via EAS Build (profil `preview`, distribution `internal`, pointant staging).
+- **Échoué :** Build EAS plante à *Install dependencies* — `npm ci --include=dev exited with non-zero code: 1`. Double cause : (1) **conflit de peer-dep PRÉ-EXISTANT** — le projet épingle `react@19.1.0` (version Expo SDK 54) mais `react-dom@19.2.6` (tiré côté web seulement par expo-router→vaul→radix) exige `react ^19.2.6` ; le `npm ci` STRICT d'EAS refuse (ERESOLVE). (2) Une install CLI avec `--legacy-peer-deps` (faite pour ajouter `@expo/ngrok`) a **élagué `react-dom`/`scheduler` du `package-lock.json`** → `npm ci` réclame « Missing from lock file ». Tentative « repartir propre » (lockfile committé + SANS `.npmrc`) → ERESOLVE quand même (cause 1 seule suffit à planter).
+- **Marché :** `.npmrc` à la racine de `kasukuNative` avec **`legacy-peer-deps=true`** + **lockfile COMPLET** (react-dom présent). Combinaison gagnante : `npm ci` installe react-dom (il est dans le lock) ET la validation des peers est bypassée → **EXIT 0 AVEC react-dom présent** (donc zéro risque au bundle Metro). ngrok retiré (tunnel mort, on est passé à EAS). Vérifié en local avec la commande EXACTE d'EAS (`npm ci --include=dev` → EXIT 0) avant de relancer. Build EAS ✅.
+- **Retenir :**
+  1. **EAS lance `npm ci` STRICT** → package.json ↔ package-lock.json doivent être PARFAITEMENT synchro. **Ne JAMAIS `npm install --legacy-peer-deps` en CLI** sur ce projet (ça élague le lock) ; mettre le flag dans `.npmrc`.
+  2. `kasukuNative` **EXIGE `.npmrc` `legacy-peer-deps=true`** pour builder (conflit react/react-dom structurel SDK 54). Ne pas le supprimer. EAS l'upload car non gitignoré.
+  3. **expo doctor est NON-bloquant sur EAS** (⚠️ jaune, pas ❌) — 3 checks rouges (metro config custom ; peer deps `expo-constants`/`expo-linking` « missing » mais présentes via expo-router ; `typescript 6.0.3`/`@types/react 19.2.x` vs attendus) n'arrêtent PAS le build. Ne pas « corriger » ces mismatches dev-only (typescript/@types/react ne sont jamais bundlés dans l'APK).
+
 ## 2026-06-02 — 504 persistant même après restart coolify-proxy + nginx
 
 - **Tâche :** Redeploy api+frontend staging après `docker compose up -d --no-deps api frontend`
