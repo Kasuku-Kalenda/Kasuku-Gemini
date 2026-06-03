@@ -4,7 +4,7 @@
  */
 import { api, uploadFile as uploadToMinio } from './apiClient';
 import { mapApiEvent, serializeEventForApi } from './mappers';
-import type { Event, TrainingModule, Theme, FeaturedItem, Kalenda, MoodleInstance, MoodleCourse, MoodleOfflinePackage, MoodleCourseMap, TimelineNarrative } from '../types';
+import type { Event, TrainingModule, Theme, FeaturedItem, Kalenda, MoodleInstance, MoodleCourse, MoodleOfflinePackage, MoodleCourseMap, TimelineNarrative, HeritageItem, HeritageCategory, HeritageResourceType } from '../types';
 import type { EventFormData, ModuleFormData, ThemeFormData, FeaturedFormData, TimelineFormData } from '../schemas/admin';
 import type { MoodleInstanceFormData, MoodleCourseFormData, MoodlePackageFormData, MoodleMapFormData } from '../schemas/moodle';
 
@@ -122,6 +122,41 @@ const createPerson = async (data: PersonFormData): Promise<PersonItem> => api.po
 const updatePerson = async (id: string, data: PersonFormData): Promise<PersonItem> => api.put(`/people/${id}`, data);
 const deletePerson = async (id: string): Promise<boolean> => { await api.delete(`/people/${id}`); return true; };
 
+// ─── Heritage Items ────────────────────────────────────────────────────────────
+
+export interface HeritageResourceInput {
+  type: HeritageResourceType;
+  url: string;
+  title?: string | null;
+  credit?: string | null;
+}
+
+export interface HeritageFormData {
+  title: string;
+  lang?: string;
+  category?: HeritageCategory;
+  summary?: string | null;
+  period?: string | null;
+  countryCode?: string | null;
+  coverUrl?: string | null;
+  status?: 'draft' | 'published' | 'archived';
+  themeIds?: string[];
+  personIds?: string[];
+  eventIds?: string[];
+  storyIds?: string[];
+  moduleIds?: string[];
+  resources?: HeritageResourceInput[];
+}
+
+const listHeritage   = async (opts: { status?: string } = {}): Promise<{ items: HeritageItem[]; totalItems?: number }> => {
+  const params = opts.status ? `?status=${opts.status}` : '';
+  return api.get(`/heritage/all${params}`);
+};
+const getHeritage    = async (id: string): Promise<HeritageItem | null> => { try { return await api.get<HeritageItem>(`/heritage/${id}`); } catch { return null; } };
+const createHeritage = async (data: HeritageFormData): Promise<HeritageItem> => api.post('/heritage', data);
+const updateHeritage = async (id: string, data: HeritageFormData): Promise<HeritageItem> => api.put(`/heritage/${id}`, data);
+const deleteHeritage = async (id: string): Promise<boolean> => { await api.delete(`/heritage/${id}`); return true; };
+
 // ─── Featured ──────────────────────────────────────────────────────────────────
 
 const listFeatured   = async (): Promise<ListResponse<FeaturedItem>> => api.get('/featured/all');
@@ -184,6 +219,7 @@ const updateMoodleMap = async (id: string, data: MoodleMapFormData) => api.put<M
 const deleteMoodleMap = async (id: string) => { await api.delete(`/moodle/maps/${id}`); return true; };
 
 export const adminApi = {
+    listHeritage, getHeritage, createHeritage, updateHeritage, deleteHeritage,
     listEvents, getEvent, createEvent, updateEvent, deleteEvent, getEventStoryEvents,
     listThemes, getTheme, createTheme, updateTheme, deleteTheme,
     listModules, getModule, createModule, updateModule, deleteModule,

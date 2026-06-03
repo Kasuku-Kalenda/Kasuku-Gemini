@@ -46,6 +46,7 @@ export type AppView =
   | 'adminMoodlePackages' | 'adminNewMoodlePackage' | 'adminEditMoodlePackage' | 'adminMoodlePackageUpload'
   | 'adminMoodleMaps' | 'adminNewMoodleMap' | 'adminEditMoodleMap'
   | 'adminPeople' | 'adminNewPerson' | 'adminEditPerson'
+  | 'adminHeritage' | 'adminNewHeritage' | 'adminEditHeritage'
   | 'adminKalenda'
   | 'adminSync' | 'adminImport'
   | 'offlineScorm' | 'offlineH5p';

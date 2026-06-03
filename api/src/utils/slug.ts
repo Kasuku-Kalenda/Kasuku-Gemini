@@ -15,7 +15,7 @@ export function toSlug(title: string): string {
  * Si "mon-slug" existe → essaie "mon-slug-2", "mon-slug-3"...
  */
 export async function uniqueSlug(
-  table: 'events' | 'stories' | 'modules' | 'themes' | 'people' | 'places' | 'kalendas' | 'media' | 'tags',
+  table: 'events' | 'stories' | 'modules' | 'themes' | 'people' | 'places' | 'kalendas' | 'media' | 'tags' | 'heritage_items',
   base:  string,
   excludeId?: string,
 ): Promise<string> {

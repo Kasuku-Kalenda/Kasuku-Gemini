@@ -386,6 +386,39 @@ export interface MoodleOfflinePackage {
   Course?: MoodleCourse;
 }
 
+// ─── Heritage Items (Patrimoine culturel) ────────────────────────────────────
+
+export type HeritageCategory = 'mask' | 'proverb' | 'symbol' | 'recipe' | 'craft' | 'music' | 'other';
+export type HeritageResourceType = 'audio' | 'image' | 'video' | 'pdf' | 'link';
+
+export interface HeritageResource {
+  id?: string;
+  type: HeritageResourceType;
+  url: string;
+  title?: string | null;
+  credit?: string | null;
+  position?: number;
+}
+
+export interface HeritageItem {
+  id: string;
+  slug: string;
+  lang: string;
+  title: string;
+  category: HeritageCategory;
+  summary?: string | null;
+  period?: string | null;
+  countryCode?: string | null;
+  coverUrl?: string | null;
+  status: ContentStatus;
+  publishedAt?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  themes?: Array<{ id: string; slug: string; name: string; color?: string | null }>;
+  people?: Array<{ id: string; slug: string; name: string; photoUrl?: string | null }>;
+  resources?: HeritageResource[];
+}
+
 export type MoodleMapMode = "LTI" | "REST" | "OFFLINE";
 
 export interface MoodleCourseMap {

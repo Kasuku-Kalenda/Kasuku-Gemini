@@ -60,6 +60,7 @@ const navItems = [
   { view: 'adminModules', label: 'Modules', icon: <ModulesIcon className="h-5 w-5" /> },
   { view: 'adminThemes', label: 'Thèmes', icon: <ThemeIcon className="h-5 w-5" /> },
   { view: 'adminPeople', label: 'Personnages', icon: <UsersIcon className="h-5 w-5" /> },
+  { view: 'adminHeritage', label: 'Patrimoine culturel', icon: <span className="h-5 w-5 flex items-center justify-center text-base">🏺</span> },
   { view: 'adminKalenda', label: 'Kalenda (Paquets)', icon: <span className="h-5 w-5 flex items-center justify-center text-base">📦</span> },
   { view: 'adminImport', label: 'Import en masse', icon: <span className="h-5 w-5 flex items-center justify-center text-base">⬆️</span> },
   { view: 'adminSync', label: 'Synchronisation', icon: <SyncIcon className="h-5 w-5" /> },
