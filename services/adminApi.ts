@@ -8,7 +8,7 @@ import type { Event, TrainingModule, Theme, FeaturedItem, Kalenda, MoodleInstanc
 import type { EventFormData, ModuleFormData, ThemeFormData, FeaturedFormData, TimelineFormData } from '../schemas/admin';
 import type { MoodleInstanceFormData, MoodleCourseFormData, MoodlePackageFormData, MoodleMapFormData } from '../schemas/moodle';
 
-interface ListResponse<T> { items: T[]; total?: number }
+interface ListResponse<T> { items: T[]; total?: number; totalItems?: number }
 
 // ─── Timelines ─────────────────────────────────────────────────────────────────
 
@@ -22,8 +22,8 @@ const deleteTimeline = async (id: string): Promise<boolean> => { await api.delet
 
 const listEvents = async (opts: { limit?: number } = {}): Promise<ListResponse<Event>> => {
   const limit = opts.limit ?? 500;
-  const res = await api.get<{ items: Record<string, unknown>[]; total?: number }>(`/events/all?limit=${limit}`);
-  return { items: res.items.map(mapApiEvent), total: res.total };
+  const res = await api.get<{ items: Record<string, unknown>[]; totalItems?: number }>(`/events/all?limit=${limit}`);
+  return { items: res.items.map(mapApiEvent), totalItems: res.totalItems };
 };
 
 const getEvent = async (id: string): Promise<Event | null> => {

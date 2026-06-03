@@ -109,11 +109,11 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ navigate
       const themes = (themesRaw as unknown as { items: unknown[] })?.items ?? themesRaw ?? [];
 
       setCounts({
-        events:    evRes.status  === 'fulfilled' ? (evRes.value.total  ?? events.length)    : 0,
-        modules:   modRes.status === 'fulfilled' ? (modRes.value.total ?? modules.length)   : 0,
+        events:    evRes.status  === 'fulfilled' ? (evRes.value.totalItems  ?? events.length)    : 0,
+        modules:   modRes.status === 'fulfilled' ? ((modRes.value as any).totalItems ?? modules.length)   : 0,
         themes:    (themes as unknown[]).length,
-        timelines: tlRes.status  === 'fulfilled' ? (tlRes.value.total  ?? timelines.length) : 0,
-        featured:  ftRes.status  === 'fulfilled' ? (ftRes.value.total  ?? featured.length)  : 0,
+        timelines: tlRes.status  === 'fulfilled' ? ((tlRes.value as any).totalItems  ?? timelines.length) : 0,
+        featured:  ftRes.status  === 'fulfilled' ? ((ftRes.value as any).totalItems  ?? featured.length)  : 0,
       });
       setRecentEvents(events.slice(0, 5) as Event[]);
       setRecentModules(modules.slice(0, 5) as TrainingModule[]);
