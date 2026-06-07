@@ -92,14 +92,28 @@ const deleteModule = async (id: string): Promise<boolean> => { await api.delete(
 
 // ─── People ────────────────────────────────────────────────────────────────────
 
+export interface PersonSourceLink {
+  label: string;
+  url: string;
+}
+
+export type PersonResourceType = 'audio' | 'video' | 'pdf' | 'other';
+
+export interface PersonResource {
+  type: PersonResourceType;
+  title: string;
+  url: string;
+}
+
 export interface PersonFormData {
   name: string;
   nationality?: string | null;
   bio?: string | null;
   photoUrl?: string | null;
-  wikipediaUrl?: string | null;
   birthDate?: string | null;
   deathDate?: string | null;
+  sources?: PersonSourceLink[];
+  resources?: PersonResource[];
 }
 
 export interface PersonItem {
@@ -109,9 +123,10 @@ export interface PersonItem {
   nationality?: string | null;
   bio?: string | null;
   photoUrl?: string | null;
-  wikipediaUrl?: string | null;
   birthDate?: string | null;
   deathDate?: string | null;
+  sources?: PersonSourceLink[];
+  resources?: PersonResource[];
   createdAt?: string;
   updatedAt?: string;
 }
