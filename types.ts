@@ -264,6 +264,8 @@ export interface TimelineNarrative {
   status: TimelineStatus;
   eventCount: number;
   moments?: TimelineMoment[];
+  personIds?: string[];
+  people?: Array<{ id: string; slug: string; name: string; photoUrl?: string | null }>;
   createdAt?: string;
   updatedAt?: string;
   source?: ContentSource;

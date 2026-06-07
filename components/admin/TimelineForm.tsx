@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useForm, useFieldArray, useWatch, Controller } from 'react-hook-form';
 import { timelineFormSchema, TimelineFormData } from '../../schemas/admin';
-import { adminApi, type EventStoryEventItem } from '../../services/adminApi';
+import { adminApi, type EventStoryEventItem, type PersonItem } from '../../services/adminApi';
 import { uploadFile } from '../../services/apiClient';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -734,12 +734,16 @@ export function TimelineForm({ mode, initialData, onSave }: TimelineFormProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [globalError, setGlobalError] = useState<string | null>(null);
   const [allEvents, setAllEvents] = useState<any[]>([]);
+  const [allPeople, setAllPeople] = useState<PersonItem[]>([]);
+  const [peopleSearch, setPeopleSearch] = useState('');
+  const [showPeoplePicker, setShowPeoplePicker] = useState(false);
   const titleTouched = useRef(false);
   const periodLabelTouched = useRef(!!initialData?.periodLabel); // touched if pre-existing data
 
-  // Load events on mount
+  // Load events + people on mount
   useEffect(() => {
     adminApi.listEvents().then(r => setAllEvents(r.items)).catch(console.error);
+    adminApi.listPeople().then(r => setAllPeople(r.items)).catch(console.error);
   }, []);
 
   const buildDefaultMoment = (overrides?: Partial<TimelineFormData['moments'][0]>) => ({
@@ -760,6 +764,7 @@ export function TimelineForm({ mode, initialData, onSave }: TimelineFormProps) {
     coverUrl: initialData.coverUrl ?? '',
     periodLabel: initialData.periodLabel ?? '',
     status: initialData.status ?? 'draft',
+    personIds: initialData.personIds ?? [],
     moments: (initialData.moments ?? []).map((m: any) => ({
       ...buildDefaultMoment(),
       ...m,
@@ -777,7 +782,7 @@ export function TimelineForm({ mode, initialData, onSave }: TimelineFormProps) {
   } : {
     title: '', subtitle: '', slug: '', type: 'evenement',
     summary: '', coverUrl: '',
-    periodLabel: '', status: 'draft', moments: [],
+    periodLabel: '', status: 'draft', personIds: [], moments: [],
   };
 
   const form = useForm<TimelineFormData>({ defaultValues });
@@ -786,6 +791,26 @@ export function TimelineForm({ mode, initialData, onSave }: TimelineFormProps) {
   // Watched values — declared first so effects below can reference them
   const titleValue = form.watch('title');
   const watchedMoments = form.watch('moments');
+  const watchedPersonIds: string[] = (form.watch('personIds') as string[]) ?? [];
+
+  // People picker helpers
+  const filteredPeople = useMemo(() => {
+    const q = peopleSearch.toLowerCase();
+    return allPeople.filter(p =>
+      !watchedPersonIds.includes(p.id) &&
+      (q === '' || p.name.toLowerCase().includes(q) || (p.nationality ?? '').toLowerCase().includes(q))
+    );
+  }, [allPeople, watchedPersonIds, peopleSearch]);
+
+  const addPerson = (pid: string) => {
+    form.setValue('personIds', [...watchedPersonIds, pid] as any);
+    setPeopleSearch('');
+    setShowPeoplePicker(false);
+  };
+
+  const removePerson = (pid: string) => {
+    form.setValue('personIds', watchedPersonIds.filter(id => id !== pid) as any);
+  };
 
   // Auto-period-label from moment dates (oldest → newest year)
   useEffect(() => {
@@ -1020,6 +1045,97 @@ export function TimelineForm({ mode, initialData, onSave }: TimelineFormProps) {
           </div>
           <ThumbnailInput value={coverUrlValue ?? ''} onChange={url => form.setValue('coverUrl', url, { shouldValidate: true })}
             error={form.formState.errors.coverUrl?.message} label="Image de couverture *" />
+        </section>
+
+        {/* ── Personnages liés ──────────────────────────────────────────────── */}
+        <section className="space-y-4">
+          <div className="flex items-center justify-between border-b pb-2">
+            <div>
+              <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                👤 Personnages liés
+                {watchedPersonIds.length > 0 && (
+                  <span className="bg-primary/10 text-primary text-xs font-bold px-2 py-0.5 rounded-full">{watchedPersonIds.length}</span>
+                )}
+              </h2>
+              <p className="text-xs text-muted-foreground mt-0.5">Personnages dont ce récit raconte l'histoire ou la contribution.</p>
+            </div>
+            <div className="relative">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => setShowPeoplePicker(v => !v)}
+                className="text-primary border-primary/30"
+              >
+                + Lier un personnage
+              </Button>
+              {showPeoplePicker && (
+                <div className="absolute right-0 top-full mt-1 z-50 w-72 bg-card border rounded-xl shadow-lg p-2">
+                  <input
+                    autoFocus
+                    value={peopleSearch}
+                    onChange={e => setPeopleSearch(e.target.value)}
+                    placeholder="Rechercher un personnage…"
+                    className="w-full border rounded-lg px-3 py-1.5 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 mb-2"
+                  />
+                  <div className="max-h-52 overflow-y-auto space-y-0.5">
+                    {filteredPeople.length === 0 ? (
+                      <p className="text-xs text-muted-foreground text-center py-4">
+                        {allPeople.length === 0 ? 'Chargement…' : 'Aucun personnage disponible'}
+                      </p>
+                    ) : (
+                      filteredPeople.map(p => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => addPerson(p.id)}
+                          className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-primary/5 text-left transition-colors"
+                        >
+                          {p.photoUrl ? (
+                            <img src={p.photoUrl} alt="" className="w-7 h-7 rounded-full object-cover shrink-0 border" />
+                          ) : (
+                            <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center text-xs shrink-0">👤</div>
+                          )}
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium truncate">{p.name}</p>
+                            {p.nationality && <p className="text-[10px] text-muted-foreground">{p.nationality}</p>}
+                          </div>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {watchedPersonIds.length === 0 ? (
+            <p className="text-sm text-muted-foreground italic">Aucun personnage lié — ce récit n'est pas centré sur une figure précise.</p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {watchedPersonIds.map(pid => {
+                const p = allPeople.find(x => x.id === pid);
+                return (
+                  <div key={pid} className="flex items-center gap-1.5 bg-primary/10 text-primary rounded-full pl-1 pr-2 py-0.5 text-sm font-medium">
+                    {p?.photoUrl ? (
+                      <img src={p.photoUrl} alt="" className="w-5 h-5 rounded-full object-cover border border-primary/20" />
+                    ) : (
+                      <span className="text-xs">👤</span>
+                    )}
+                    <span>{p?.name ?? pid}</span>
+                    <button
+                      type="button"
+                      onClick={() => removePerson(pid)}
+                      className="ml-0.5 opacity-60 hover:opacity-100 transition-opacity"
+                      title="Retirer"
+                    >
+                      <XIcon className="h-3 w-3" />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </section>
 
         {/* ── Moments du récit ──────────────────────────────────────────────── */}

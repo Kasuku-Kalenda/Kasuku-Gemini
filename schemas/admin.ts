@@ -202,6 +202,7 @@ export const timelineFormSchema = z.object({
   ),
   periodLabel: z.string().min(2, "Le label de période est requis (min 2 car.)"),
   status: z.enum(['draft', 'published']),
+  personIds: z.array(z.string()).default([]),
   moments: z.array(timelineMomentSchema).default([])
 });
 

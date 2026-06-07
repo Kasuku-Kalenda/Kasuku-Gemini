@@ -173,6 +173,18 @@ export async function timelinesRoutes(app: FastifyInstance) {
       GROUP BY s.id
     `;
     if (!story) return reply.status(404).send({ error: 'Récit introuvable' });
+
+    // Personnages liés — subquery pour éviter le produit cartésien avec story_events
+    const personRows = await sql`
+      SELECT sp.person_id AS id, p.name, p.slug, p.photo_url
+      FROM story_people sp
+      JOIN people p ON p.id = sp.person_id
+      WHERE sp.story_id = ${req.params.id}
+      ORDER BY p.name
+    `;
+    story.personIds = personRows.map((r: any) => r.id);
+    story.people    = personRows;
+
     return reply.send(story);
   });
 
@@ -217,6 +229,17 @@ export async function timelinesRoutes(app: FastifyInstance) {
             ${m.sourceStoryEventId ?? null}
           )
           ON CONFLICT (story_id, event_id) DO NOTHING
+        `;
+      }
+    }
+
+    // Personnages liés (story_people)
+    if (Array.isArray(body.personIds) && body.personIds.length > 0) {
+      for (const pid of body.personIds) {
+        await sql`
+          INSERT INTO story_people (story_id, person_id)
+          VALUES (${story.id}, ${pid})
+          ON CONFLICT DO NOTHING
         `;
       }
     }
@@ -272,6 +295,18 @@ export async function timelinesRoutes(app: FastifyInstance) {
             ${m.cta ? JSON.stringify(m.cta) : null},
             ${m.sourceStoryEventId ?? null}
           )
+        `;
+      }
+    }
+
+    // Remplacer les personnages liés
+    await sql`DELETE FROM story_people WHERE story_id = ${id}`;
+    if (Array.isArray(body.personIds) && body.personIds.length > 0) {
+      for (const pid of body.personIds) {
+        await sql`
+          INSERT INTO story_people (story_id, person_id)
+          VALUES (${id}, ${pid})
+          ON CONFLICT DO NOTHING
         `;
       }
     }
