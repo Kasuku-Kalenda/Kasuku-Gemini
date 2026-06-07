@@ -22,13 +22,17 @@ export async function modulesRoutes(app: FastifyInstance) {
     const q      = req.query as Record<string, string>;
     const pg     = parsePagination(q);
     const search = q.q?.trim() ?? '';
+    // Sous-chaîne ILIKE → autocomplétion « dès la 2e lettre » (plainto_tsquery seul
+    // n'apparie que des mots entiers).
+    const searchLike = `%${search}%`;
     const lang   = q.lang?.trim() ?? '';
     const level  = q.level?.trim() ?? '';
 
     const [{ count }] = await sql`
       SELECT COUNT(*)::int AS count FROM modules m
       WHERE m.status = 'published' AND m.deleted_at IS NULL
-        AND (${search} = '' OR m.search_vector @@ plainto_tsquery('french', unaccent(${search})))
+        AND (${search} = '' OR m.search_vector @@ plainto_tsquery('french', unaccent(${search}))
+                            OR unaccent(m.title) ILIKE unaccent(${searchLike}))
         AND (${lang}  = '' OR m.lang = ${lang})
         AND (${level} = '' OR m.level = ${level})
     `;
@@ -43,7 +47,8 @@ export async function modulesRoutes(app: FastifyInstance) {
       LEFT JOIN module_themes mt ON mt.module_id = m.id
       LEFT JOIN themes t         ON t.id = mt.theme_id
       WHERE m.status = 'published' AND m.deleted_at IS NULL
-        AND (${search} = '' OR m.search_vector @@ plainto_tsquery('french', unaccent(${search})))
+        AND (${search} = '' OR m.search_vector @@ plainto_tsquery('french', unaccent(${search}))
+                            OR unaccent(m.title) ILIKE unaccent(${searchLike}))
         AND (${lang}  = '' OR m.lang = ${lang})
         AND (${level} = '' OR m.level = ${level})
       GROUP BY m.id

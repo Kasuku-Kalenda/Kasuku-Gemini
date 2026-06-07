@@ -128,6 +128,9 @@ export async function eventsRoutes(app: FastifyInstance) {
     const q        = req.query as Record<string, string>;
     const pg       = parsePagination(q);
     const search   = q.q?.trim() ?? '';
+    // Motif ILIKE pour l'appariement par sous-chaîne (autocomplétion « dès la 2e lettre »).
+    // Complète plainto_tsquery, qui n'apparie que des MOTS ENTIERS (« ma » ≠ « Mandela »).
+    const searchLike = `%${search}%`;
     const country  = q.country?.trim() ?? '';
     const theme    = q.theme?.trim() ?? '';
     const lang     = q.lang?.trim() ?? '';
@@ -141,7 +144,8 @@ export async function eventsRoutes(app: FastifyInstance) {
       SELECT COUNT(*)::int AS count
       FROM events e
       WHERE e.status = 'published' AND e.deleted_at IS NULL
-        AND (${search}   = '' OR e.search_vector @@ plainto_tsquery('french', unaccent(${search})))
+        AND (${search}   = '' OR e.search_vector @@ plainto_tsquery('french', unaccent(${search}))
+                              OR unaccent(e.title) ILIKE unaccent(${searchLike}))
         AND (${country}  = '' OR e.primary_country_code = ${country})
         AND (${lang}     = '' OR e.lang = ${lang})
         AND (${temporal} = '' OR e.temporal_type::text = ${temporal})
@@ -186,7 +190,8 @@ export async function eventsRoutes(app: FastifyInstance) {
       LEFT JOIN event_themes et ON et.event_id = e.id
       LEFT JOIN themes t        ON t.id = et.theme_id
       WHERE e.status = 'published' AND e.deleted_at IS NULL
-        AND (${search}   = '' OR e.search_vector @@ plainto_tsquery('french', unaccent(${search})))
+        AND (${search}   = '' OR e.search_vector @@ plainto_tsquery('french', unaccent(${search}))
+                              OR unaccent(e.title) ILIKE unaccent(${searchLike}))
         AND (${country}  = '' OR e.primary_country_code = ${country})
         AND (${lang}     = '' OR e.lang = ${lang})
         AND (${temporal} = '' OR e.temporal_type::text = ${temporal})
@@ -215,6 +220,7 @@ export async function eventsRoutes(app: FastifyInstance) {
     const month   = q.month ? parseInt(q.month, 10) : new Date().getMonth() + 1;
     const year    = q.year  ? parseInt(q.year,  10) : null;
     const search  = q.q?.trim()      ?? '';
+    const searchLike = `%${search}%`;
     const country = q.country?.trim() ?? '';
     const theme   = q.theme?.trim()  ?? '';
 
@@ -235,7 +241,8 @@ export async function eventsRoutes(app: FastifyInstance) {
         AND e.start_date IS NOT NULL
         AND EXTRACT(MONTH FROM e.start_date)::int = ${month}
         AND (${year}::int  IS NULL OR EXTRACT(YEAR FROM e.start_date)::int = ${year}::int)
-        AND (${search}  = '' OR e.search_vector @@ plainto_tsquery('french', unaccent(${search})))
+        AND (${search}  = '' OR e.search_vector @@ plainto_tsquery('french', unaccent(${search}))
+                             OR unaccent(e.title) ILIKE unaccent(${searchLike}))
         AND (${country} = '' OR e.primary_country_code = ${country})
         AND (${theme}   = '' OR EXISTS (
           SELECT 1 FROM event_themes et2 JOIN themes t2 ON t2.id = et2.theme_id

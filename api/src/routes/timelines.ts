@@ -25,12 +25,16 @@ export async function timelinesRoutes(app: FastifyInstance) {
     const q      = req.query as Record<string, string>;
     const pg     = parsePagination(q);
     const search = q.q?.trim() ?? '';
+    // Sous-chaîne ILIKE → autocomplétion « dès la 2e lettre » (plainto_tsquery seul
+    // n'apparie que des mots entiers).
+    const searchLike = `%${search}%`;
     const lang   = q.lang?.trim() ?? '';
 
     const [{ count }] = await sql`
       SELECT COUNT(*)::int AS count FROM stories s
       WHERE s.status = 'published' AND s.deleted_at IS NULL
-        AND (${search} = '' OR s.search_vector @@ plainto_tsquery('french', unaccent(${search})))
+        AND (${search} = '' OR s.search_vector @@ plainto_tsquery('french', unaccent(${search}))
+                            OR unaccent(s.title) ILIKE unaccent(${searchLike}))
         AND (${lang}   = '' OR s.lang = ${lang})
     `;
 
@@ -44,7 +48,8 @@ export async function timelinesRoutes(app: FastifyInstance) {
       FROM stories s
       LEFT JOIN story_events se ON se.story_id = s.id
       WHERE s.status = 'published' AND s.deleted_at IS NULL
-        AND (${search} = '' OR s.search_vector @@ plainto_tsquery('french', unaccent(${search})))
+        AND (${search} = '' OR s.search_vector @@ plainto_tsquery('french', unaccent(${search}))
+                            OR unaccent(s.title) ILIKE unaccent(${searchLike}))
         AND (${lang}   = '' OR s.lang = ${lang})
       GROUP BY s.id
       ORDER BY s.computed_start_date DESC NULLS LAST
