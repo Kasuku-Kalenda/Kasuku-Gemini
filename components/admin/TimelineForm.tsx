@@ -803,13 +803,13 @@ export function TimelineForm({ mode, initialData, onSave }: TimelineFormProps) {
   }, [allPeople, watchedPersonIds, peopleSearch]);
 
   const addPerson = (pid: string) => {
-    form.setValue('personIds', [...watchedPersonIds, pid] as any);
+    form.setValue('personIds', [...watchedPersonIds, pid], { shouldValidate: false, shouldDirty: true });
     setPeopleSearch('');
     setShowPeoplePicker(false);
   };
 
   const removePerson = (pid: string) => {
-    form.setValue('personIds', watchedPersonIds.filter(id => id !== pid) as any);
+    form.setValue('personIds', watchedPersonIds.filter(id => id !== pid), { shouldValidate: false, shouldDirty: true });
   };
 
   // Auto-period-label from moment dates (oldest → newest year)

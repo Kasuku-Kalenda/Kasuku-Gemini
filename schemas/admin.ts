@@ -9,8 +9,8 @@ export const mediaSchema = z.object({
     v => v.startsWith('data:') || v.startsWith('http://') || v.startsWith('https://') || v.startsWith('/') || v.startsWith('blob:'),
     { message: "URL invalide — utilisez https:// ou chargez un fichier" }
   ),
-  caption: z.string().optional(),
-  credit: z.string().optional(),
+  caption: z.string().optional().nullable(),
+  credit: z.string().optional().nullable(),
 });
 
 export const sourceSchema = z.object({
@@ -174,7 +174,7 @@ export const timelineMomentSchema = z.object({
   id: z.string().optional(),
   eventId: z.string().optional().nullable(),           // ← lien vers un événement existant
   title: z.string().min(3),
-  narrative: z.string().min(10),                       // relaxed: 10 chars min (mapped to narrativeText before API call)
+  narrative: z.string().min(10).or(z.literal('').transform(() => '')).nullable().optional().transform(v => v ?? ''),  // mapped to narrativeText before API call
   timeType: z.enum(['date', 'period']),
   dateExact: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
   periodText: z.string().optional().nullable(),
