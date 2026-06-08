@@ -16,6 +16,7 @@ import { formatDate } from '../utils/helpers';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../components/ui/Dialog';
 import { Button } from '../components/ui/Button';
 import { Card, CardContent } from '../components/ui/Card';
+import { HeritageCarousel } from '../components/HeritageCarousel';
 
 
 type View = 'home' | 'calendar' | 'favorites' | 'event' | 'timeline' | 'timelines' | 'module';
@@ -184,6 +185,11 @@ export const EventDetailPage: React.FC<EventDetailPageProps> = ({ event, onBack,
               </Button>
             </div>
           </div>
+        )}
+
+        {/* PATRIMOINE ASSOCIÉ */}
+        {event.heritageItems && event.heritageItems.length > 0 && (
+          <HeritageCarousel items={event.heritageItems} />
         )}
 
         <div className="mt-8 border-t pt-6">

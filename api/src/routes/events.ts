@@ -58,7 +58,9 @@ function selectEventDetail(where: postgres.Fragment) {
         'durationMin', mo.duration_minutes, 'summary', mo.summary
       )) FILTER (WHERE mo.id IS NOT NULL), '[]') AS modules,
       COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
-        'id', hi.id, 'title', hi.title, 'category', hi.category
+        'id', hi.id, 'slug', hi.slug, 'title', hi.title,
+        'category', hi.category, 'coverUrl', hi.cover_url,
+        'summary', hi.summary, 'countryCode', hi.country_code
       )) FILTER (WHERE hi.id IS NOT NULL), '[]') AS heritage_items
     FROM events e
     LEFT JOIN places              p   ON p.id  = e.primary_place_id
