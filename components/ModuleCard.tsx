@@ -62,7 +62,7 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({ module, onNavigate, isFa
 
         <div className="mt-3 flex items-center justify-between">
           <div className="flex -space-x-2">
-            {module.creators.slice(0,3).map(c => (
+            {(module.creators ?? []).slice(0,3).map(c => (
               <img 
                 key={c.id} 
                 src={c.avatarUrl ?? `https://api.dicebear.com/8.x/initials/svg?seed=${c.name}`} 

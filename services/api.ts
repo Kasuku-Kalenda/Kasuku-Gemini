@@ -7,7 +7,7 @@
  */
 
 import { api } from './apiClient';
-import { mapApiEvent } from './mappers';
+import { mapApiEvent, mapApiModule } from './mappers';
 import { normalizeMediaUrl } from '../utils/helpers';
 import type { Event, Theme, TrainingModule, FeaturedStory, TimelineNarrative } from '../types';
 
@@ -130,15 +130,17 @@ export const getModules = async (options: {
   if (options.page)    params.set('page',    String(options.page));
   if (options.limit)   params.set('limit',   String(options.limit));
   const qs = params.toString();
-  return api.get<PaginatedResponse<TrainingModule>>(`/modules${qs ? `?${qs}` : ''}`);
+  const raw = await api.get<PaginatedResponse<Record<string, unknown>>>(`/modules${qs ? `?${qs}` : ''}`);
+  return { ...raw, items: raw.items.map(mapApiModule) };
 };
 
 export const getModuleCreators = async (): Promise<{ id: string; name: string }[]> => {
-  const res = await api.get<PaginatedResponse<TrainingModule>>('/modules?limit=200');
+  const res = await api.get<PaginatedResponse<Record<string, unknown>>>('/modules?limit=200');
   const seen = new Set<string>();
   const creators: { id: string; name: string }[] = [];
   for (const m of res.items) {
-    for (const c of m.creators) {
+    const mapped = mapApiModule(m);
+    for (const c of mapped.creators) {
       if (!seen.has(c.id)) { seen.add(c.id); creators.push({ id: c.id, name: c.name }); }
     }
   }

@@ -6,7 +6,7 @@
  * composants React (dateISO, countryCode, media[], sources[], etc.).
  */
 
-import type { Event, TrainingModule, Media, Source } from '../types';
+import type { Event, TrainingModule, Creator, Media, Source } from '../types';
 import { normalizeMediaUrl } from '../utils/helpers';
 
 // ─── Événement ────────────────────────────────────────────────────────────────
@@ -120,6 +120,67 @@ export function mapApiEvent(raw: Record<string, unknown>): Event {
     timelineSlug:      (raw.timelineSlug as string | null | undefined) ?? null,
     timelineTitle:     (raw.timelineTitle as string | null | undefined) ?? null,
     timelineThumbnail: (raw.timelineThumbnail as string | null | undefined) ?? null,
+
+    // ── Flags légers (retournés par la liste publique, pas le détail) ────────
+    hasModule:   (raw.hasModule as boolean | undefined),
+    hasTimeline: (raw.hasTimeline as boolean | undefined),
+  };
+}
+
+// ─── Module ───────────────────────────────────────────────────────────────────
+// L'API retourne thumbnailUrl / durationMinutes / contributors / level en
+// minuscule. Ce mapper normalise vers TrainingModule.
+
+function normalizeLevel(raw: unknown): TrainingModule['level'] {
+  if (!raw) return null;
+  const s = String(raw);
+  const map: Record<string, TrainingModule['level']> = {
+    beginner: 'Beginner', intermediate: 'Intermediate', advanced: 'Advanced',
+    débutant: 'Débutant', intermédiaire: 'Intermédiaire', avancé: 'Avancé',
+    Beginner: 'Beginner', Intermediate: 'Intermediate', Advanced: 'Advanced',
+    Débutant: 'Débutant', Intermédiaire: 'Intermédiaire', Avancé: 'Avancé',
+  };
+  return map[s] ?? (s as TrainingModule['level']);
+}
+
+export function mapApiModule(raw: Record<string, unknown>): TrainingModule {
+  // contributors → creators (liste publique, pas d'ID ni avatar)
+  const rawContribs = raw.contributors as Array<{ name: string; role?: string; avatarUrl?: string }> | undefined;
+  const creators: Creator[] = Array.isArray(rawContribs)
+    ? rawContribs.map((c, i) => ({
+        id:        c.name ?? String(i),   // API list n'expose pas d'ID pour les creators
+        name:      c.name ?? '',
+        avatarUrl: c.avatarUrl,
+      }))
+    : [];
+
+  return {
+    id:          raw.id as string,
+    title:       raw.title as string,
+    slug:        raw.slug as string,
+    summary:     (raw.summary as string | undefined) ?? '',
+    durationMin: (raw.durationMinutes as number | null | undefined) ?? null,
+    level:       normalizeLevel(raw.level),
+    objectives:  Array.isArray(raw.objectives) ? (raw.objectives as string[]) : [],
+    language:    (raw.lang as string | undefined) ?? undefined,
+    thumbnail:   (raw.thumbnailUrl as string | null | undefined) ?? undefined,
+    creators,
+    sponsors:    [],
+    sections:    Array.isArray(raw.sections) ? (raw.sections as any[]) : [],
+    updatedAt:   (raw.updatedAt as string | undefined) ?? '',
+    eventIds:    Array.isArray(raw.eventIds) ? (raw.eventIds as string[]) : [],
+    tags:        Array.isArray(raw.tags) ? (raw.tags as string[]) : [],
+    moduleType:  (raw.moduleType as 'internal' | 'moodle' | undefined) ?? 'internal',
+    moodleCourseUrl:  raw.moodleCourseUrl  as string | undefined,
+    moodleInstanceId: raw.moodleInstanceId as string | null | undefined,
+    moodleCourseId:   raw.moodleCourseId   as string | null | undefined,
+    moodleMode:       raw.moodleMode       as 'lti' | 'offline' | 'url' | null | undefined,
+    moodlePackageId:  raw.moodlePackageId  as string | null | undefined,
+    timelineSlug:     raw.timelineSlug     as string | null | undefined,
+    resources:        Array.isArray(raw.resources) ? (raw.resources as any[]) : undefined,
+    finalQuiz:        raw.finalQuiz        as any | null | undefined,
+    hasCertificate:   raw.hasCertificate   as boolean | undefined,
+    certificateName:  raw.certificateName  as string | null | undefined,
   };
 }
 

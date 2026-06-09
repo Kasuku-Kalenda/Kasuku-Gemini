@@ -3,7 +3,7 @@
  * Chaque méthode appelle l'API REST Kasuku (/api/v1).
  */
 import { api } from './apiClient';
-import { mapApiEvent, serializeEventForApi } from './mappers';
+import { mapApiEvent, mapApiModule, serializeEventForApi } from './mappers';
 import type { Event, TrainingModule, TimelineNarrative, Theme, HeritageItem, HeritageCategory } from '../types';
 
 interface PaginatedResponse<T> { items: T[]; page: number; totalPages: number; totalItems: number; }
@@ -69,11 +69,17 @@ export const apiService = {
   },
 
   async getModuleById(id: string): Promise<TrainingModule | null> {
-    try { return await api.get<TrainingModule>(`/modules/${id}`); } catch { return null; }
+    try {
+      const raw = await api.get<Record<string, unknown>>(`/modules/${id}`);
+      return mapApiModule(raw);
+    } catch { return null; }
   },
 
   async getModuleBySlug(slug: string): Promise<TrainingModule | null> {
-    try { return await api.get<TrainingModule>(`/modules/slug/${slug}`); } catch { return null; }
+    try {
+      const raw = await api.get<Record<string, unknown>>(`/modules/slug/${slug}`);
+      return mapApiModule(raw);
+    } catch { return null; }
   },
 
   async createModule(data: Omit<TrainingModule, 'id'>): Promise<TrainingModule> {

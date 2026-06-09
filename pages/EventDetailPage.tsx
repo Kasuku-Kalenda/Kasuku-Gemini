@@ -2,6 +2,7 @@
 import React, { useState, useCallback } from 'react';
 import type { Event, TrainingModule } from '../types';
 import type { HeritageItem } from '../types';
+import { apiService } from '../services/api.service';
 import { Badge } from '../components/ui/Badge';
 import { MediaGallery } from '../components/MediaGallery';
 import { SourceList } from '../components/SourceList';
@@ -98,13 +99,27 @@ export const EventDetailPage: React.FC<EventDetailPageProps> = ({ event, onBack,
     generatePdf(event);
   }
 
-  const handleOpenModule = () => {
-      if (!event.trainingModules) return;
+  const handleOpenModule = async () => {
+    // Si les modules sont déjà chargés (vue détail), on navigue directement
+    if (event.trainingModules && event.trainingModules.length > 0) {
       if (event.trainingModules.length === 1) {
-          navigateToModule(event.trainingModules[0].slug);
-      } else if (event.trainingModules.length > 1) {
-          setIsModuleDialogOpen(true);
+        navigateToModule(event.trainingModules[0].slug);
+      } else {
+        setIsModuleDialogOpen(true);
       }
+      return;
+    }
+    // Sinon (event venu d'une liste — hasModule=true mais modules non chargés),
+    // on fetche le détail complet pour récupérer les modules
+    const full = await apiService.getEventById(event.id);
+    const mods = full?.trainingModules ?? [];
+    if (mods.length === 1) {
+      navigateToModule(mods[0].slug);
+    } else if (mods.length > 1) {
+      // Ouvrir le sélecteur — on réutilise l'état mais on passe les modules fetchés
+      event.trainingModules = mods; // mutation temporaire pour que ModuleChooserDialog les voie
+      setIsModuleDialogOpen(true);
+    }
   };
 
   const backButtonText: Record<View, string> = {
@@ -206,7 +221,7 @@ export const EventDetailPage: React.FC<EventDetailPageProps> = ({ event, onBack,
         
         <div className="mt-8 pt-6 border-t hidden md:flex flex-col sm:flex-row items-center justify-between gap-4">
             <div>
-                {event.trainingModules && event.trainingModules.length > 0 && (
+                {(event.hasModule || (event.trainingModules && event.trainingModules.length > 0)) && (
                     <Button
                         onClick={handleOpenModule}
                         className="rounded-full shadow-sm w-full sm:w-auto bg-secondary text-secondary-foreground hover:bg-secondary/90 px-6"
@@ -238,7 +253,7 @@ export const EventDetailPage: React.FC<EventDetailPageProps> = ({ event, onBack,
         className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-t border-border flex gap-3 shadow-t-lg"
         style={{ padding: '0.75rem 1rem', paddingBottom: 'max(0.75rem, var(--sab, 0px))' }}
       >
-        {event.trainingModules && event.trainingModules.length > 0 && (
+        {(event.hasModule || (event.trainingModules && event.trainingModules.length > 0)) && (
           <Button
             onClick={handleOpenModule}
             className="flex-1 rounded-xl bg-secondary text-white hover:bg-secondary/90 font-bold h-12"

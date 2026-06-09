@@ -222,6 +222,10 @@ export interface Event {
   timelineTitle?: string | null;
   timelineThumbnail?: string | null;
 
+  // ── Flags légers (disponibles depuis la liste, pas le détail) ─────────────
+  hasModule?:   boolean;   // EXISTS(event_modules) — pour afficher le badge sans charger les modules
+  hasTimeline?: boolean;   // EXISTS(story_events)  — pour afficher le badge récit
+
   source?: ContentSource;
 }
 
