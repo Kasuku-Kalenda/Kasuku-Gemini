@@ -16,7 +16,7 @@ import React, {
   createContext, useContext, useState, useCallback, useRef, useEffect,
   useMemo, ReactNode,
 } from 'react';
-import type { Event, TrainingModule } from '../../types';
+import type { Event, TrainingModule, HeritageItem } from '../../types';
 
 // ─── Payload ──────────────────────────────────────────────────────────────────
 
@@ -24,6 +24,7 @@ export type NavigationPayload = {
   id?: string | null;
   event?: Event | null;
   module?: TrainingModule | null;
+  heritageItem?: HeritageItem | null;
   timelineSlug?: string | null;
   timelineEventId?: string | null;
   date?: Date | null;
@@ -35,6 +36,7 @@ export type NavigationPayload = {
 export type AppView =
   | 'home' | 'calendar' | 'favorites' | 'modules'
   | 'event' | 'timeline' | 'timelines' | 'module' | 'dateTimeline'
+  | 'heritageList' | 'heritageDetail'
   | 'adminLogin' | 'adminDashboard'
   | 'adminEvents' | 'adminNewEvent' | 'adminEditEvent'
   | 'adminModules' | 'adminNewModule' | 'adminEditModule'

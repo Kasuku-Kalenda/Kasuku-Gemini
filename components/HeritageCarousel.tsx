@@ -16,8 +16,8 @@ export interface HeritageItem {
 
 interface HeritageCarouselProps {
   items: HeritageItem[];
-  /** Called when the user taps a card — pass the item slug (future nav) */
   onSelect?: (item: HeritageItem) => void;
+  onViewAll?: () => void;
 }
 
 // ── Category meta ─────────────────────────────────────────────────────────────
@@ -83,7 +83,7 @@ const HeritageCard: React.FC<{ item: HeritageItem; onClick?: () => void }> = ({ 
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
-export const HeritageCarousel: React.FC<HeritageCarouselProps> = ({ items, onSelect }) => {
+export const HeritageCarousel: React.FC<HeritageCarouselProps> = ({ items, onSelect, onViewAll }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   if (!items || items.length === 0) return null;
@@ -94,7 +94,15 @@ export const HeritageCarousel: React.FC<HeritageCarouselProps> = ({ items, onSel
       <div className="flex items-center gap-2 mb-4">
         <span className="text-xl">🏛️</span>
         <h3 className="text-lg font-bold text-secondary">Patrimoine associé</h3>
-        <span className="ml-auto text-xs text-muted-foreground">{items.length} élément{items.length > 1 ? 's' : ''}</span>
+        <span className="text-xs text-muted-foreground">{items.length} élément{items.length > 1 ? 's' : ''}</span>
+        {onViewAll && (
+          <button
+            onClick={onViewAll}
+            className="ml-auto text-xs text-primary font-semibold hover:underline"
+          >
+            Voir tout →
+          </button>
+        )}
       </div>
 
       {/* Horizontal scroll */}

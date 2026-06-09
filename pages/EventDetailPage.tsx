@@ -1,6 +1,7 @@
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import type { Event, TrainingModule } from '../types';
+import type { HeritageItem } from '../types';
 import { Badge } from '../components/ui/Badge';
 import { MediaGallery } from '../components/MediaGallery';
 import { SourceList } from '../components/SourceList';
@@ -27,6 +28,8 @@ interface EventDetailPageProps {
   fromView: View;
   navigateToModule: (slug: string) => void;
   navigateToTimeline: (slug: string, eventId?: string) => void;
+  navigateToHeritage?: (item: HeritageItem) => void;
+  navigateToHeritageList?: () => void;
 }
 
 const ModuleChooserDialog: React.FC<{
@@ -71,7 +74,7 @@ const ModuleChooserDialog: React.FC<{
 }
 
 
-export const EventDetailPage: React.FC<EventDetailPageProps> = ({ event, onBack, fromView, navigateToModule, navigateToTimeline }) => {
+export const EventDetailPage: React.FC<EventDetailPageProps> = ({ event, onBack, fromView, navigateToModule, navigateToTimeline, navigateToHeritage, navigateToHeritageList }) => {
   const { exists, toggle } = useFavorites();
   const [isModuleDialogOpen, setIsModuleDialogOpen] = useState(false);
   const isFav = exists('event', event.id);
@@ -189,7 +192,11 @@ export const EventDetailPage: React.FC<EventDetailPageProps> = ({ event, onBack,
 
         {/* PATRIMOINE ASSOCIÉ */}
         {event.heritageItems && event.heritageItems.length > 0 && (
-          <HeritageCarousel items={event.heritageItems} />
+          <HeritageCarousel
+            items={event.heritageItems}
+            onSelect={navigateToHeritage}
+            onViewAll={navigateToHeritageList}
+          />
         )}
 
         <div className="mt-8 border-t pt-6">

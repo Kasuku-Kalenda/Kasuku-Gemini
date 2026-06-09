@@ -13,7 +13,7 @@ import { useNavigation } from '../core/navigation';
 import type { AppView } from '../core/navigation';
 import { Layout } from '../components/Layout';
 import { apiService } from '../services/api.service';
-import type { Event } from '../types';
+import type { Event, HeritageItem } from '../types';
 
 // ── Lazy page imports ─────────────────────────────────────────────────────────
 const HomePage            = React.lazy(() => import('../pages/HomePage').then(m => ({ default: m.HomePage })));
@@ -25,8 +25,10 @@ const TimelinePage        = React.lazy(() => import('../pages/TimelinePage').the
 const ModulePage          = React.lazy(() => import('../pages/ModulePage').then(m => ({ default: m.ModulePage })));
 const ModulesIndexPage    = React.lazy(() => import('../pages/ModulesIndexPage').then(m => ({ default: m.ModulesIndexPage })));
 const DateTimelinePage    = React.lazy(() => import('../pages/DateTimelinePage').then(m => ({ default: m.DateTimelinePage })));
-const ScormPlayerPage     = React.lazy(() => import('../pages/offline/ScormPlayerPage').then(m => ({ default: m.ScormPlayerPage })));
-const H5pPlayerPage       = React.lazy(() => import('../pages/offline/H5pPlayerPage').then(m => ({ default: m.H5pPlayerPage })));
+const ScormPlayerPage          = React.lazy(() => import('../pages/offline/ScormPlayerPage').then(m => ({ default: m.ScormPlayerPage })));
+const H5pPlayerPage            = React.lazy(() => import('../pages/offline/H5pPlayerPage').then(m => ({ default: m.H5pPlayerPage })));
+const HeritageDiscoveryPage    = React.lazy(() => import('../pages/HeritageDiscoveryPage').then(m => ({ default: m.HeritageDiscoveryPage })));
+const HeritageDetailPage       = React.lazy(() => import('../pages/HeritageDetailPage').then(m => ({ default: m.HeritageDetailPage })));
 
 // ── Fallback de chargement ────────────────────────────────────────────────────
 const PageLoader = () => (
@@ -79,6 +81,14 @@ export const UserApp: React.FC = () => {
 
   const legacyNavigateTo = useCallback((v: string, id?: string) => {
     navigate(v as AppView, id ? { id } : undefined);
+  }, [navigate]);
+
+  const navigateToHeritage = useCallback((item: HeritageItem) => {
+    navigate('heritageDetail', { heritageItem: item });
+  }, [navigate]);
+
+  const navigateToHeritageList = useCallback(() => {
+    navigate('heritageList');
   }, [navigate]);
 
   // ── View renderer ─────────────────────────────────────────────────────────
@@ -157,6 +167,8 @@ export const UserApp: React.FC = () => {
             fromView={previousView ?? 'home'}
             navigateToModule={navigateToModule}
             navigateToTimeline={navigateToTimeline}
+            navigateToHeritage={navigateToHeritage}
+            navigateToHeritageList={navigateToHeritageList}
           />
         ) : (
           <HomePage onViewEvent={viewEvent} navigateToModule={navigateToModule} />
@@ -188,6 +200,24 @@ export const UserApp: React.FC = () => {
             baseUrl={payload.id ?? ''}
             onBack={goBack}
           />
+        );
+
+      case 'heritageList':
+        return (
+          <HeritageDiscoveryPage
+            onBack={goBack}
+            onSelect={navigateToHeritage}
+          />
+        );
+
+      case 'heritageDetail':
+        return payload.heritageItem ? (
+          <HeritageDetailPage
+            item={payload.heritageItem}
+            onBack={goBack}
+          />
+        ) : (
+          <HeritageDiscoveryPage onBack={goBack} onSelect={navigateToHeritage} />
         );
 
       default:

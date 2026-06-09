@@ -4,7 +4,7 @@
  */
 import { api } from './apiClient';
 import { mapApiEvent, serializeEventForApi } from './mappers';
-import type { Event, TrainingModule, TimelineNarrative, Theme } from '../types';
+import type { Event, TrainingModule, TimelineNarrative, Theme, HeritageItem, HeritageCategory } from '../types';
 
 interface PaginatedResponse<T> { items: T[]; page: number; totalPages: number; totalItems: number; }
 
@@ -112,6 +112,27 @@ export const apiService = {
 
   async deleteTimeline(id: string): Promise<void> {
     return api.delete(`/timelines/${id}`);
+  },
+
+  // ─── Heritage ─────────────────────────────────────────────────────────────
+
+  async listHeritagePublic(opts: { q?: string; category?: HeritageCategory | ''; country?: string; page?: number; limit?: number } = {}): Promise<{ items: HeritageItem[]; totalItems: number; totalPages: number }> {
+    const params = new URLSearchParams();
+    if (opts.q)        params.set('q',        opts.q);
+    if (opts.category) params.set('category', opts.category);
+    if (opts.country)  params.set('country',  opts.country);
+    if (opts.page)     params.set('page',     String(opts.page));
+    if (opts.limit)    params.set('limit',    String(opts.limit));
+    const qs = params.toString();
+    return api.get<{ items: HeritageItem[]; totalItems: number; totalPages: number }>(`/heritage${qs ? `?${qs}` : ''}`);
+  },
+
+  async getHeritageBySlug(slug: string): Promise<HeritageItem | null> {
+    try {
+      return await api.get<HeritageItem>(`/heritage/slug/${slug}`);
+    } catch {
+      return null;
+    }
   },
 
   // ─── Themes ───────────────────────────────────────────────────────────────
