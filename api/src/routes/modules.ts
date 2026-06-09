@@ -96,12 +96,18 @@ export async function modulesRoutes(app: FastifyInstance) {
   // ── GET /slug/:slug ───────────────────────────────────────────────────────
   app.get('/slug/:slug', async (req: any, reply) => {
     const [module] = await sql`
-      SELECT m.*, COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
-        'id', t.id, 'slug', t.slug, 'name', t.name, 'color', t.color
-      )) FILTER (WHERE t.id IS NOT NULL), '[]') AS themes
+      SELECT m.*,
+        COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
+          'id', t.id, 'slug', t.slug, 'name', t.name, 'color', t.color
+        )) FILTER (WHERE t.id IS NOT NULL), '[]') AS themes,
+        COALESCE(
+          ARRAY_AGG(DISTINCT em.event_id) FILTER (WHERE em.event_id IS NOT NULL),
+          ARRAY[]::uuid[]
+        ) AS event_ids
       FROM modules m
       LEFT JOIN module_themes mt ON mt.module_id = m.id
       LEFT JOIN themes t         ON t.id = mt.theme_id
+      LEFT JOIN event_modules em ON em.module_id = m.id
       WHERE m.slug = ${req.params.slug}
         AND m.status = 'published' AND m.deleted_at IS NULL
       GROUP BY m.id

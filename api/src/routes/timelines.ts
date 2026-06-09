@@ -39,7 +39,19 @@ export async function timelinesRoutes(app: FastifyInstance) {
     `;
 
     const items = await sql`
-      SELECT s.id, s.slug, s.lang, s.title, s.summary, s.cover_url,
+      SELECT s.id, s.slug, s.lang, s.title, s.summary,
+             -- Couverture : si cover_url est NULL, on dérive la 1re image d'un moment
+             -- (story_events → event_media → media), pour que les récits illustrés
+             -- affichent une vignette dans la liste et les cartes. Voir issue #23.
+             COALESCE(s.cover_url, (
+               SELECT m.url
+               FROM story_events se2
+               JOIN event_media em2 ON em2.event_id = se2.event_id
+               JOIN media m         ON m.id = em2.media_id
+               WHERE se2.story_id = s.id AND m.type = 'image'
+               ORDER BY se2.position, em2.position
+               LIMIT 1
+             )) AS cover_url,
              s.period_label,
              s.contributors, s.computed_start_date, s.computed_end_date,
              s.published_at, s.created_at,
