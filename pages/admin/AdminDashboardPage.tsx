@@ -10,6 +10,7 @@ import { ThemeIcon } from '../../components/icons/ThemeIcon';
 import { MegaphoneIcon } from '../../components/icons/MegaphoneIcon';
 import { ChevronRightIcon } from '../../components/icons/ChevronRightIcon';
 import { TimelineIcon } from '../../components/icons/TimelineIcon';
+import { UsersIcon } from '../../components/icons/UsersIcon';
 import type { Event, TrainingModule } from '../../types';
 
 type AdminNav = string;
@@ -85,6 +86,7 @@ const RecentRow: React.FC<{
 export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ navigateTo }) => {
   const [counts, setCounts] = useState({
     events: -1, modules: -1, themes: -1, timelines: -1, featured: -1,
+    people: -1, heritage: -1,
   });
   const [recentEvents, setRecentEvents] = useState<Event[]>([]);
   const [recentModules, setRecentModules] = useState<TrainingModule[]>([]);
@@ -99,12 +101,16 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ navigate
       adminApi.listThemes(),
       adminApi.listTimelines(),
       adminApi.listFeatured(),
-    ]).then(([evRes, modRes, thRes, tlRes, ftRes]) => {
+      adminApi.listPeople(),
+      adminApi.listHeritage(),
+    ]).then(([evRes, modRes, thRes, tlRes, ftRes, ppRes, htRes]) => {
       const events    = evRes.status    === 'fulfilled' ? (evRes.value.items  ?? []) : [];
       const modules   = modRes.status   === 'fulfilled' ? (modRes.value.items ?? []) : [];
       const themesRaw = thRes.status    === 'fulfilled' ? thRes.value : [];
       const timelines = tlRes.status    === 'fulfilled' ? (tlRes.value.items  ?? []) : [];
       const featured  = ftRes.status    === 'fulfilled' ? (ftRes.value.items  ?? []) : [];
+      const people    = ppRes.status    === 'fulfilled' ? (ppRes.value.items  ?? []) : [];
+      const heritage  = htRes.status    === 'fulfilled' ? (htRes.value.items  ?? []) : [];
 
       const themes = (themesRaw as unknown as { items: unknown[] })?.items ?? themesRaw ?? [];
 
@@ -114,6 +120,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ navigate
         themes:    (themes as unknown[]).length,
         timelines: tlRes.status  === 'fulfilled' ? ((tlRes.value as any).totalItems  ?? timelines.length) : 0,
         featured:  ftRes.status  === 'fulfilled' ? ((ftRes.value as any).totalItems  ?? featured.length)  : 0,
+        people:    ppRes.status  === 'fulfilled' ? ((ppRes.value as any).totalItems  ?? people.length)    : 0,
+        heritage:  htRes.status  === 'fulfilled' ? ((htRes.value as any).totalItems  ?? heritage.length)  : 0,
       });
       setRecentEvents(events.slice(0, 5) as Event[]);
       setRecentModules(modules.slice(0, 5) as TrainingModule[]);
@@ -178,6 +186,18 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ navigate
             icon={<TimelineIcon className="h-5 w-5" />}
             color="bg-rose-50 text-rose-600"
             onClick={() => navigateTo('adminTimelines')} delay={0.25}
+          />
+          <StatCard
+            title="Personnages" value={counts.people}
+            icon={<UsersIcon className="h-5 w-5" />}
+            color="bg-indigo-50 text-indigo-600"
+            onClick={() => navigateTo('adminPeople')} delay={0.3}
+          />
+          <StatCard
+            title="Patrimoine" value={counts.heritage}
+            icon={<span className="text-base">🏺</span>}
+            color="bg-orange-50 text-orange-600"
+            onClick={() => navigateTo('adminHeritage')} delay={0.35}
           />
         </div>
 
@@ -274,11 +294,13 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({ navigate
             <CardTitle className="text-base font-bold">⚡ Actions rapides</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
               {[
                 { label: 'Nouvel événement', emoji: '📅', view: 'adminNewEvent' },
                 { label: 'Nouveau module', emoji: '🎓', view: 'adminNewModule' },
                 { label: 'Nouveau récit', emoji: '🎭', view: 'adminNewTimeline' },
+                { label: 'Nouveau personnage', emoji: '👤', view: 'adminNewPerson' },
+                { label: 'Nouveau patrimoine', emoji: '🏺', view: 'adminNewHeritage' },
                 { label: 'Importer en masse', emoji: '⬆️', view: 'adminImport' },
               ].map(a => (
                 <button

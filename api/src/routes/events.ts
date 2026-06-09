@@ -466,6 +466,22 @@ export async function eventsRoutes(app: FastifyInstance) {
       `;
     }
 
+    if (Array.isArray(body.personIds) && body.personIds.length > 0) {
+      await sql`
+        INSERT INTO event_people (event_id, person_id)
+        SELECT ${event.id}, UNNEST(${body.personIds}::uuid[])
+        ON CONFLICT DO NOTHING
+      `;
+    }
+
+    if (Array.isArray(body.heritageItemIds) && body.heritageItemIds.length > 0) {
+      await sql`
+        INSERT INTO event_heritage_items (event_id, heritage_item_id)
+        SELECT ${event.id}, UNNEST(${body.heritageItemIds}::uuid[])
+        ON CONFLICT DO NOTHING
+      `;
+    }
+
     if (Array.isArray(body.media) && body.media.length > 0) {
       await syncEventMedia(event.id, body.media as MediaItem[], req.authUser!.id);
     }
