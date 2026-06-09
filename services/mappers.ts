@@ -63,6 +63,18 @@ export function mapApiEvent(raw: Record<string, unknown>): Event {
         }))
       : undefined;
 
+  // Contributors : storé tantôt comme JSON array de strings, tantôt comme
+  // la string JSON '[]' (bug historique d'insertion). On normalise toujours
+  // en string[] pour que EventForm.getValues('contributors').join() ne crashe pas.
+  const rawContributors = raw.contributors;
+  const contributors: string[] = Array.isArray(rawContributors)
+    ? (rawContributors as unknown[]).map(c =>
+        typeof c === 'string' ? c : typeof c === 'object' && c !== null ? (c as any).name ?? '' : ''
+      ).filter(Boolean)
+    : typeof rawContributors === 'string' && rawContributors.trim() !== '' && rawContributors !== '[]' && rawContributors !== '"[]"'
+      ? (() => { try { const p = JSON.parse(rawContributors); return Array.isArray(p) ? p.map(String).filter(Boolean) : []; } catch { return []; } })()
+      : [];
+
   return {
     // ── Champs natifs ────────────────────────────────────────────────────────
     id:                  raw.id as string,
@@ -83,7 +95,7 @@ export function mapApiEvent(raw: Record<string, unknown>): Event {
     sourceLabel:         sourceLabel ?? undefined,
     sourceUrl:           sourceUrl ?? undefined,
     reliability:         raw.reliability as Event['reliability'],
-    contributors:        raw.contributors as Event['contributors'],
+    contributors,
     featured:            raw.featured as boolean | undefined,
     status:              raw.status as Event['status'],
     publishedAt:         raw.publishedAt as string | undefined,
@@ -137,7 +149,7 @@ export function serializeEventForApi(data: Record<string, unknown>): Record<stri
     sourceLabel:         data.sourceLabel ?? (data.sources as Source[] | undefined)?.[0]?.label ?? null,
     sourceUrl:           data.sourceUrl   ?? (data.sources as Source[] | undefined)?.[0]?.url  ?? null,
     reliability:         data.reliability ?? 'confirmed',
-    contributors:        data.contributors ?? [],
+    contributors:        Array.isArray(data.contributors) ? data.contributors : [],
     featured:            data.featured ?? false,
     featuredPosition:    data.featuredPosition ?? null,
     status:              data.status ?? 'draft',

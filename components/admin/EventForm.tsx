@@ -249,7 +249,7 @@ export function EventForm({ mode, initialData, onSave, onCreated, compact = fals
     annualRecurrence: initialData.annualRecurrence ?? false,
     reliability: initialData.reliability ?? 'confirmed',
     content: initialData.content ?? '',
-    contributors: initialData.contributors ?? [],
+    contributors: Array.isArray(initialData.contributors) ? initialData.contributors : [],
   } : {
     title: '', slug: '', summary: '', status: 'draft',
     dateISO: '', year: undefined, period: '', countryCode: '',
@@ -849,7 +849,7 @@ export function EventForm({ mode, initialData, onSave, onCreated, compact = fals
             <Label>Contributeurs <span className="text-muted-foreground text-xs">(noms séparés par virgule)</span></Label>
             <Input
               placeholder="ex: Jean Dupont, Marie Curie"
-              defaultValue={(form.getValues('contributors') ?? []).join(', ')}
+              defaultValue={(Array.isArray(form.getValues('contributors')) ? form.getValues('contributors') : []).join(', ')}
               onChange={e => {
                 const arr = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
                 form.setValue('contributors', arr);

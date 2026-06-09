@@ -194,7 +194,7 @@ export interface Event {
   sourceLabel?: string;
   sourceUrl?: string;
   reliability?: ReliabilityType;
-  contributors?: Array<{ name: string; role?: string }>;
+  contributors?: string[];  // tableau de noms (ex: ["Jean Dupont", "Marie Curie"])
   featured?: boolean;
   status?: ContentStatus;
   publishedAt?: string;
