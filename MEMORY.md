@@ -5,6 +5,35 @@
 
 ---
 
+# SESSION END — 2026-06-10 — Patrimoine bidirectionnel : événements liés (fiche) + patrimoine par moment (récit) — #73
+
+- **Travaillé sur :** Rendre la relation événement↔patrimoine visible des DEUX côtés, et surfacer le patrimoine dans le carousel de récit (issue #73, reformulée par l'utilisateur). + création issue **#77** (vue liste paginée des modules).
+
+- **Modèle métier confirmé avec l'utilisateur :**
+  - **événement ↔ patrimoine = N:N bidirectionnel** (pivot `event_heritage_items`). On veut le voir des 2 côtés : sur un événement → ses patrimoines (déjà : `HeritageCarousel`) ; sur un patrimoine → ses événements (NOUVEAU).
+  - **récit ↔ patrimoine = PAS de lien direct** (décision : rester simple, ne PAS utiliser `story_heritage_items`). Le patrimoine d'un récit est **DÉDUIT** : un moment dont l'événement porte un patrimoine l'affiche sur son slide, comme les ressources d'enrichissement. ⇒ c'est l'**Option 2** de #73, mais **par moment** au lieu d'une slide de conclusion.
+
+- **Terminé (commits `b4dc1f3` + fix `0e2c11e`, poussés main, déployés STAGING + vérifiés) :**
+  - ✅ **S2 API** `heritage.ts` : `linkedEvents` (événements publiés liés) sur `GET /slug/:slug` ET `GET /:id`.
+  - ✅ **S2 Front** `HeritageDetailPage` : **fetch `getHeritageBySlug` au montage** (l'item de navigation est « léger » — grille/carousel/moment — sans resources/people/linkedEvents) → corrige un **bug LATENT** (resources/people n'apparaissaient JAMAIS depuis la grille car la page ne fetchait pas). + section « 📅 Événements liés » tappable (`onViewEvent` → `viewEventById`).
+  - ✅ **S3 API** `timelines.ts` `GET /slug/:slug` : `heritageItems` par moment (sous-requête corrélée sur `event_heritage_items` via `e.id`). `/:id` admin laissé intact.
+  - ✅ **S3 Front** `TimelinePage` : bloc « 🏛️ Patrimoine associé » sur le slide focalisé (moments + event slides), tappable (`onViewHeritage` → `navigateToHeritage`).
+  - ✅ **types.ts** : `HeritageLink`, `HeritageLinkedEvent` ; câblés sur `HeritageItem.linkedEvents`, `TimelineMoment.heritageItems`, `Event.heritageItems`.
+  - ✅ **FIX bug réveillé (`0e2c11e`)** : `GET /heritage/slug/:slug` renvoyait **500** (`JSON_AGG(DISTINCT … ORDER BY <expr hors argument>)` rejeté par Postgres). Dormant car l'endpoint n'était jamais appelé. Refactor en **sous-requêtes corrélées** (`selectHeritageDetail(where)`, partagé `/:id` + `/slug/:slug`) → plus de produit cartésien, plus de DISTINCT, corrige aussi la duplication latente des resources. Voir ERRORS.md 2026-06-10.
+  - ✅ **Vérifs staging** (cas réel : patrimoine « Masque luba » `masque-luba-2` ↔ événement « Indépendance du Ghana », présent dans 2 récits) : S2 `linkedEvents`=1 ✓ ; S3 moment Ghana `heritageItems`=[Masque luba] ✓ dans les 2 récits ; `/heritage`, `/heritage/:id`, `/events`, front = 200 ✓.
+  - ✅ Builds : api `tsc` EXIT 0 ; front `tsc` (0 erreur dans mes fichiers, erreurs pré-existantes inchangées) + `vite build` EXIT 0.
+
+- **Décisions :**
+  - Le `item` passé à `HeritageDetailPage` reste typé `HeritageItem` (mode TS non-strict → les items légers passent ; la page re-fetch par slug, tous les accès `.field` sont gardés `?? []`/`&&`).
+  - S3 affiche le patrimoine sur moments ET event slides (les `e.heritageItems` arrivent gratuitement dans la liste events). Après dédup, les moment slides priment.
+
+- **Prochaine session / en attente :**
+  - **PROD NON déployée** — tenue jusqu'à demande explicite. Staging porte `b4dc1f3`+`0e2c11e`. Séquence prod : pull → rebuild `api frontend` (`--env-file .env.prod -f docker-compose.coolify.yml -p kasuku-prod`) → force-recreate nginx → restart coolify-proxy. Aucune migration.
+  - Vérif visuelle staging par l'utilisateur (fiche Masque luba + récit « L'Année de l'Afrique — 1960 » → moment Ghana).
+  - #77 (vue liste paginée modules) à planifier ; #74 (card patrimoine homepage) ; reste des issues #55–#70.
+
+---
+
 # SESSION END — 2026-06-09 — Natif #23 (covers récits) + #24 (10 modules démo) : livrés staging + OTA
 
 - **Travaillé sur :** Issues #23 et #24 (board `Kasuku-Kalenda/kasukuNative`) — couvertures de récits affichées quand une image existe ; 10 modules de démo (tous types de blocs) + rendu du contenu structuré côté natif.

@@ -3,6 +3,17 @@
 > Consulter ce fichier avant de suggérir une approche sur une tâche similaire.
 > Ajouter une entrée dès qu'une approche échoue plus de 2 fois consécutives.
 
+## 2026-06-10 — `JSON_AGG(DISTINCT … ORDER BY <autre expr>)` rejeté par Postgres (500)
+
+- **Tâche :** Enrichir le détail patrimoine (`GET /api/v1/heritage/slug/:slug`) ; il renvoyait 500 dès qu'on l'appelait.
+- **Échoué :** La requête agrégeait themes/people/resources via **LEFT JOIN + GROUP BY** (produit cartésien) → des `DISTINCT` partout. Le `resources` faisait `JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(...) ORDER BY JSONB_BUILD_OBJECT('position', r.position))`. Postgres refuse : *« in an aggregate with DISTINCT, ORDER BY expressions must appear in argument list »* (code 42P10). Bug **dormant** : l'endpoint n'avait jamais été appelé (la page front ne fetchait pas, elle utilisait l'item « léger » de navigation). L'ajout du fetch-au-montage l'a réveillé.
+- **Marché :** Remplacer LEFT JOIN + GROUP BY par des **sous-requêtes corrélées** (une par relation : themes, people, resources, linkedEvents), via un helper `selectHeritageDetail(where: postgres.Fragment)` partagé par `/:id` et `/slug/:slug`. Plus de produit cartésien ⇒ plus de DISTINCT ⇒ `ORDER BY` propre. Corrige en prime une **duplication latente** des resources (enrichedDetail dupliquait chaque resource × nb thèmes × nb personnages).
+- **Retenir :**
+  1. **Règle Postgres** : avec `agg(DISTINCT x ORDER BY y)`, `y` DOIT faire partie des arguments (`x`). Sinon → 500. Le plus simple : pas de `DISTINCT` du tout.
+  2. **Pour agréger plusieurs relations 1:N sur une même entité, préférer des sous-requêtes corrélées** (`COALESCE((SELECT JSON_AGG(...) FROM rel WHERE rel.fk = h.id), '[]'::json)`) plutôt que multiplier les LEFT JOIN + GROUP BY + DISTINCT (produit cartésien, duplication, DISTINCT bancals). Modèle existant : `selectEventDetail(where)` dans events.ts.
+  3. **Fragments `sql` imbriqués** : typer le paramètre `postgres.Fragment` (`import type postgres from 'postgres'`) et interpoler `${frag}` dans un `sql\`…\`` — postgres.js inline le SQL brut (ex: `sql\`h.id\``, `WHERE ${where}`).
+  4. **Un endpoint jamais appelé par le front peut cacher un bug SQL** : tester les endpoints au curl directement, pas seulement via l'UI.
+
 ## 2026-06-08 — 504 récurrent après tout déploiement (pattern définitif)
 
 - **Tâche :** Déployer api/frontend/nginx sur staging ou prod et retrouver le site accessible.
