@@ -3,6 +3,21 @@
 > Consulter ce fichier avant de suggérir une approche sur une tâche similaire.
 > Ajouter une entrée dès qu'une approche échoue plus de 2 fois consécutives.
 
+## 2026-06-10 — Sourcing de médias Wikimedia pour un seed (images/audio) : pièges
+
+- **Tâche :** Récupérer ~60 URLs de médias RÉELS et fonctionnels (covers + audio) pour seeder 30 patrimoines, en garantissant HTTP 200 avant insertion.
+- **Échoué (plusieurs itérations) :**
+  1. **`pageimages` Wikipedia renvoie souvent une CARTE** : pour les articles « peuple X » / pays, l'image principale est une carte de localisation (ex. cover « Masque Punu » = `Gabon_in_its_region.svg.png`). Inacceptable.
+  2. **Recherche Commons fuzzy = faux positifs** : `Dan mask Africa` a renvoyé… **Elon Musk** (« Musk » ≈ « mask »). `Couscous dish` → Fufu.
+  3. **Audio Commons saturé de Lingua Libre** : `kora`/`balafon`/`griot filetype:audio` renvoient surtout des `LL-Q*.wav` = prononciations d'UN MOT par un locuteur (pas de la musique), plus des `.mid` (timpani orchestral pour « talking drum »). 
+  4. **`whc.unesco.org` renvoie 403 aux bots** (vérif curl échoue) alors que ça marche en navigateur.
+- **Marché :**
+  - Covers : recherche **Commons `filetype:bitmap`** (vraies photos) AVEC (a) **blocklist** de motifs (`in_its_region`, `locator`, `flag_of`, `orthographic`, `_bridge`, `elon`, `musk`…) et (b) contrainte **`must`** = le nom de fichier DOIT contenir le mot-clé de l'objet (`mask`/`masque`, `couscous`, `kora`, `kente`, `ankh`…). Fallback `pageimages`.
+  - Audio : **rejeter `LL-Q*` / `lingua` / `.mid`** et exiger une extension audio réelle. La vraie musique d'instruments africains est RARE → hand-pick d'URLs Commons explicites vérifiées (ex. `Le_son_du_balafon_de_Neba_Solo.ogg`, chant de griot `Kofi_Kofi…flac`). Quand rien de bon → mettre un **lien** Wikipédia plutôt qu'un faux son.
+  - Liens : préférer **Wikipédia** et **`ich.unesco.org`** (200) ; éviter `whc.unesco.org` (403 bots).
+  - **Toujours vérifier chaque URL (GET, suivre redirections, encoder accents/apostrophes) AVANT de générer le SQL**, et **eyeballer le nom de fichier résolu** (un 200 ne garantit pas la pertinence — cf. carte du Gabon / Elon Musk).
+- **Retenir :** Un HTTP 200 ne suffit PAS — vérifier la PERTINENCE (nom de fichier). Script réutilisable : `/tmp/seed_heritage/build.py` (résout Commons+Wikipedia, blocklist+must, génère le SQL idempotent). Seeds = migration `NNN_*.sql` idempotente (`ON CONFLICT slug DO UPDATE`, DELETE scoped pour les resources), dry-run `BEGIN…ROLLBACK` sur DB staging, puis `psql -1` stdin.
+
 ## 2026-06-10 — `JSON_AGG(DISTINCT … ORDER BY <autre expr>)` rejeté par Postgres (500)
 
 - **Tâche :** Enrichir le détail patrimoine (`GET /api/v1/heritage/slug/:slug`) ; il renvoyait 500 dès qu'on l'appelait.
