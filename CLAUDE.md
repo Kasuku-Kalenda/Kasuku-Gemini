@@ -47,14 +47,18 @@ Format :
 - **Staging avant prod** — Tout changement passe par `staging.kasuku.afrikia.org` avant `kasuku.afrikia.org`.
 - **Jamais Coolify Redeploy** — Le bouton Redeploy de l'UI Coolify est interdit. Rebuild manuel via SSH uniquement (commandes ci-dessous).
 - **Symlink `.env`** — `/opt/kasuku/.env` est un symlink → `.env.prod`. Compose interpole les secrets depuis `.env` (`${POSTGRES_PASSWORD}`, `${JWT_SECRET}`, `${POSTGRES_DB:-kasuku_db}`…). Vérifier `ls -la /opt/kasuku/.env` avant tout `docker compose up`. Pour déployer staging, passer explicitement `--env-file .env.staging` (ne PAS reposer sur le symlink).
-- **Commande de déploiement par-env** (chirurgical, `--no-deps` = ne rebuild que les services changés) :
+- **Séquence de déploiement OBLIGATOIRE** (les 3 étapes sont NON-NÉGOCIABLES — sauter l'une d'elles provoque un 504) :
   ```bash
   cd /opt/kasuku
+  # 1. Rebuild des services modifiés (chirurgical, --no-deps = seulement les services listés)
   docker compose --env-file .env.<env> -f docker-compose.<env>.yml -p kasuku-<env> up -d --build --no-deps <services>
-  docker compose --env-file .env.<env> -f docker-compose.<env>.yml -p kasuku-<env> restart nginx
-  # <env> = staging | prod ; <fichier> staging.yml ou coolify.yml ; <services> = api frontend …
+  # 2. Force-recreate nginx (PAS restart — force-recreate pour que Traefik pickup le nouvel IP)
+  docker compose --env-file .env.<env> -f docker-compose.<env>.yml -p kasuku-<env> up -d --force-recreate --no-deps nginx
+  # 3. Restart Traefik ← INDISPENSABLE — sans ça, 504 garanti (Traefik garde l'ancien IP)
+  docker restart coolify-proxy
+  # <env> = staging | prod ; <fichier> = staging.yml ou coolify.yml ; <services> = api frontend …
   ```
-- **Restart nginx après redeploy** — `docker compose ... restart nginx` sinon Traefik perd la route (504).
+- ⚠️ **504 récurrent = Traefik** — Si Gateway Timeout après un déploiement : `docker restart coolify-proxy` TOUJOURS en premier réflexe. Un hook Claude Code (`.claude/hooks/restart-traefik-after-deploy.py`) le fait automatiquement après chaque commande SSH de déploiement.
 - **Ne jamais casser ce qui marche** — lire le fichier avant d'éditer, vérifier le build avant de commit. Ne jamais dumper les VALEURS de secrets (masquer).
 - **postgres.js TRANSFORME les noms de colonnes en camelCase** — `api/src/db.ts` configure `transform.column.from` (snake_case → camelCase) sur TOUTES les colonnes de résultat. Côté JS on lit donc **toujours du camelCase**, quel que soit l'alias SQL : `SELECT … AS has_timeline` arrive en `row.hasTimeline`. Ne JAMAIS lire `row.snake_case` (= `undefined`). Les colonnes d'un seul mot sans underscore (`count`, `day`) sont inchangées. Les alias SQL quotés en camelCase (`AS "eventCount"`) sont donc inutiles (mais inoffensifs). Voir ERRORS.md 2026-06-02.
 

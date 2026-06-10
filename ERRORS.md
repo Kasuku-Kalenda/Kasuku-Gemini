@@ -3,6 +3,17 @@
 > Consulter ce fichier avant de suggérir une approche sur une tâche similaire.
 > Ajouter une entrée dès qu'une approche échoue plus de 2 fois consécutives.
 
+## 2026-06-08 — 504 récurrent après tout déploiement (pattern définitif)
+
+- **Tâche :** Déployer api/frontend/nginx sur staging ou prod et retrouver le site accessible.
+- **Échoué (×4+) :** `docker compose restart nginx` seul → 504. `docker restart coolify-proxy` seul → 200 une fois puis 504. Toute combinaison partielle → instable.
+- **Marché :** Séquence COMPLÈTE en 3 étapes obligatoires :
+  1. `docker compose ... up -d --build --no-deps <services>`
+  2. `docker compose ... up -d --force-recreate --no-deps nginx` (PAS restart)
+  3. `docker restart coolify-proxy` (TOUJOURS en dernier)
+- **Retenir :** Traefik (coolify-proxy) cache l'IP des containers. Quand un container est recréé, son IP change. Sans l'étape 3, Traefik route vers l'ancienne IP → 504. Ce pattern revient à CHAQUE déploiement. Un hook PostToolUse (`.claude/hooks/restart-traefik-after-deploy.py`) le fait maintenant automatiquement dès qu'une commande SSH de déploiement est détectée. Voir aussi CLAUDE.md DIRECTIVE 3.
+- **Symptôme connexe (2026-06-08, déploiement #22) :** un `docker compose … up -d --build --no-deps api` (staging) a aussi laissé le container **frontend** à moitié recréé (un `kasuku-staging-frontend-1` `Exited (0)` + un `<hash>_…-frontend-1` bloqué en `Created`). nginx ne pouvait alors PAS démarrer : `[emerg] host not found in upstream "frontend:80"` → crash-loop → 502 (pas 504). **Fix :** `docker compose … -p kasuku-staging up -d` COMPLET (sans `--no-deps`, sans `--build`) pour réconcilier et relancer frontend, PUIS `up -d --force-recreate --no-deps nginx`. **Retenir :** après un déploiement, si le site est down, vérifier TOUS les containers staging (`docker ps -a | grep staging`), pas seulement l'api ; le hook qui redémarre coolify-proxy en parallèle de tes commandes provoque des 502/504 TRANSITOIRES — attendre la convergence avant de sur-diagnostiquer. **Et SURTOUT : lire ce fichier AVANT de déployer.**
+
 ## 2026-06-03 — API pagination : champ `totalItems` pas `total`
 
 - **Tâche :** Exposer le nombre total d'enregistrements (Dashboard compteurs, etc.) depuis les endpoints paginés de l'API.

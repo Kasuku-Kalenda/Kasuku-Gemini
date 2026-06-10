@@ -5,6 +5,123 @@
 
 ---
 
+# SESSION END — 2026-06-09 — Natif #23 (covers récits) + #24 (10 modules démo) : livrés staging + OTA
+
+- **Travaillé sur :** Issues #23 et #24 (board `Kasuku-Kalenda/kasukuNative`) — couvertures de récits affichées quand une image existe ; 10 modules de démo (tous types de blocs) + rendu du contenu structuré côté natif.
+
+- **Terminé :**
+  - ✅ **#23 (backend, API)** — `timelines.ts` GET / : `COALESCE(s.cover_url, 1re image de moment)` via `story_events → event_media → media` (filtré `type='image'`, ORDER BY position). Le natif rendait déjà `coverUrl` → aucune modif native. Vérifié staging : **8/8 récits coverUrl non-null**. Issue fermée manuellement (fix backend, pas de commit natif).
+  - ✅ **#24 (backend, API)** — `modules.ts` GET /slug/:slug : agrège `event_modules` → `event_ids` (camelCase `eventIds`) pour « Événements liés ».
+  - ✅ **#24 (contenu)** — `database/migrations/025_seed_demo_modules.sql` (idempotent `ON CONFLICT (slug) DO UPDATE`) : **10 modules publiés**, 3 niveaux, durées 18–35 min, **tous types de blocs** (text/image/video/audio/quiz interactif/resource), contributeurs, vignettes Wikimedia. **46 liens événements** (10/10 modules liés) + 28 liens thèmes, par slug. Force-add (`*.sql` gitignored).
+  - ✅ **#24 (natif)** — `ModuleContent.tsx` (renderer blocs + crédits, médias via `expo-web-browser`), `icons.tsx` (+5 icônes), `types.ts` (ModuleBlock/ModuleContributor), `discover.ts` (`mapApiModule` : thumbnailUrl/durationMinutes/lang → thumbnail/durationMin/language ; normalizeBlock ; eventIds), `module/[slug].tsx`. Commit `12fce99` poussé (closes #24).
+  - ✅ **Médias vérifiés AVANT seed** (HTTP 200 / oEmbed) : 17 images Wikimedia (`Special:FilePath`), 4 vidéos TED-Ed, 3 audios (Makeba/kora), ressources Wikipédia FR + UNESCO.
+  - ✅ **Déploiement staging** : push API `b749288` → pull → `run --rm postgres-migrate` (025 ✓) → rebuild api → force-recreate nginx → restart coolify-proxy. Vérifié : `/modules`=10, détail = 6 types de blocs + eventIds=5 + contributeurs, round-trip URLs/`\n\n` intact.
+  - ✅ **OTA natif** : `EXPO_PUBLIC_API_URL=staging eas update --branch preview` → update group `2eb56e36-…` (runtime 1.0.0).
+  - ✅ `npx tsc --noEmit` EXIT 0 (natif + API).
+
+- **En cours / À faire :**
+  - ⏳ Validation visuelle sur device (APK canal `preview`).
+  - ⏳ **Prod NON déployé** — staging avant prod ; #23+#24 en prod sur demande explicite (push déjà sur main → pull prod → `run --rm postgres-migrate` avec `--env-file .env.prod` → rebuild api → nginx → traefik).
+
+- **Décisions :**
+  - Liens événements/thèmes du seed **par slug** (JOIN sur events/themes existants) → idempotent, sans effet si un slug manque (0 ligne). **Dry-run validé en transaction `BEGIN…ROLLBACK` sur la vraie DB staging** avant le push (pas de Docker local + events/themes absents des migrations).
+  - Resource blocks = `url`+`label` externes (Wikipédia/UNESCO) → pas de lignes `media` à créer.
+  - Vidéos/audios = YouTube (modules ≠ Shorts ; la règle de-YouTube ne vise que les Shorts immersifs).
+  - `eas update` : `EXPO_PUBLIC_API_URL` doit être passé à l'`update` (inliné au bundle) sinon fallback `__DEV__?staging:prod` → un APK release pointerait PROD.
+
+- **Gotcha déploiement :** `up -d --build --no-deps api` a buté sur un **conflit de nom de conteneur** (`kasuku-staging-api-1` tenu par un conteneur Exited + un `<hash>_…` Created). Fix : `docker rm -f <old> <half-created>` puis `up -d --no-deps api` (image déjà buildée) + force-recreate nginx. (1 occurrence → noté ici, pas dans ERRORS.md.)
+
+- **Prochaine session :**
+  1. Confirmer le rendu visuel des modules sur device.
+  2. Sur demande : déployer #23 + #24 en prod (séquence ci-dessus, `.env.prod`).
+  3. Reprendre les issues sécurité S1–S4 (#26–#29) si priorisées.
+
+---
+
+# SESSION END — 2026-06-08 — Natif #22 : autocomplétion dès la 2e lettre + déploiement
+
+- **Travaillé sur :** Issue #22 (board `Kasuku-Kalenda/kasukuNative`) — « dès la 2e lettre, des propositions » sur les 4 onglets natifs (Discover, Calendrier, Récits, Modules). Restent #23 (covers récits) et #24 (10 modules) à faire.
+
+- **Terminé :**
+  - ✅ **Natif** (`kasukuNative`) — 2 commits LOCAUX (NON poussés) :
+    - `acdd9e4` `feat: autocomplétion dès la 2e lettre sur les 4 onglets` (closes #22) — debounce 150 ms partout ; carte de suggestions partagée `SearchSuggestions.tsx` (Discover) ; carte inline Calendrier (recherche toutes dates, tap date exacte → saut au mois + ouverture du jour, date approx → fiche)
+    - `89ce3b4` `fix(native): cartes d'époque invisibles sur New Architecture` (PeriodsSection — dimensions px explicites via onLayout, le `width:'47.5%'`+aspectRatio en flex-wrap ne marche pas sur Fabric/Yoga)
+  - ✅ **API** (`kasuku-cultural-calendar-170426`) — commit `acd1867` `feat: recherche par sous-chaîne (ILIKE) pour l'autocomplétion`, **poussé sur `Kasuku-Gemini/main`** (requis pour le déploiement). Branche ILIKE additive (`OR unaccent(title) ILIKE unaccent('%q%')`) sur les routes PUBLIQUES seulement : events GET / + calendar-days, modules GET /, timelines GET /. Routes admin `/all` intactes.
+  - ✅ **Staging déployé + vérifié** : `events?q=ma` → 18 résultats (Maathai, Mandela, Thomas, Ujamaa — sous-chaînes que `plainto_tsquery` seul ne trouve pas) ; `timelines?q=lu` → « lutte ». Prod + staging 200/200.
+  - ✅ **OTA natif publié** : `eas update --branch preview` → update group `ee09d0db-5c47-4aad-83fe-2b6fee75757a` (runtime 1.0.0, android+ios). Les testeurs (APK canal `preview`, pointé staging) reçoivent le résultat sans réinstaller.
+
+- **Décisions :**
+  - `plainto_tsquery` n'apparie que des MOTS ENTIERS → on AJOUTE (OR) une branche ILIKE sous-chaîne sur le titre. Recherche vide → comportement identique (1re clause `${search}=''`). Aucune route admin touchée.
+  - Carte de suggestions = **inline** (dans le flux), pas un dropdown absolu/z-index (non fiable sur New Arch Android).
+  - Debounce 150 ms (au lieu de 350/400) = propositions quasi instantanées sans requête à chaque frappe.
+  - Commits natifs **gardés en local** (pas de push) : l'OTA bundle l'arbre de travail, pas besoin de pousser. ⚠️ Conséquence : **#22 reste OUVERTE** sur GitHub jusqu'au prochain `git push` du repo natif (le `closes #22` se déclenchera à ce moment).
+
+- **Pas commité (intentionnel) :** infra EAS natif (`.npmrc`, `eas.json`, `app.json`, `package.json`, `package-lock.json`, `src/api/client.ts`, `assets/icon-exports/`) — nécessaire dans l'arbre pour l'OTA mais hors périmètre #22. Côté API : `MEMORY.md`, et `pages/admin/forms/EventFormPage.tsx` (error boundary admin sans rapport, laissé tel quel).
+
+- **Déploiement — leçon (voir ERRORS.md 2026-06-08) :** j'ai re-découvert le 504 récurrent SANS avoir lu ERRORS.md d'abord. Le hook `.claude/hooks/restart-traefik-after-deploy.py` redémarre coolify-proxy automatiquement après tout `docker compose … --build`/`force-recreate` SSH → s'attendre à des 502/504 TRANSITOIRES juste après la commande (Traefik rebondit), NE PAS sur-diagnostiquer, attendre la convergence. Un `--build --no-deps api` a aussi laissé le **frontend** à moitié recréé (état `Created`) → nginx en emerg `host not found in upstream "frontend:80"` → corrigé par un `up -d` complet (réconcilie frontend) puis `force-recreate nginx`.
+
+- **Prochaine session :**
+  1. **#23** — covers récits : `stories.cover_url` NULL → dériver la cover du 1er média de moment côté backend (route publique timelines) + fallback natif. Déployer staging.
+  2. **#24** — 10 modules de formation : la table `modules` est **VIDE** en staging (0 module). (A) renderer de blocs de contenu natif + étendre le type `TrainingModule`/mapper pour `content`/`contributors` (absents actuellement) ; (B) créer 10 modules démo (tous types de blocs, ressources, contributeurs, ≥4 liés à des dates via `event_modules`). Méthode de seed à décider (POST API admin vs migration SQL).
+  3. Pousser le repo natif quand voulu pour fermer #22.
+
+---
+
+# SESSION END — 2026-06-03 (session 4) — Issues #67 #68 #69 #70 — Admin fixes
+
+- **Travaillé sur :** 4 issues admin signalées après audit de l'interface.
+
+- **Terminé :**
+  - ✅ **#67** EventDetailDrawer.tsx : fix `/events/slug/:uuid` → `/events/:uuid` (empêchait l'ouverture du formulaire d'édition)
+  - ✅ **#70** TimelineForm.tsx : supprimé création inline d'événements (EventPicker step='create' + modal createModalOpen dans MomentCard + import EventForm)
+  - ✅ **#68** `components/admin/ImageUploadInput.tsx` : composant réutilisable URL+upload ; intégré dans PersonFormPage (avatars) et HeritageItemFormPage (misc)
+  - ✅ **#69** EventForm : sections "Personnages liés" + "Patrimoine culturel lié" (toggle multi-select) ; `personIds`/`heritageItemIds` dans schema/mapper/serializer/PUT handler ; Event type étendu (`people`, `heritageItems`) ; GET /events/:id retourne maintenant `heritage_items` (LEFT JOIN event_heritage_items)
+  - ✅ Commit `85987bd` + push + déploiement staging (api + frontend) — api healthy
+
+- **Décisions :**
+  - Les sections Personnages/Patrimoine dans EventForm sont masquées en mode `compact` (modale de TimelineForm)
+  - `uploadFile` folder : `avatars` pour les photos de personnages, `misc` pour les images patrimoniales
+  - `listHeritage()` retourne tous les items (pas de filtre status) — si la liste est vide en prod, créer des items publiés d'abord
+
+- **Prochaine session :**
+  - Tester visuellement sur staging : éditer un événement → vérifier les sections personnages/patrimoine + upload images
+  - Lier des personnages/patrimoine à des événements existants (données réelles)
+  - Vérifier que la suppression inline fonctionne toujours dans TimelineForm (sélection + clone uniquement)
+  - Issues encore ouvertes éventuelles (voir board GitHub)
+
+---
+
+# SESSION END — 2026-06-03 (session 3) — Issue #66 Heritage Items — Patrimoine culturel
+
+- **Travaillé sur :** Feature complète Heritage Items (#66) — de zéro jusqu'au déploiement staging.
+
+- **Terminé :**
+  - ✅ Migration 022 `heritage_items` : tables heritage_items, heritage_resources, heritage_themes, heritage_people, + pivots event/story/module_heritage_items, triggers updated_at/published_at/search_vector
+  - ✅ `api/src/routes/heritage.ts` : CRUD complet (GET public paginé, GET /all admin, GET /slug/:slug, GET /:id, POST, PUT, DELETE soft), `syncPivots()`, `enrichedDetail()`
+  - ✅ `api/src/utils/slug.ts` : union type étendu avec 'heritage_items'
+  - ✅ `api/src/index.ts` : route enregistrée sous `/api/v1/heritage`
+  - ✅ `types.ts` : HeritageItem, HeritageCategory, HeritageResourceType, HeritageResource
+  - ✅ `services/adminApi.ts` : HeritageFormData, HeritageResourceInput, 5 fonctions CRUD + export
+  - ✅ `pages/admin/AdminHeritageItemsPage.tsx` : liste avec filtre catégorie + recherche texte + soft delete
+  - ✅ `pages/admin/forms/HeritageItemFormPage.tsx` : formulaire création/édition + gestion resources
+  - ✅ AppView + AdminLayout navItem "Patrimoine culturel" (🏺) + AdminApp routing
+  - ✅ Migration appliquée sur staging DB
+  - ✅ Commit `51d4cf1` + push + déploiement staging vérifié : `GET /heritage` → `{ items: [], totalItems: 0 }` ✓ ; `GET /heritage/all` → 401 ✓
+
+- **Commit :** `51d4cf1` — feat(heritage): Patrimoine culturel — closes #66
+
+- **Décisions :**
+  - `database/migrations/*.sql` est dans `.gitignore` → `git add -f` utilisé pour les migrations
+  - Après `docker compose up -d --build` qui échoue avec "container name already in use" → utiliser `--force-recreate`
+  - Après `force-recreate api+frontend`, la séquence est : `docker restart coolify-proxy` (sans force-recreate nginx cette fois → suffisant)
+
+- **Prochaine session :**
+  - Tester visuellement le panel admin Patrimoine (créer un élément, filtrer, éditer, supprimer)
+  - Issues restantes possibles : enrichissement du formulaire (selector thèmes/personnages), upload image cover, pagination GET /heritage/all
+  - Vérifier les corrections P1/P2/P3 (filtres events, formulaire type thématique, page Personnages, liaison event↔module)
+
+---
+
 # SESSION END — 2026-06-03 (session 2) — Corrections admin P1/P2/P3 (issues #53-#65)
 
 - **Travaillé sur :** Corrections complètes des bugs admin identifiés lors de l'audit 2026-06-03. Phases 1, 2 et 3 toutes traitées dans cette session.
