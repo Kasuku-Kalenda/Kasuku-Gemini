@@ -42,29 +42,41 @@ const linkedEventsAgg = (heritageIdColumn: postgres.Fragment) => sql`
   ), '[]'::json)
 `;
 
-async function enrichedDetail(id: string) {
-  const [item] = await sql`
+// Détail enrichi réutilisable — sous-requêtes corrélées, PAS de LEFT JOIN + GROUP BY.
+// (Les LEFT JOIN multiples créaient un produit cartésien themes × people × resources,
+//  d'où des DISTINCT — et un JSON_AGG(DISTINCT … ORDER BY <autre expr>) est REJETÉ par
+//  Postgres : « in an aggregate with DISTINCT, ORDER BY expressions must appear in
+//  argument list ». Les sous-requêtes corrélées suppriment le produit cartésien, donc
+//  plus de DISTINCT, ORDER BY propre, et zéro duplication de resources.)
+function selectHeritageDetail(where: postgres.Fragment) {
+  return sql`
     SELECT h.*,
-      COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
-        'id', t.id, 'slug', t.slug, 'name', t.name, 'color', t.color
-      )) FILTER (WHERE t.id IS NOT NULL), '[]') AS themes,
-      COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
-        'id', p.id, 'slug', p.slug, 'name', p.name, 'photoUrl', p.photo_url
-      )) FILTER (WHERE p.id IS NOT NULL), '[]') AS people,
-      COALESCE(JSON_AGG(JSONB_BUILD_OBJECT(
-        'id', r.id, 'type', r.type, 'url', r.url, 'title', r.title,
-        'credit', r.credit, 'position', r.position
-      ) ORDER BY r.position) FILTER (WHERE r.id IS NOT NULL), '[]') AS resources,
+      COALESCE((
+        SELECT JSON_AGG(JSONB_BUILD_OBJECT('id', t.id, 'slug', t.slug, 'name', t.name, 'color', t.color))
+        FROM heritage_themes ht JOIN themes t ON t.id = ht.theme_id
+        WHERE ht.heritage_item_id = h.id
+      ), '[]'::json) AS themes,
+      COALESCE((
+        SELECT JSON_AGG(JSONB_BUILD_OBJECT('id', p.id, 'slug', p.slug, 'name', p.name, 'photoUrl', p.photo_url))
+        FROM heritage_people hp JOIN people p ON p.id = hp.person_id
+        WHERE hp.heritage_item_id = h.id
+      ), '[]'::json) AS people,
+      COALESCE((
+        SELECT JSON_AGG(JSONB_BUILD_OBJECT(
+          'id', r.id, 'type', r.type, 'url', r.url, 'title', r.title,
+          'credit', r.credit, 'position', r.position
+        ) ORDER BY r.position)
+        FROM heritage_resources r
+        WHERE r.heritage_item_id = h.id
+      ), '[]'::json) AS resources,
       ${linkedEventsAgg(sql`h.id`)} AS "linkedEvents"
     FROM heritage_items h
-    LEFT JOIN heritage_themes ht  ON ht.heritage_item_id = h.id
-    LEFT JOIN themes t            ON t.id = ht.theme_id
-    LEFT JOIN heritage_people hp  ON hp.heritage_item_id = h.id
-    LEFT JOIN people p            ON p.id = hp.person_id
-    LEFT JOIN heritage_resources r ON r.heritage_item_id = h.id
-    WHERE h.id = ${id} AND h.deleted_at IS NULL
-    GROUP BY h.id
+    WHERE ${where}
   `;
+}
+
+async function enrichedDetail(id: string) {
+  const [item] = await selectHeritageDetail(sql`h.id = ${id} AND h.deleted_at IS NULL`);
   return item ?? null;
 }
 
@@ -143,29 +155,9 @@ export async function heritageRoutes(app: FastifyInstance) {
 
   // ── GET /slug/:slug ───────────────────────────────────────────────────────
   app.get('/slug/:slug', async (req: any, reply) => {
-    const [item] = await sql`
-      SELECT h.*,
-        COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
-          'id', t.id, 'slug', t.slug, 'name', t.name, 'color', t.color
-        )) FILTER (WHERE t.id IS NOT NULL), '[]') AS themes,
-        COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
-          'id', p.id, 'slug', p.slug, 'name', p.name, 'photoUrl', p.photo_url
-        )) FILTER (WHERE p.id IS NOT NULL), '[]') AS people,
-        COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
-          'id', r.id, 'type', r.type, 'url', r.url, 'title', r.title,
-          'credit', r.credit, 'position', r.position
-        ) ORDER BY JSONB_BUILD_OBJECT('position', r.position)) FILTER (WHERE r.id IS NOT NULL), '[]') AS resources,
-        ${linkedEventsAgg(sql`h.id`)} AS "linkedEvents"
-      FROM heritage_items h
-      LEFT JOIN heritage_themes ht   ON ht.heritage_item_id = h.id
-      LEFT JOIN themes t             ON t.id = ht.theme_id
-      LEFT JOIN heritage_people hp   ON hp.heritage_item_id = h.id
-      LEFT JOIN people p             ON p.id = hp.person_id
-      LEFT JOIN heritage_resources r ON r.heritage_item_id = h.id
-      WHERE h.slug = ${req.params.slug}
-        AND h.status = 'published' AND h.deleted_at IS NULL
-      GROUP BY h.id
-    `;
+    const [item] = await selectHeritageDetail(
+      sql`h.slug = ${req.params.slug} AND h.status = 'published' AND h.deleted_at IS NULL`
+    );
     if (!item) return reply.status(404).send({ error: 'Patrimoine introuvable' });
     return reply.send(item);
   });
