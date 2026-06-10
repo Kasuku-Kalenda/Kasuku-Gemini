@@ -9,11 +9,32 @@
  */
 
 import type { FastifyInstance } from 'fastify';
+import { randomUUID } from 'crypto';
 import sql from '../db';
 import { requireAdmin } from '../middleware/auth';
 import { parsePagination, paginate } from '../utils/pagination';
 import { uniqueSlug } from '../utils/slug';
 import { findBase64Fields } from '../utils/validation';
+
+// Garantit un id + order stables sur chaque section et leçon. Le front web suit
+// la progression par lesson.id et sélectionne la leçon courante par id ; le natif
+// s'en sert comme clé de liste. Les modules créés en admin n'ont pas toujours
+// d'id généré côté formulaire → on les complète ici à l'écriture.
+function withSectionIds(sections: unknown): any[] {
+  if (!Array.isArray(sections)) return [];
+  return sections.map((s: any, si: number) => ({
+    ...s,
+    id: s?.id ?? randomUUID(),
+    order: typeof s?.order === 'number' ? s.order : si,
+    lessons: Array.isArray(s?.lessons)
+      ? s.lessons.map((l: any, li: number) => ({
+          ...l,
+          id: l?.id ?? randomUUID(),
+          order: typeof l?.order === 'number' ? l.order : li,
+        }))
+      : [],
+  }));
+}
 
 export async function modulesRoutes(app: FastifyInstance) {
 
@@ -134,13 +155,27 @@ export async function modulesRoutes(app: FastifyInstance) {
     const slug = await uniqueSlug('modules', String(body.title ?? ''));
 
     const [module] = await sql`
-      INSERT INTO modules (slug, lang, title, summary, thumbnail_url, duration_minutes, level, content, contributors, status, created_by, updated_by)
+      INSERT INTO modules (
+        slug, lang, title, summary, thumbnail_url, duration_minutes, level,
+        content, contributors, sections, objectives, module_type,
+        moodle_course_url, moodle_instance_id, moodle_course_id, moodle_mode, moodle_package_id,
+        final_quiz, resources, has_certificate, certificate_name, timeline_slug,
+        status, created_by, updated_by
+      )
       VALUES (
         ${slug}, ${body.lang ?? 'fr'}, ${body.title},
         ${body.summary ?? null}, ${body.thumbnailUrl ?? null},
         ${body.durationMinutes ?? null}, ${body.level ?? null},
         ${JSON.stringify(body.content ?? [])},
         ${JSON.stringify(body.contributors ?? [])},
+        ${JSON.stringify(withSectionIds(body.sections))},
+        ${JSON.stringify(Array.isArray(body.objectives) ? body.objectives : [])},
+        ${body.moduleType ?? 'internal'},
+        ${body.moodleCourseUrl ?? null}, ${body.moodleInstanceId ?? null}, ${body.moodleCourseId ?? null},
+        ${body.moodleMode ?? null}, ${body.moodlePackageId ?? null},
+        ${body.finalQuiz ? JSON.stringify(body.finalQuiz) : null},
+        ${JSON.stringify(Array.isArray(body.resources) ? body.resources : [])},
+        ${body.hasCertificate ?? false}, ${body.certificateName ?? null}, ${body.timelineSlug ?? null},
         ${body.status ?? 'draft'},
         ${req.authUser!.id}, ${req.authUser!.id}
       )
@@ -192,6 +227,19 @@ export async function modulesRoutes(app: FastifyInstance) {
         level            = ${body.level ?? null},
         content          = ${JSON.stringify(body.content ?? [])},
         contributors     = ${JSON.stringify(body.contributors ?? [])},
+        sections         = ${JSON.stringify(withSectionIds(body.sections))},
+        objectives       = ${JSON.stringify(Array.isArray(body.objectives) ? body.objectives : [])},
+        module_type        = ${body.moduleType ?? 'internal'},
+        moodle_course_url  = ${body.moodleCourseUrl ?? null},
+        moodle_instance_id = ${body.moodleInstanceId ?? null},
+        moodle_course_id   = ${body.moodleCourseId ?? null},
+        moodle_mode        = ${body.moodleMode ?? null},
+        moodle_package_id  = ${body.moodlePackageId ?? null},
+        final_quiz       = ${body.finalQuiz ? JSON.stringify(body.finalQuiz) : null},
+        resources        = ${JSON.stringify(Array.isArray(body.resources) ? body.resources : [])},
+        has_certificate  = ${body.hasCertificate ?? false},
+        certificate_name = ${body.certificateName ?? null},
+        timeline_slug    = ${body.timelineSlug ?? null},
         status           = ${body.status ?? 'draft'},
         updated_by       = ${req.authUser!.id}
       WHERE id = ${id}
