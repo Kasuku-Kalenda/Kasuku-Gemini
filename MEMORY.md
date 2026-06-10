@@ -5,6 +5,29 @@
 
 ---
 
+# SESSION END — 2026-06-10 — Modules : convergence sur le modèle LMS (sections/leçons) web + natif
+
+- **Travaillé sur :** Un module créé en admin doit s'afficher à l'identique sur web ET natif. Diagnostic : divergence de modèle — admin/web = **LMS sections→leçons** (`ModuleForm`, `ModulePage`, `mapApiModule` lisent `raw.sections/objectives/finalQuiz/...`), mais l'API `modules` ne stockait que `content` (blocs plats) + `contributors` → le `POST /modules` **jetait** `sections`. Le natif (mes 10 modules démo #24) était en blocs plats → invisible sur web. **Décision utilisateur : converger sur le LMS** (« le web reste sur ce qui est attendu »).
+
+- **Terminé (commits API `e8ebe28`, natif `b3d4a26`, poussés main, déployés STAGING + vérifiés) :**
+  - ✅ **Migration 026** : colonnes LMS sur `modules` (`sections`, `objectives`, `module_type`, `moodle_*` ×5, `final_quiz`, `resources`, `has_certificate`, `certificate_name`, `timeline_slug`) — `ADD COLUMN IF NOT EXISTS`. Mapping camelCase auto (`module_type`→`moduleType`, `final_quiz`→`finalQuiz`…).
+  - ✅ **API `modules.ts`** : POST/PUT persistent ces champs ; `withSectionIds()` garantit `id`+`order` sur sections/leçons (progression web par `lesson.id`, clés natif). GET `/slug` les renvoie via `m.*` (dynamique — pas besoin de rebuild pour lire de nouvelles colonnes).
+  - ✅ **Migration 027** : re-seed des 10 modules démo au LMS (UPDATE par slug, après 025+026). 20 sections, 38 leçons (text/video/quiz — **pas d'audio** : `<audio>` web exige un fichier direct → musique YouTube en leçon `video`, images en ressources `image`), objectifs, quiz final, ressources. `content` vidé à `[]`.
+  - ✅ **Natif** : `types.ts` (Section/Lesson/Quiz/QuizQuestion/CourseResource) ; `ModuleContent.tsx` **réécrit** en lecteur de cours (objectifs, sections→leçons, quiz MC+V/F interactif, quiz final, ressources, crédits) ; `discover.ts` mapApiModule LMS ; `module/[slug].tsx` (Contenu du cours, évaluation finale, ressources, CTA Moodle). `tsc` EXIT 0.
+  - ✅ **Le web n'a eu AUCUNE modif** — il était déjà bâti pour sections/leçons ; il reçoit enfin la donnée. Vérifié staging : `demo-mansa-moussa…` → moduleType=internal, 2 sections, leçons id'ées text/video/quiz, finalQuiz 2q, 3 ressources, eventIds=5, `content=[]`.
+  - ✅ **OTA preview** : update group `d98c830e` (runtime 1.0.0).
+
+- **Décisions / pièges :**
+  - **Ordre des migrations** : 025 (crée lignes + liens, blocs plats) < 026 (colonnes) < 027 (overlay LMS). 025 NE PEUT PAS référencer les colonnes 026 → seed LMS dans un fichier séparé 027 après 026. Dry-run `BEGIN; \i 026; \i 027; …; ROLLBACK;` sur staging.
+  - Lesson types LMS = `video|audio|pdf|text|quiz` (pas d'`image`). Quiz = `{passingScore, questions:[{type:multiple_choice|true_false, options/correctIndex | correctBool, explanation}]}`.
+
+- **À faire / en attente :**
+  - ⏳ **Prod NON déployée** (l'utilisateur déploiera lui-même sur git le moment venu). Staging porte 026+027 (migrations) + api rebuild.
+  - ⏳ Vérif visuelle : un module sur le **web** staging (onglet Modules → cours) ET sur l'**APK preview**.
+  - FCM Android push toujours désactivé (`google-services.json` absent — voir entrée #24).
+
+---
+
 # SESSION END — 2026-06-10 — Patrimoine bidirectionnel : événements liés (fiche) + patrimoine par moment (récit) — #73
 
 - **Travaillé sur :** Rendre la relation événement↔patrimoine visible des DEUX côtés, et surfacer le patrimoine dans le carousel de récit (issue #73, reformulée par l'utilisateur). + création issue **#77** (vue liste paginée des modules).
