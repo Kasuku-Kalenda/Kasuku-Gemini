@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import type { Event, TimelineNarrative, Media, MomentResource } from '../types';
+import type { Event, TimelineNarrative, Media, MomentResource, HeritageLink } from '../types';
 import { CardMediaPreview } from '../components/MediaGallery';
 import { getTimelineBySlug, getEvents } from '../services/api';
 import { formatDate } from '../utils/helpers';
@@ -12,6 +12,7 @@ import { ChevronRightIcon } from '../components/icons/ChevronRightIcon';
 
 interface TimelinePageProps {
   onViewEvent: (event: Event) => void;
+  onViewHeritage?: (item: HeritageLink) => void;
   timelineSlug?: string | null;
   initialEventId?: string | null;
   onBack: () => void;
@@ -28,6 +29,7 @@ interface NarrativeSlide {
     media: Media[];               // tableau complet (images + vidéos)
     themes: { id: string; name: string; slug: string }[];
     resources: MomentResource[];           // ressources complémentaires (moments uniquement)
+    heritageItems: HeritageLink[];         // patrimoine lié à l'événement du slide
     originalType: 'intro' | 'moment' | 'event';
     refObject: any;
 }
@@ -116,6 +118,30 @@ const MomentResourceItem: React.FC<{ resource: MomentResource }> = ({ resource }
     </button>
 );
 
+// ── Patrimoine : emoji par catégorie ─────────────────────────────────────────
+const HERITAGE_EMOJI: Record<string, string> = {
+    mask: '🎭', proverb: '💬', symbol: '🔯', recipe: '🍲', craft: '🏺', music: '🎵', other: '🌍',
+};
+
+// ── Composant : un patrimoine lié au moment (tappable → fiche patrimoine) ──────
+const MomentHeritageItem: React.FC<{ item: HeritageLink; onClick: () => void }> = ({ item, onClick }) => (
+    <button
+        type="button"
+        onClick={e => { e.stopPropagation(); onClick(); }}
+        className="w-full flex items-center gap-2.5 px-4 py-2.5 bg-white/60 hover:bg-white/90 active:bg-white rounded-2xl border border-white/50 transition-all group/her text-left"
+    >
+        <span className="text-base leading-none flex-shrink-0">
+            {HERITAGE_EMOJI[item.category ?? 'other'] ?? '🏛️'}
+        </span>
+        <span className="flex-1 truncate text-[11px] font-bold text-secondary">
+            {item.title}
+        </span>
+        <span className="text-[9px] text-muted-foreground uppercase tracking-widest opacity-50 group-hover/her:opacity-100 transition-opacity flex-shrink-0">
+            Patrimoine ↗
+        </span>
+    </button>
+);
+
 // ── Slide d'introduction (toujours en position 0) ────────────────────────────
 const buildIntroSlide = (tl: TimelineNarrative): NarrativeSlide => ({
     id: `${tl.id}__intro`,
@@ -127,12 +153,13 @@ const buildIntroSlide = (tl: TimelineNarrative): NarrativeSlide => ({
     media: tl.coverUrl ? [{ id: 'intro-thumb', type: 'image' as const, url: tl.coverUrl }] : [],
     themes: [],
     resources: [],
+    heritageItems: [],
     originalType: 'intro',
     refObject: tl,
 });
 
 export const TimelinePage: React.FC<TimelinePageProps> = ({
-    onViewEvent, timelineSlug, initialEventId, onBack,
+    onViewEvent, onViewHeritage, timelineSlug, initialEventId, onBack,
 }) => {
     const [timeline, setTimeline] = useState<TimelineNarrative | null>(null);
     const [slides, setSlides] = useState<NarrativeSlide[]>([]);
@@ -170,6 +197,7 @@ export const TimelinePage: React.FC<TimelinePageProps> = ({
                         : tl.coverUrl ? [{ id: 'fallback', type: 'image' as const, url: tl.coverUrl }] : [],
                 themes: [],
                 resources: m.resources ?? [],
+                heritageItems: m.heritageItems ?? [],
                 originalType: 'moment' as const,
                 refObject: m,
             }));
@@ -193,6 +221,7 @@ export const TimelinePage: React.FC<TimelinePageProps> = ({
                     : tl.coverUrl ? [{ id: 'fallback', type: 'image' as const, url: tl.coverUrl }] : [],
                 themes: e.themes,
                 resources: [],      // les événements du calendrier n'ont pas de ressources de moment
+                heritageItems: e.heritageItems ?? [],
                 originalType: 'event' as const,
                 refObject: e,
             }));
@@ -416,7 +445,7 @@ export const TimelinePage: React.FC<TimelinePageProps> = ({
                                             <p className={`text-dark/75 text-sm leading-relaxed font-medium transition-all ${
                                                 isFocused && expandedId === slide.id
                                                     ? 'line-clamp-none'
-                                                    : isFocused && slide.resources.length > 0
+                                                    : isFocused && (slide.resources.length > 0 || slide.heritageItems.length > 0)
                                                         ? 'line-clamp-2'
                                                         : isFocused
                                                             ? 'line-clamp-4'
@@ -445,6 +474,21 @@ export const TimelinePage: React.FC<TimelinePageProps> = ({
                                             <div className="space-y-2 max-h-[140px] overflow-y-auto pr-1">
                                                 {slide.resources.map((res, ri) => (
                                                     <MomentResourceItem key={res.id ?? ri} resource={res} />
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* ── Patrimoine associé (dérivé de l'événement du slide, carte focalisée) ── */}
+                                    {isFocused && onViewHeritage && slide.heritageItems.length > 0 && (
+                                        <div className="mt-3" onClick={e => e.stopPropagation()}>
+                                            <div className="h-px bg-black/8 mb-3" />
+                                            <p className="text-[9px] font-black uppercase tracking-[0.25em] text-muted-foreground mb-2.5">
+                                                🏛️ Patrimoine associé
+                                            </p>
+                                            <div className="space-y-2 max-h-[140px] overflow-y-auto pr-1">
+                                                {slide.heritageItems.map(h => (
+                                                    <MomentHeritageItem key={h.id} item={h} onClick={() => onViewHeritage(h)} />
                                                 ))}
                                             </div>
                                         </div>

@@ -1,5 +1,7 @@
-import React from 'react';
-import type { HeritageItem, HeritageResource } from '../types';
+import React, { useState, useEffect } from 'react';
+import type { HeritageItem, HeritageResource, HeritageLinkedEvent } from '../types';
+import { apiService } from '../services/api.service';
+import { formatDate } from '../utils/helpers';
 import { ArrowLeftIcon } from '../components/icons/ArrowLeftIcon';
 import { Badge } from '../components/ui/Badge';
 
@@ -80,20 +82,76 @@ const ResourceItem: React.FC<{ resource: HeritageResource }> = ({ resource }) =>
   );
 };
 
+// ── Linked event card ───────────────────────────────────────────────────────
+
+function eventDateLabel(ev: HeritageLinkedEvent): string {
+  if (ev.displayDate) return ev.displayDate;
+  if (ev.startDate) {
+    try { return formatDate(new Date(ev.startDate + 'T12:00:00Z')); } catch { /* ignore */ }
+  }
+  return '';
+}
+
+const LinkedEventCard: React.FC<{ event: HeritageLinkedEvent; onClick?: () => void }> = ({ event, onClick }) => {
+  const dateLabel = eventDateLabel(event);
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex items-center gap-3 w-full text-left p-2.5 rounded-xl border border-border bg-muted/30 hover:bg-muted/60 transition-colors group"
+    >
+      {event.thumbnailUrl ? (
+        <img src={event.thumbnailUrl} alt="" className="h-12 w-12 rounded-lg object-cover shrink-0" referrerPolicy="no-referrer" />
+      ) : (
+        <span className="h-12 w-12 rounded-lg bg-muted flex items-center justify-center text-xl shrink-0">📅</span>
+      )}
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-secondary truncate group-hover:text-primary transition-colors">{event.title}</p>
+        {(dateLabel || event.primaryCountryCode) && (
+          <p className="text-xs text-muted-foreground truncate">
+            {dateLabel}{dateLabel && event.primaryCountryCode ? ' · ' : ''}{event.primaryCountryCode}
+          </p>
+        )}
+      </div>
+      <span className="text-xs text-muted-foreground shrink-0 group-hover:translate-x-0.5 transition-transform">→</span>
+    </button>
+  );
+};
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 interface Props {
   item: HeritageItem;
   onBack: () => void;
+  onViewEvent?: (eventId: string) => void;
 }
 
-export const HeritageDetailPage: React.FC<Props> = ({ item, onBack }) => {
-  const meta = catMeta(item.category);
+export const HeritageDetailPage: React.FC<Props> = ({ item, onBack, onViewEvent }) => {
+  // L'item reçu via la navigation est « léger » (grille, carousel d'événement ou
+  // moment de récit) : ni resources, ni people, ni linkedEvents. On récupère le
+  // détail enrichi par slug, en gardant l'item léger comme affichage immédiat.
+  const [detail, setDetail] = useState<HeritageItem>(item);
 
-  const audioRes   = (item.resources ?? []).filter(r => r.type === 'audio');
-  const videoRes   = (item.resources ?? []).filter(r => r.type === 'video');
-  const imageRes   = (item.resources ?? []).filter(r => r.type === 'image');
-  const docLinks   = (item.resources ?? []).filter(r => r.type === 'pdf' || r.type === 'link');
+  useEffect(() => {
+    setDetail(item);
+    if (!item.slug) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const full = await apiService.getHeritageBySlug(item.slug);
+        if (!cancelled && full) setDetail(full);
+      } catch { /* échec réseau → on conserve l'item léger */ }
+    })();
+    return () => { cancelled = true; };
+  }, [item.slug]);
+
+  const meta = catMeta(detail.category);
+
+  const audioRes     = (detail.resources ?? []).filter(r => r.type === 'audio');
+  const videoRes     = (detail.resources ?? []).filter(r => r.type === 'video');
+  const imageRes     = (detail.resources ?? []).filter(r => r.type === 'image');
+  const docLinks     = (detail.resources ?? []).filter(r => r.type === 'pdf' || r.type === 'link');
+  const linkedEvents = detail.linkedEvents ?? [];
 
   return (
     <div className="max-w-3xl mx-auto pb-bottom-nav md:pb-12">
@@ -110,11 +168,11 @@ export const HeritageDetailPage: React.FC<Props> = ({ item, onBack }) => {
       <article className="bg-card rounded-2xl shadow-soft overflow-hidden">
 
         {/* Cover */}
-        {item.coverUrl ? (
+        {detail.coverUrl ? (
           <div className="relative h-56 sm:h-72 overflow-hidden">
             <img
-              src={item.coverUrl}
-              alt={item.title}
+              src={detail.coverUrl}
+              alt={detail.title}
               className="w-full h-full object-cover"
               referrerPolicy="no-referrer"
             />
@@ -123,9 +181,9 @@ export const HeritageDetailPage: React.FC<Props> = ({ item, onBack }) => {
               <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${meta.bg}`}>
                 {meta.emoji} {meta.label}
               </span>
-              {item.countryCode && (
+              {detail.countryCode && (
                 <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-full bg-white/20 text-white backdrop-blur-sm">
-                  {item.countryCode}
+                  {detail.countryCode}
                 </span>
               )}
             </div>
@@ -140,14 +198,14 @@ export const HeritageDetailPage: React.FC<Props> = ({ item, onBack }) => {
         <div className="p-6 sm:p-8 space-y-6">
 
           {/* Without cover — show badges inline */}
-          {!item.coverUrl && (
+          {!detail.coverUrl && (
             <div className="flex flex-wrap gap-2">
               <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${meta.bg}`}>
                 {meta.emoji} {meta.label}
               </span>
-              {item.countryCode && (
+              {detail.countryCode && (
                 <span className="text-xs font-mono font-bold px-2.5 py-1 rounded-full bg-muted text-secondary">
-                  {item.countryCode}
+                  {detail.countryCode}
                 </span>
               )}
             </div>
@@ -155,16 +213,16 @@ export const HeritageDetailPage: React.FC<Props> = ({ item, onBack }) => {
 
           {/* Title + period */}
           <div>
-            <h1 className="text-2xl sm:text-3xl font-black text-secondary leading-tight">{item.title}</h1>
-            {item.period && (
-              <p className="text-sm text-muted-foreground mt-1 italic">{item.period}</p>
+            <h1 className="text-2xl sm:text-3xl font-black text-secondary leading-tight">{detail.title}</h1>
+            {detail.period && (
+              <p className="text-sm text-muted-foreground mt-1 italic">{detail.period}</p>
             )}
           </div>
 
           {/* Themes */}
-          {item.themes && item.themes.length > 0 && (
+          {detail.themes && detail.themes.length > 0 && (
             <div className="flex flex-wrap gap-2">
-              {item.themes.map(t => (
+              {detail.themes.map(t => (
                 <Badge key={t.id} variant="secondary" style={{ backgroundColor: t.color ? `${t.color}22` : undefined, color: t.color ?? undefined }}>
                   {t.name}
                 </Badge>
@@ -173,16 +231,30 @@ export const HeritageDetailPage: React.FC<Props> = ({ item, onBack }) => {
           )}
 
           {/* Summary */}
-          {item.summary && (
-            <p className="text-base leading-relaxed text-dark/90">{item.summary}</p>
+          {detail.summary && (
+            <p className="text-base leading-relaxed text-dark/90">{detail.summary}</p>
+          )}
+
+          {/* Événements liés */}
+          {linkedEvents.length > 0 && (
+            <section>
+              <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground mb-3">
+                📅 Événements liés <span className="text-muted-foreground/60">({linkedEvents.length})</span>
+              </h2>
+              <div className="space-y-2">
+                {linkedEvents.map(ev => (
+                  <LinkedEventCard key={ev.id} event={ev} onClick={() => onViewEvent?.(ev.id)} />
+                ))}
+              </div>
+            </section>
           )}
 
           {/* People linked */}
-          {item.people && item.people.length > 0 && (
+          {detail.people && detail.people.length > 0 && (
             <div>
               <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground mb-3">Personnages liés</h2>
               <div className="flex flex-wrap gap-3">
-                {item.people.map(p => (
+                {detail.people.map(p => (
                   <div key={p.id} className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-border bg-muted/30">
                     {p.photoUrl ? (
                       <img src={p.photoUrl} alt="" className="h-5 w-5 rounded-full object-cover" />

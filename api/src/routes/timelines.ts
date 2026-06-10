@@ -135,6 +135,19 @@ export async function timelinesRoutes(app: FastifyInstance) {
                 ORDER BY em.position
                 LIMIT 1
               ) sub
+            ), '[]'::json),
+            -- Patrimoine lié à l'événement du moment (dérivé, pas de lien direct récit↔patrimoine).
+            -- Clés JSON en camelCase : non transformées par db.ts (seules les colonnes le sont).
+            'heritageItems',      COALESCE((
+              SELECT JSON_AGG(JSONB_BUILD_OBJECT(
+                'id', hi.id, 'slug', hi.slug, 'title', hi.title,
+                'category', hi.category, 'coverUrl', hi.cover_url,
+                'summary', hi.summary, 'countryCode', hi.country_code
+              ) ORDER BY hi.title)
+              FROM event_heritage_items ehi
+              JOIN heritage_items hi ON hi.id = ehi.heritage_item_id
+              WHERE ehi.event_id = e.id
+                AND hi.status = 'published' AND hi.deleted_at IS NULL
             ), '[]'::json)
           ) ORDER BY se.position ASC
         ) FILTER (WHERE e.id IS NOT NULL), '[]') AS moments

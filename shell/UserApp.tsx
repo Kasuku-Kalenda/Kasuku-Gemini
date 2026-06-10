@@ -136,6 +136,7 @@ export const UserApp: React.FC = () => {
         return (
           <TimelinePage
             onViewEvent={viewEvent}
+            onViewHeritage={navigateToHeritage}
             timelineSlug={payload.timelineSlug ?? null}
             initialEventId={payload.timelineEventId ?? null}
             onBack={goBack}
@@ -215,6 +216,7 @@ export const UserApp: React.FC = () => {
           <HeritageDetailPage
             item={payload.heritageItem}
             onBack={goBack}
+            onViewEvent={viewEventById}
           />
         ) : (
           <HeritageDiscoveryPage onBack={goBack} onSelect={navigateToHeritage} />

@@ -9,6 +9,7 @@
  */
 
 import type { FastifyInstance } from 'fastify';
+import type postgres from 'postgres';
 import sql from '../db';
 import { requireAdmin } from '../middleware/auth';
 import { parsePagination, paginate } from '../utils/pagination';
@@ -17,6 +18,29 @@ import { findBase64Fields } from '../utils/validation';
 
 const CATEGORY_VALUES = ['mask', 'proverb', 'symbol', 'recipe', 'craft', 'music', 'other'] as const;
 const RESOURCE_TYPES  = ['audio', 'image', 'video', 'pdf', 'link'] as const;
+
+// Événements publiés liés à un patrimoine — sous-requête corrélée réutilisable.
+// Volontairement HORS du GROUP BY (sinon produit cartésien avec themes/people/resources).
+// Les clés JSON sont écrites en camelCase : elles ne sont PAS transformées par
+// db.ts (le transform.column.from ne renomme que les colonnes, pas les clés JSON).
+const linkedEventsAgg = (heritageIdColumn: postgres.Fragment) => sql`
+  COALESCE((
+    SELECT JSON_AGG(JSONB_BUILD_OBJECT(
+      'id', e.id, 'slug', e.slug, 'title', e.title, 'summary', e.summary,
+      'displayDate', e.display_date,
+      'startDate', TO_CHAR(e.start_date, 'YYYY-MM-DD'),
+      'primaryCountryCode', e.primary_country_code,
+      'thumbnailUrl', (
+        SELECT m.url FROM event_media em2 JOIN media m ON m.id = em2.media_id
+        WHERE em2.event_id = e.id AND em2.is_cover = true LIMIT 1
+      )
+    ) ORDER BY e.start_date DESC NULLS LAST, e.title)
+    FROM event_heritage_items ehi
+    JOIN events e ON e.id = ehi.event_id
+    WHERE ehi.heritage_item_id = ${heritageIdColumn}
+      AND e.status = 'published' AND e.deleted_at IS NULL
+  ), '[]'::json)
+`;
 
 async function enrichedDetail(id: string) {
   const [item] = await sql`
@@ -30,7 +54,8 @@ async function enrichedDetail(id: string) {
       COALESCE(JSON_AGG(JSONB_BUILD_OBJECT(
         'id', r.id, 'type', r.type, 'url', r.url, 'title', r.title,
         'credit', r.credit, 'position', r.position
-      ) ORDER BY r.position) FILTER (WHERE r.id IS NOT NULL), '[]') AS resources
+      ) ORDER BY r.position) FILTER (WHERE r.id IS NOT NULL), '[]') AS resources,
+      ${linkedEventsAgg(sql`h.id`)} AS "linkedEvents"
     FROM heritage_items h
     LEFT JOIN heritage_themes ht  ON ht.heritage_item_id = h.id
     LEFT JOIN themes t            ON t.id = ht.theme_id
@@ -129,7 +154,8 @@ export async function heritageRoutes(app: FastifyInstance) {
         COALESCE(JSON_AGG(DISTINCT JSONB_BUILD_OBJECT(
           'id', r.id, 'type', r.type, 'url', r.url, 'title', r.title,
           'credit', r.credit, 'position', r.position
-        ) ORDER BY JSONB_BUILD_OBJECT('position', r.position)) FILTER (WHERE r.id IS NOT NULL), '[]') AS resources
+        ) ORDER BY JSONB_BUILD_OBJECT('position', r.position)) FILTER (WHERE r.id IS NOT NULL), '[]') AS resources,
+        ${linkedEventsAgg(sql`h.id`)} AS "linkedEvents"
       FROM heritage_items h
       LEFT JOIN heritage_themes ht   ON ht.heritage_item_id = h.id
       LEFT JOIN themes t             ON t.id = ht.theme_id

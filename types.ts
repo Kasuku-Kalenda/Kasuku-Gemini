@@ -210,7 +210,7 @@ export interface Event {
   // ── Relations (normalisées par le mapper) ─────────────────────────────────
   themes: Theme[];
   people?: Array<{ id: string; slug?: string; name: string; photoUrl?: string | null; role?: string | null }>;
-  heritageItems?: Array<{ id: string; slug: string; title: string; category?: string; coverUrl?: string | null; summary?: string | null; countryCode?: string | null }>;
+  heritageItems?: HeritageLink[];
   media: Media[];                      // construit depuis thumbnailUrl
   sources: Source[];                   // construit depuis sourceLabel/sourceUrl
   trainingModules?: TrainingModule[];  // construit depuis modules[]
@@ -254,6 +254,7 @@ export interface TimelineMoment {
   position: number;
   media: Media[];
   resources?: MomentResource[];  // ressources complémentaires du moment
+  heritageItems?: HeritageLink[]; // patrimoine dérivé de l'événement lié au moment
 }
 
 export interface TimelineNarrative {
@@ -408,6 +409,29 @@ export interface HeritageResource {
   position?: number;
 }
 
+// Référence légère vers un patrimoine (carousel événement, moments de récit).
+export interface HeritageLink {
+  id: string;
+  slug: string;
+  title: string;
+  category?: string;
+  coverUrl?: string | null;
+  summary?: string | null;
+  countryCode?: string | null;
+}
+
+// Événement publié lié à un patrimoine (section « Événements liés » de la fiche patrimoine).
+export interface HeritageLinkedEvent {
+  id: string;
+  slug: string;
+  title: string;
+  summary?: string | null;
+  displayDate?: string | null;
+  startDate?: string | null;
+  primaryCountryCode?: string | null;
+  thumbnailUrl?: string | null;
+}
+
 export interface HeritageItem {
   id: string;
   slug: string;
@@ -425,6 +449,7 @@ export interface HeritageItem {
   themes?: Array<{ id: string; slug: string; name: string; color?: string | null }>;
   people?: Array<{ id: string; slug: string; name: string; photoUrl?: string | null }>;
   resources?: HeritageResource[];
+  linkedEvents?: HeritageLinkedEvent[];
 }
 
 export type MoodleMapMode = "LTI" | "REST" | "OFFLINE";
