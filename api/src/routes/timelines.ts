@@ -137,8 +137,9 @@ export async function timelinesRoutes(app: FastifyInstance) {
               ) sub
             ), '[]'::json),
             -- Patrimoine lié à l'événement du moment (dérivé, pas de lien direct récit↔patrimoine).
-            -- Clés JSON en camelCase : non transformées par db.ts (seules les colonnes le sont).
-            'heritageItems',      COALESCE((
+            -- OPT-IN : renvoyé UNIQUEMENT si l'éditeur a coché se.show_heritage sur ce moment
+            -- (sinon [] → la diapo n'affiche rien). Clés JSON camelCase (non transformées par db.ts).
+            'heritageItems',      CASE WHEN COALESCE(se.show_heritage, false) THEN COALESCE((
               SELECT JSON_AGG(JSONB_BUILD_OBJECT(
                 'id', hi.id, 'slug', hi.slug, 'title', hi.title,
                 'category', hi.category, 'coverUrl', hi.cover_url,
@@ -148,7 +149,7 @@ export async function timelinesRoutes(app: FastifyInstance) {
               JOIN heritage_items hi ON hi.id = ehi.heritage_item_id
               WHERE ehi.event_id = e.id
                 AND hi.status = 'published' AND hi.deleted_at IS NULL
-            ), '[]'::json)
+            ), '[]'::json) ELSE '[]'::json END
           ) ORDER BY se.position ASC
         ) FILTER (WHERE e.id IS NOT NULL), '[]') AS moments
       FROM stories s
@@ -182,6 +183,7 @@ export async function timelinesRoutes(app: FastifyInstance) {
             'cta',                se.cta,
             'resources',          COALESCE(se.cta, '[]'::jsonb),
             'sourceStoryEventId', se.source_story_event_id,
+            'showHeritage',       COALESCE(se.show_heritage, false),
             'dateExact',          TO_CHAR(e.start_date, 'YYYY-MM-DD'),
             'periodText',         e.display_date,
             'media',              COALESCE((
@@ -250,13 +252,13 @@ export async function timelinesRoutes(app: FastifyInstance) {
           INSERT INTO story_events (
             story_id, event_id, position, lang,
             narrative_text, narrative_audio_url, narrative_video_url,
-            quote, quote_author, cta, source_story_event_id
+            quote, quote_author, cta, source_story_event_id, show_heritage
           ) VALUES (
             ${story.id}, ${m.eventId}, ${m.position ?? i}, ${story.lang ?? 'fr'},
             ${m.narrativeText ?? null}, ${m.narrativeAudioUrl ?? null}, ${m.narrativeVideoUrl ?? null},
             ${m.quote ?? null}, ${m.quoteAuthor ?? null},
             ${m.cta ? JSON.stringify(m.cta) : null},
-            ${m.sourceStoryEventId ?? null}
+            ${m.sourceStoryEventId ?? null}, ${m.showHeritage ?? false}
           )
           ON CONFLICT (story_id, event_id) DO NOTHING
         `;
@@ -317,13 +319,13 @@ export async function timelinesRoutes(app: FastifyInstance) {
           INSERT INTO story_events (
             story_id, event_id, position, lang,
             narrative_text, narrative_audio_url, narrative_video_url,
-            quote, quote_author, cta, source_story_event_id
+            quote, quote_author, cta, source_story_event_id, show_heritage
           ) VALUES (
             ${id}, ${m.eventId}, ${m.position ?? i}, ${story.lang ?? 'fr'},
             ${m.narrativeText ?? null}, ${m.narrativeAudioUrl ?? null}, ${m.narrativeVideoUrl ?? null},
             ${m.quote ?? null}, ${m.quoteAuthor ?? null},
             ${m.cta ? JSON.stringify(m.cta) : null},
-            ${m.sourceStoryEventId ?? null}
+            ${m.sourceStoryEventId ?? null}, ${m.showHeritage ?? false}
           )
         `;
       }

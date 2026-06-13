@@ -187,6 +187,7 @@ export const timelineMomentSchema = z.object({
   quote: z.string().optional().nullable(),             // citation d'époque
   quoteAuthor: z.string().optional().nullable(),       // auteur de la citation
   sourceStoryEventId: z.string().optional().nullable(), // ID du StoryEvent source (clonage)
+  showHeritage: z.boolean().default(false),            // opt-in : afficher le patrimoine de l'événement sur ce moment
 });
 
 export const timelineFormSchema = z.object({

@@ -713,6 +713,32 @@ const MomentCard: React.FC<MomentCardProps> = ({
             </div>
           </div>
 
+          {/* Patrimoine associé — opt-in, visible seulement si un événement est lié */}
+          {linkedEvent && (
+            <div className="pt-2 border-t border-muted">
+              <Controller
+                control={form.control}
+                name={`moments.${index}.showHeritage` as any}
+                render={({ field }) => (
+                  <label className="flex items-start gap-2.5 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={!!field.value}
+                      onChange={e => field.onChange(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 accent-primary shrink-0"
+                    />
+                    <span>
+                      <span className="block text-xs font-bold text-secondary">🏛️ Afficher le patrimoine associé sur ce moment</span>
+                      <span className="block text-[10px] text-muted-foreground leading-snug">
+                        Masqué par défaut. Si coché, la diapo de ce moment montrera les éléments du patrimoine liés à « {linkedEvent.title} ».
+                      </span>
+                    </span>
+                  </label>
+                )}
+              />
+            </div>
+          )}
+
           {/* Ressources */}
           <div className="pt-2 border-t border-muted">
             <MomentResources momentIndex={index} form={form} />
@@ -752,6 +778,7 @@ export function TimelineForm({ mode, initialData, onSave }: TimelineFormProps) {
     // media[0] est toujours initialisé avec type:'image' pour que Zod reçoive toujours un type valide
     media: [{ type: 'image' as const, url: '', caption: '' }],
     resources: [], eventId: null,
+    showHeritage: false,
     ...overrides,
   });
 
@@ -778,6 +805,7 @@ export function TimelineForm({ mode, initialData, onSave }: TimelineFormProps) {
       quote: m.quote ?? null,
       quoteAuthor: m.quoteAuthor ?? null,
       sourceStoryEventId: m.sourceStoryEventId ?? null,
+      showHeritage: m.showHeritage ?? false,
     })),
   } : {
     title: '', subtitle: '', slug: '', type: 'evenement',
