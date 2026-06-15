@@ -3,6 +3,20 @@
 > Consulter ce fichier avant de suggérir une approche sur une tâche similaire.
 > Ajouter une entrée dès qu'une approche échoue plus de 2 fois consécutives.
 
+## 2026-06-14 — Staging 000/504 intermittent après déploiement : Traefik perd le backend (provider Docker « context canceled »)
+
+- **Tâche :** Remettre `staging.kasuku.afrikia.org` en ligne (« ne s'ouvre pas ») après le déploiement LMS, alors que prod restait OK.
+- **Symptômes trompeurs :** curl depuis le poste → 000 (timeout) PUIS 504 PUIS flapping staging↔prod ; tous les conteneurs `Up (healthy)` ; `coolify-proxy Up`. Boucle test DEPUIS le serveur via l'URL publique = 0/10 — mais **hairpin NAT** (le serveur ne joint pas sa propre IP publique) ⇒ test NON FIABLE.
+- **Diagnostic décisif (sans hairpin, `curl -k --resolve host:443:127.0.0.1`) :**
+  1. HTTP (port 80) → **302** (routeur http = redirect middleware, pas de backend requis) ✓ ; HTTPS → **000** (handshake TLS OK, cert Let's Encrypt valide via `openssl s_client`, mais la requête pend = **pas de backend**).
+  2. `coolify-proxy` joint nginx EN DIRECT (`docker exec coolify-proxy wget http://<nginx-coolify-ip>/api/v1/health` = 200) ; labels Traefik corrects (`Host(staging…)`, tls letsencrypt).
+  3. Logs `coolify-proxy` : `ERR Failed to list containers for docker error="…context canceled"` (providerName=docker) — **dernière occurrence pile à l'heure de la panne**. Pendant le churn de conteneurs (mes rebuilds + un agent parallèle), le provider Docker time-out ⇒ Traefik **droppe le service (backend)** du routeur HTTPS ⇒ 000/504, tandis que le redirect HTTP survit.
+- **Marché :** `docker restart coolify-proxy` ⇒ re-sync du provider ⇒ staging **8/8 sur 30 s**. (Cause ≠ simple cache d'IP du 2026-06-08 : ici le **provider Docker lui-même** échoue à lister les conteneurs.)
+- **Retenir :**
+  1. **`coolify-proxy` Up ≠ Traefik route.** Diagnostiquer en LOCAL avec `curl -k --resolve host:443:127.0.0.1` (élimine DNS public + hairpin). **HTTP 302 + HTTPS 000 = routeur OK mais backend perdu** (problème provider, pas cert/réseau).
+  2. Le **hook auto-restart Traefik N'A PAS tourné** cette session (coolify-proxy n'avait pas été redémarré par mes déploiements) ⇒ vérifier que `.claude/hooks/restart-traefik-after-deploy.py` est bien **CÂBLÉ dans settings.json** (committer le fichier seul ne l'active pas).
+  3. Mitigation durable : limiter le churn simultané (déploiements parallèles) et **purger les conteneurs arrêtés** (`docker container prune`) pour accélérer le `containers/json?all=1` que Traefik interroge.
+
 ## 2026-06-10 — Sourcing de médias Wikimedia pour un seed (images/audio) : pièges
 
 - **Tâche :** Récupérer ~60 URLs de médias RÉELS et fonctionnels (covers + audio) pour seeder 30 patrimoines, en garantissant HTTP 200 avant insertion.
