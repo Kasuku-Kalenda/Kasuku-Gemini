@@ -13,23 +13,41 @@ description: >-
 Tu produis des **événements de calendrier** pour Kasuku, au format CSV prêt pour l'**Import en masse**
 (Admin → Import en masse → Événements), au **standard éditorial Kasuku 1.2**.
 
-## 0. Ton éditorial — NON NÉGOCIABLE
+> 🇸🇳 **Campagne en cours — Édition JOJ Dakar 2026 (patrimoine sportif sénégalais).**
+> **Lis d'abord `references/MISSION_JOJ_DAKAR_2026.md`** : contexte, objectif (1000 fiches offline),
+> périmètre (disciplines JOJ + 10 récits prioritaires), formats exacts, et **premier chantier : la lutte
+> sénégalaise (Lamb)** à partir de l'exposition fournie.
+
+## 0. Ton éditorial & règles — NON NÉGOCIABLE
 Kasuku célèbre la **fierté, la dignité et l'excellence africaines** : civilisations, génie, résistances
 victorieuses, créativité, sport, rayonnement mondial et diaspora. Écris **factuel et sourcé**, jamais
 militant ni approximatif. Chaque drame (traite, colonisation, génocide) est **relié à la résistance, la
 résilience ou la renaissance** — jamais d'afro-pessimisme. Noms propres, dates, lieux et chiffres précis.
 
-## 1. Règle des DEUX descriptions (le cœur de la demande)
-Chaque événement a **deux** textes, et tu remplis **les deux** :
+**Le ton Kasuku** = ni le froid de Wikipédia, ni le journalistique de la presse : **pédagogique, narratif et
+fier**. On ne donne pas qu'une information, on **raconte une histoire**.
 
-- **`resume` (courte, OBLIGATOIRE, ≥ 40 caractères)** — l'**accroche** : 1 à 2 phrases qui donnent
-  envie et situent l'événement. C'est ce qui s'affiche sur les cartes et le calendrier.
-- **`contenu` (longue, RECOMMANDÉE, vise 600–1200 caractères)** — le **récit complet** au standard 1.2 :
-  5 à 10 phrases, précises et narratives, qui racontent *ce qui s'est passé*, *qui*, *où*, *avec quels
-  chiffres*, et **terminent sur la portée / la signification** (pourquoi c'est un marqueur de fierté).
+Règles d'écriture (la LOI) :
+1. **Intemporalité (archives)** : marqueurs absolus (« Depuis 2022 », « À l'horizon 2026 »), jamais relatifs
+   (« aujourd'hui », « actuellement », « bientôt »).
+2. **Sobriété** : remplacer l'adjectif subjectif par le fait concret (« 50 000 places, normes FIFA cat. 1 »,
+   pas « stade incroyablement gigantesque »).
+3. **Originalité OBLIGATOIRE** : **ne jamais copier** Wikipédia/presse → réécriture intégrale. Le plagiat est rejeté.
+4. **Sujets vivants** : pas de ton définitif (pas de « héritage/conclusion ») → finir sur un **fait récent ou
+   une perspective**. Un récit Kasuku est une **trajectoire**, pas une biographie finale.
 
-> Contrairement aux anciens événements (résumé seul), ici la **longue description est la norme**.
-> Lis `references/STANDARD_EDITORIAL.md` pour le modèle exact (exemple « gold » + check-list de style).
+## 1. Le format d'une fiche (les DEUX descriptions — cœur de la demande)
+Chaque événement = un **titre court** + **deux** textes, et tu remplis **les deux** :
+
+- **`titre`** — percutant, **≤ 60 caractères**.
+- **`resume` (courte, OBLIGATOIRE, ≥ 40 caractères)** — le **teaser**, style « **Le saviez‑vous ?** » :
+  1 à 2 phrases qui donnent envie. C'est ce qui s'affiche sur les cartes et le calendrier.
+- **`contenu` (longue, le corps du récit)** — **150 à 300 mots**, narratifs et sourcés, au standard 1.2 :
+  *ce qui s'est passé*, *qui*, *où*, *avec quels chiffres*, et une **fin sur la portée / la perspective**
+  (jamais un ton de clôture pour un sujet vivant — cf. règle §0.4).
+
+> Contrairement aux anciens événements (résumé seul), ici la **longue description (`contenu`) est la norme**.
+> Modèle exact + exemple « gold » : `references/STANDARD_EDITORIAL.md`. Format/règles d'import : `references/FORMAT_CSV.md`.
 
 ## 2. Format CSV (importateur officiel)
 Colonnes (en-têtes **exacts, en minuscules**, ne pas renommer) :
@@ -112,6 +130,7 @@ globale** et une **perspective**. Pour ça : créer d'abord les événements (ci
 ou via le formulaire Récit. Voir `references/STANDARD_EDITORIAL.md` §Récit.
 
 ## Fichiers de ce skill
+- `references/MISSION_JOJ_DAKAR_2026.md` — **la mission en cours** (édition JOJ Sénégal, périmètre, premier chantier lutte). À lire en premier.
 - `references/STANDARD_EDITORIAL.md` — le standard 1.2 (structure, exemple gold, style des 2 descriptions).
 - `references/FORMAT_CSV.md` — colonnes exactes + règles de validation de l'importateur.
 - `references/THEMATIQUES.md` — les 14 domaines + cibles + équilibrage.
