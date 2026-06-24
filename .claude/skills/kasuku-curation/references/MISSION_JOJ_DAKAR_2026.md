@@ -91,10 +91,15 @@ l'IFAN, l'EBAD avec l'appui de l'AFD. Ce sont des **panneaux informatifs** = **s
 2. **Corroborer** chaque date/nom par ≥ 1 source web (APS, Wiwsport, presse) — l'exposition se cite comme source
    (« Exposition LÀMB, DCIA/IFAN, Dakar 2026 ») mais n'est pas suffisante seule.
 3. **Assembler le récit** « Le Lamb sur le Sable » (intro + ≥ 5 événements + perspective).
-4. **Images (politique verrouillée)** : les couvertures importées doivent être des **images libres et vérifiées**
-   (Wikimedia Commons / domaine public), URL directe testée **HTTP 200 + pertinente** (cf. `SKILL.md §4`).
-   **Ne pas téléverser** les photos de l'exposition comme couvertures : elles servent **uniquement de source de
-   recherche** (lecture des panneaux pour les faits/dates/noms). **Jamais d'image non vérifiée ni hors‑sujet.**
+4. **Images (politique)** : **une image DOIT illustrer le texte** — la pertinence est non négociable (sinon
+   ce n'est plus qu'une encyclopédie). Ordre de préférence :
+   - (a) **image libre PERTINENTE** (Wikimedia / domaine public), URL directe testée **HTTP 200** ;
+   - (b) **à défaut** (cas fréquent pour les figures sénégalaises précises), utiliser une **photo fournie/propre**
+     (ex. les panneaux de l'exposition), **recadrée sur la partie utile** (le visuel seul, **sans le texte autour**),
+     puis **téléversée sur MinIO** → utiliser l'URL servie (`/storage/…`).
+   **Pour le chantier Lamb : on part des photos de l'exposition** (`…/Curation /Exposition/`), recadrées et
+   téléversées sur MinIO. Une cover MinIO préparée pour ce lot est listée dans `assets/lamb_images.md` (le cas échéant).
+   **Jamais d'image hors‑sujet, ni d'image non vérifiée.**
 
 ## 7. Mapping « fiche Fellowship » → données Kasuku (import en masse)
 | Champ fiche (TDR) | Colonne CSV Kasuku | Note |

@@ -83,8 +83,15 @@ Respecte les **règles d'équilibrage** sur chaque lot et sur l'ensemble :
 - **Pas de doublon** : avant d'écrire, récupère les slugs existants (`GET /api/v1/events?limit=1000`) et
   évite les titres/slugs déjà présents.
 
-## 4. Médias — vérifier AVANT d'importer (impératif)
-Une image cassée ou hors-sujet ruine la fiche. Règles (issues d'erreurs réelles, cf. repo `ERRORS.md`) :
+## 4. Médias — l'image DOIT illustrer le texte (impératif)
+**Principe non négociable : une image hors-sujet est INTERDITE** (sinon ce n'est plus qu'une encyclopédie).
+Ordre de préférence :
+1. **Image libre PERTINENTE** (Wikimedia / domaine public), URL directe testée **HTTP 200**.
+2. **À défaut** (fréquent pour des figures sportives sénégalaises précises) : une **photo fournie/propre**
+   **recadrée sur la partie utile** (le visuel seul, **sans le texte autour**), **téléversée sur MinIO**
+   (`/storage/…`). Pour le chantier **Lamb**, partir des photos de l'exposition (cf. `MISSION_JOJ_DAKAR_2026.md §6`).
+
+Règles de vérification (issues d'erreurs réelles, cf. repo `ERRORS.md`) :
 - **URL directe** d'image (`https://upload.wikimedia.org/…/Fichier.jpg`), pas une page web.
 - Source fiable : **Wikimedia Commons** (recherche `filetype:bitmap`) ou image d'article Wikipédia.
 - **Rejeter** : cartes/locators (`*_in_its_region*`, `locator`, `orthographic`), drapeaux/blasons quand on
