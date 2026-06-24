@@ -79,9 +79,9 @@ function parseCSV(text: string): { headers: string[]; rows: Record<string, strin
 
 // ─── Templates CSV ────────────────────────────────────────────────────────────
 
-const EVENTS_TEMPLATE = `titre,slug,resume,dateISO,annee,periode,codePays,slugsThemes,imageUrl,imageLegende,sourceLabel,sourceUrl,slugTimeline
-"Indépendance du Sénégal","independance-senegal","Le 4 avril 1960, le Sénégal proclame son indépendance de la France. Cet événement historique marque la fin de la colonisation française en Afrique de l'Ouest.","1960-04-04","1960","","SN","histoire-politique","https://upload.wikimedia.org/wikipedia/commons/thumb/f/fd/Flag_of_Senegal.svg/800px-Flag_of_Senegal.svg.png","Drapeau du Sénégal","Wikipedia","https://fr.wikipedia.org/wiki/Ind%C3%A9pendance_du_S%C3%A9n%C3%A9gal",""
-"Première Guerre Mondiale","premiere-guerre-mondiale","La Première Guerre mondiale est un conflit militaire mondial qui oppose les grandes puissances européennes et leurs alliés entre 1914 et 1918. Cet événement transforme profondément l'ordre mondial.","","","1914-1918","","histoire-politique","","","",""
+const EVENTS_TEMPLATE = `titre,slug,resume,contenu,dateISO,annee,periode,codePays,slugsThemes,imageUrl,imageLegende,sourceLabel,sourceUrl,slugTimeline
+"Indépendance du Sénégal","independance-senegal","Le 4 avril 1960, le Sénégal proclame son indépendance et ouvre une ère nouvelle pour l'Afrique de l'Ouest.","Le 4 avril 1960, le Sénégal accède à la souveraineté internationale, tournant la page de la colonisation française. Léopold Sédar Senghor, poète et homme d'État, devient le premier président de la République. L'indépendance s'inscrit dans la vague de 1960, ''l'Année de l'Afrique'', qui voit dix-sept nations africaines naître à la liberté. Au-delà du transfert de pouvoir, elle consacre un projet de société porté par la Négritude et l'ambition panafricaine. Le 4 avril demeure la fête nationale, symbole d'une dignité reconquise.","1960-04-04","1960","","SN","histoire,politique","https://upload.wikimedia.org/wikipedia/commons/thumb/f/fd/Flag_of_Senegal.svg/800px-Flag_of_Senegal.svg.png","Drapeau du Sénégal","Wikipedia","https://fr.wikipedia.org/wiki/Ind%C3%A9pendance_du_S%C3%A9n%C3%A9gal",""
+"Sacre du Sénégal à la CAN 2021","sacre-senegal-can-2021","Le 6 février 2022, le Sénégal remporte sa première Coupe d'Afrique des Nations.","La finale de la CAN 2021 se joue le 6 février 2022 au stade d'Olembé de Yaoundé, opposant le Sénégal à l'Égypte. Au terme d'un match fermé (0-0), les Lions s'imposent aux tirs au but (4-3), Sadio Mané inscrivant le penalty décisif. La délivrance arrive après des décennies d'attente et inscrit définitivement le Sénégal au palmarès continental. Ce premier sacre couronne le projet de reconstruction lancé par le sélectionneur Aliou Cissé, ancien capitaine de l'épopée de 2002.","2022-02-06","2022","","SN","sport","","","France 24","https://www.france24.com",""
 `;
 
 const MOMENTS_TEMPLATE = `slugTimeline,slugEvenement,titre,recit,typeDuration,dateExact,textePeriode,imageUrl,imageLegende
@@ -154,6 +154,7 @@ async function importEvents(rows: Record<string, string>[]): Promise<ImportResul
       await adminApi.createEvent({
         title, slug,
         summary:     row['resume'],
+        content:     row['contenu'] || undefined,
         dateISO:     row['dateiso']  || undefined,
         year,
         period:      row['periode']  || undefined,
@@ -405,7 +406,8 @@ export const AdminImportPage: React.FC<AdminImportPageProps> = ({ navigateTo }) 
                   {[
                     ['titre', 'Titre de l\'événement', '✅ Oui'],
                     ['slug', 'Identifiant URL (auto-généré si vide)', '—'],
-                    ['resume', 'Résumé (min 40 caractères)', '✅ Oui'],
+                    ['resume', 'Résumé court — accroche 1-2 phrases (min 40 car.)', '✅ Oui'],
+                    ['contenu', 'Description longue — récit complet (recommandé, plusieurs phrases sourcées)', '—'],
                     ['dateISO', 'Date précise (AAAA-MM-JJ)', '—'],
                     ['annee', 'Année seule (ex: 1960)', '—'],
                     ['periode', 'Période texte (ex: 1914-1918)', '—'],
