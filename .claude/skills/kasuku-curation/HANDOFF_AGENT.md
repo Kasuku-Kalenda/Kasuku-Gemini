@@ -62,6 +62,8 @@ Le token expire → relancer si une requête renvoie 401.
   `{ title, slug, summary, content, dateISO|year|period, countryCode, themeIds:[<uuid>], media:[{type:'image',url,caption}], sources:[{label,url}] }`.
   Résoudre les `themeIds` via `GET /api/v1/themes` (slug→id). Créer en brouillon, publier après contrôle.
 
+> **Avant publication** : passer chaque brouillon par `references/CHECKLIST_VALIDATION.md` (porte qualité AFRIKIA).
+
 ## 6. Garde‑fous (rappel)
 - **Originalité** : aucune copie Wikipédia/presse → réécriture intégrale.
 - **Ton** : pédagogique, narratif, **fier** ; **intemporel** (marqueurs absolus) ; **sobre** (faits, pas d'adjectifs) ;
