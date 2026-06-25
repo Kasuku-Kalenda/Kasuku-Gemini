@@ -42,6 +42,11 @@ unset KPW
 Le token expire → relancer si une requête renvoie 401.
 
 ## 4. Workflow d'un lot
+> ⚠️ **Contexte (critique)** : ne lis PAS toutes les images d'un coup — elles sont très lourdes en tokens et
+> font basculer la session en « contexte 1M » (bloquant). Lis **2–3 images max à la fois**, seulement les
+> panneaux utiles. Travaille par **petits lots (~5 fiches)**, et **note chaque URL MinIO dans `assets/lamb_images.md`
+> immédiatement**. Si le contexte gonfle : `/compact`.
+
 1. **Choisir** le sujet (ici : récit Lamb) → **vérifier l'existant** : `GET /api/v1/events?limit=1000` (éviter doublons de titre/slug).
 2. **Rechercher** : lire les panneaux de l'expo + corroborer dates/noms par ≥ 1 source web (APS, Wiwsport, presse).
 3. **Rédiger** chaque fiche : `titre` (≤60) / `resume` (teaser « Le saviez‑vous ? », ≥40 car.) / `contenu` (150–300 mots, ton Kasuku, **réécriture**) / date / `codePays=SN` / `slugsThemes` (`sport` + éventuellement `histoire`,`culture`) / source.

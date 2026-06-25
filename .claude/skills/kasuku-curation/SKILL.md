@@ -91,6 +91,12 @@ Ordre de préférence :
    **recadrée sur la partie utile** (le visuel seul, **sans le texte autour**), **téléversée sur MinIO**
    (`/storage/…`). Pour le chantier **Lamb**, partir des photos de l'exposition (cf. `MISSION_JOJ_DAKAR_2026.md §6`).
 
+> ⚠️ **ÉCONOMIE DE CONTEXTE (critique).** Les images coûtent ÉNORMÉMENT de tokens. **Ne lis JAMAIS
+> beaucoup de panneaux/images d'un coup** : tu feras exploser le contexte (>200 K → mode « 1M » bloquant).
+> Règle : lire **au plus 2–3 images à la fois**, uniquement celles nécessaires à la fiche en cours ;
+> ne recadre/upload qu'au besoin. Travaille par **petits lots (≈5 fiches)** et **note chaque URL uploadée
+> tout de suite dans `assets/lamb_images.md`** (sinon elle est perdue si la session redémarre).
+
 Règles de vérification (issues d'erreurs réelles, cf. repo `ERRORS.md`) :
 - **URL directe** d'image (`https://upload.wikimedia.org/…/Fichier.jpg`), pas une page web.
 - Source fiable : **Wikimedia Commons** (recherche `filetype:bitmap`) ou image d'article Wikipédia.
