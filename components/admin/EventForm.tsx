@@ -495,13 +495,13 @@ export function EventForm({ mode, initialData, onSave, onCreated, compact = fals
 
           <div>
             <Label htmlFor="summary">
-              Résumé <span className="text-destructive">*</span>
-              <span className="text-muted-foreground text-xs ml-2">(min. 40 caractères)</span>
+              Résumé court (accroche) <span className="text-destructive">*</span>
+              <span className="text-muted-foreground text-xs ml-2">(teaser « Le saviez-vous ? » — min. 40 car.)</span>
             </Label>
             <Textarea
               id="summary"
-              rows={5}
-              placeholder="Décrivez l'événement en détail — son contexte, son importance historique et culturelle…"
+              rows={3}
+              placeholder="Accroche en 1 à 2 phrases qui donnent envie. S'affiche sur les cartes et le calendrier."
               {...form.register('summary')}
               data-error={!!form.formState.errors.summary}
             />
@@ -511,6 +511,23 @@ export function EventForm({ mode, initialData, onSave, onCreated, compact = fals
                 {(form.watch('summary') ?? '').length} / 40 min
               </span>
             </div>
+          </div>
+
+          {/* Description longue (corps du récit) — le contenu principal d'une fiche */}
+          <div>
+            <Label htmlFor="content">
+              Description longue (corps du récit)
+              <span className="text-muted-foreground text-xs ml-2">(recommandé — ≈ 150 à 300 mots)</span>
+            </Label>
+            <Textarea
+              id="content"
+              rows={8}
+              placeholder="Le récit complet : contexte, déroulé précis (noms, dates, lieux, chiffres) et portée. Ton fier et narratif."
+              {...form.register('content')}
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Texte détaillé affiché sur la fiche de l'événement (en plus du résumé court).
+            </p>
           </div>
         </section>
 
@@ -835,13 +852,6 @@ export function EventForm({ mode, initialData, onSave, onCreated, compact = fals
                 <p className="text-xs text-muted-foreground">Cochez si cet événement est célébré chaque année.</p>
               </div>
             </div>
-          </div>
-
-          {/* Description longue */}
-          <div>
-            <Label>Description longue <span className="text-muted-foreground text-xs">(optionnel)</span></Label>
-            <Textarea rows={4} placeholder="Contexte détaillé, analyse, anecdotes…"
-              {...form.register('content')} />
           </div>
 
           {/* Contributeurs */}

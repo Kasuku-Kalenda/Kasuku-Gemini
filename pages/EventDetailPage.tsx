@@ -160,6 +160,13 @@ export const EventDetailPage: React.FC<EventDetailPageProps> = ({ event, onBack,
 
         <div className="prose max-w-none mt-6 text-dark/90">
           <p className="text-lg leading-relaxed">{event.summary}</p>
+          {event.content && event.content.trim() && (
+            <div className="mt-4 space-y-3">
+              {event.content.split(/\n{2,}/).map((para, i) => (
+                <p key={i} className="leading-relaxed">{para}</p>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* LIEN VERS PARCOURS */}

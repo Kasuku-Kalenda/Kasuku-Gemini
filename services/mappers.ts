@@ -82,6 +82,7 @@ export function mapApiEvent(raw: Record<string, unknown>): Event {
     lang:                raw.lang as string | undefined,
     title:               raw.title as string,
     summary:             (raw.summary as string | undefined) ?? '',
+    content:             (raw.content as string | null | undefined) ?? null,
     startDate:           startRaw ?? undefined,
     endDate:             raw.endDate as string | undefined,
     displayDate:         raw.displayDate as string | undefined,

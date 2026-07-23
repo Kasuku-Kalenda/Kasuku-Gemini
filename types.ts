@@ -178,6 +178,7 @@ export interface Event {
   title: string;
   slug: string;
   summary: string;
+  content?: string | null;             // description longue (corps du récit)
   lang?: string;
 
   // ── Champs natifs API (PostgreSQL) ────────────────────────────────────────
